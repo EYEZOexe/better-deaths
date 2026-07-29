@@ -118,17 +118,109 @@ function Assert-MatchingDownloadCountSnapshot {
     }
 }
 
+function Assert-JsonPropertyEquals {
+    param(
+        [string] $ManifestPath,
+        [string] $PropertyName,
+        [object] $ExpectedValue
+    )
+
+    if (-not (Test-Path -LiteralPath $ManifestPath)) {
+        throw "Required manifest does not exist: $ManifestPath"
+    }
+
+    $manifest = Get-Content -Raw -LiteralPath $ManifestPath | ConvertFrom-Json
+    $property = $manifest.PSObject.Properties[$PropertyName]
+    if ($null -eq $property) {
+        throw "Manifest is missing required property ${PropertyName}: $ManifestPath"
+    }
+
+    if ([string] $property.Value -ne [string] $ExpectedValue) {
+        throw "Manifest ${PropertyName} '$($property.Value)' does not match expected value '$ExpectedValue': $ManifestPath"
+    }
+}
+
+function Assert-PackageManifest {
+    param(
+        [string] $ManifestPath,
+        [string] $ExpectedInternalName,
+        [string] $ExpectedVersion,
+        [int] $ExpectedDalamudApiLevel,
+        [object] $ExpectedDownloadCountSnapshot
+    )
+
+    Assert-JsonPropertyEquals -ManifestPath $ManifestPath -PropertyName "InternalName" -ExpectedValue $ExpectedInternalName
+    Assert-JsonPropertyEquals -ManifestPath $ManifestPath -PropertyName "AssemblyVersion" -ExpectedValue $ExpectedVersion
+    Assert-JsonPropertyEquals -ManifestPath $ManifestPath -PropertyName "DalamudApiLevel" -ExpectedValue $ExpectedDalamudApiLevel
+    Assert-MatchingDownloadCountSnapshot -ManifestPath $ManifestPath -ExpectedSnapshot $ExpectedDownloadCountSnapshot
+}
+
+function Assert-ExactPackageFiles {
+    param(
+        [string] $DirectoryPath,
+        [string] $ExpectedAssemblyName
+    )
+
+    $rootPath = [System.IO.Path]::GetFullPath($DirectoryPath).TrimEnd(
+        [System.IO.Path]::DirectorySeparatorChar,
+        [System.IO.Path]::AltDirectorySeparatorChar)
+    $expectedFiles = @(
+        "$ExpectedAssemblyName.deps.json",
+        "$ExpectedAssemblyName.dll",
+        "$ExpectedAssemblyName.json"
+    ) | Sort-Object
+    $actualFiles = @(Get-ChildItem -LiteralPath $rootPath -Recurse -File | ForEach-Object {
+        $_.FullName.Substring($rootPath.Length).TrimStart(
+            [System.IO.Path]::DirectorySeparatorChar,
+            [System.IO.Path]::AltDirectorySeparatorChar).Replace("\", "/")
+    } | Sort-Object)
+    $difference = @(Compare-Object -ReferenceObject $expectedFiles -DifferenceObject $actualFiles)
+    if ($difference.Count -gt 0) {
+        throw "Package files must be exactly [$($expectedFiles -join ', ')], found [$($actualFiles -join ', ')]."
+    }
+}
+
 $projectFullPath = ConvertTo-AbsolutePath -BasePath (Get-Location).Path -Path $ProjectDir
 $outputFullPath = ConvertTo-AbsolutePath -BasePath $projectFullPath -Path $OutputPath
 $sourceManifestPath = Join-Path $projectFullPath "$AssemblyName.json"
 $generatedManifestPath = Join-Path $outputFullPath "$AssemblyName.json"
 $packagedManifestPath = Join-Path (Join-Path $outputFullPath $AssemblyName) "$AssemblyName.json"
+$projectFilePath = Join-Path $projectFullPath "$AssemblyName.csproj"
+if (-not (Test-Path -LiteralPath $projectFilePath)) {
+    throw "Project file does not exist: $projectFilePath"
+}
+
+[xml] $project = Get-Content -Raw -LiteralPath $projectFilePath
+$versionNode = $project.SelectSingleNode("/Project/PropertyGroup/Version")
+if ($null -eq $versionNode -or [string]::IsNullOrWhiteSpace($versionNode.InnerText)) {
+    throw "Project Version is missing: $projectFilePath"
+}
+
+$expectedVersion = $versionNode.InnerText.Trim()
+$projectSdk = [string] $project.Project.Sdk
+if ($projectSdk -notmatch "^Dalamud\.NET\.Sdk/(?<ApiLevel>\d+)(?:\.|$)") {
+    throw "Could not derive Dalamud API level from project SDK '$projectSdk': $projectFilePath"
+}
+
+$expectedDalamudApiLevel = [int] $Matches.ApiLevel
 $expectedDownloadCountSnapshot = Get-DownloadCountSnapshot -ManifestPath $sourceManifestPath
+Assert-JsonPropertyEquals -ManifestPath $sourceManifestPath -PropertyName "InternalName" -ExpectedValue $AssemblyName
 
 Sync-DownloadCountSnapshot -ManifestPath $generatedManifestPath -ExpectedSnapshot $expectedDownloadCountSnapshot
 Sync-DownloadCountSnapshot -ManifestPath $packagedManifestPath -ExpectedSnapshot $expectedDownloadCountSnapshot
 
-Assert-MatchingDownloadCountSnapshot -ManifestPath $generatedManifestPath -ExpectedSnapshot $expectedDownloadCountSnapshot
+Assert-PackageManifest `
+    -ManifestPath $generatedManifestPath `
+    -ExpectedInternalName $AssemblyName `
+    -ExpectedVersion $expectedVersion `
+    -ExpectedDalamudApiLevel $expectedDalamudApiLevel `
+    -ExpectedDownloadCountSnapshot $expectedDownloadCountSnapshot
+Assert-PackageManifest `
+    -ManifestPath $packagedManifestPath `
+    -ExpectedInternalName $AssemblyName `
+    -ExpectedVersion $expectedVersion `
+    -ExpectedDalamudApiLevel $expectedDalamudApiLevel `
+    -ExpectedDownloadCountSnapshot $expectedDownloadCountSnapshot
 
 $zipPath = Join-Path (Join-Path $outputFullPath $AssemblyName) "latest.zip"
 if (-not (Test-Path -LiteralPath $zipPath)) {
@@ -141,12 +233,18 @@ try {
     Expand-Archive -LiteralPath $zipPath -DestinationPath $tempPath -Force
     Sync-DownloadCountSnapshot -ManifestPath (Join-Path $tempPath "$AssemblyName.json") -ExpectedSnapshot $expectedDownloadCountSnapshot
     Compress-Archive -Path (Join-Path $tempPath "*") -DestinationPath $zipPath -Force
-    Assert-MatchingDownloadCountSnapshot -ManifestPath (Join-Path $tempPath "$AssemblyName.json") -ExpectedSnapshot $expectedDownloadCountSnapshot
+    Assert-ExactPackageFiles -DirectoryPath $tempPath -ExpectedAssemblyName $AssemblyName
+    Assert-PackageManifest `
+        -ManifestPath (Join-Path $tempPath "$AssemblyName.json") `
+        -ExpectedInternalName $AssemblyName `
+        -ExpectedVersion $expectedVersion `
+        -ExpectedDalamudApiLevel $expectedDalamudApiLevel `
+        -ExpectedDownloadCountSnapshot $expectedDownloadCountSnapshot
     if ($expectedDownloadCountSnapshot.HasDownloadCount) {
-        Write-Host "Synchronized and validated package manifest with DownloadCount snapshot $($expectedDownloadCountSnapshot.DownloadCount)."
+        Write-Host "Validated Better Deaths package invariants with DownloadCount snapshot $($expectedDownloadCountSnapshot.DownloadCount)."
     }
     else {
-        Write-Host "Synchronized and validated package manifest without DownloadCount."
+        Write-Host "Validated Better Deaths package invariants without DownloadCount."
     }
 }
 finally {

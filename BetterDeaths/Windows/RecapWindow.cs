@@ -22,7 +22,6 @@ public sealed class RecapWindow : Window, IDisposable
     private DeathSelectionTarget? pendingDeathSelection;
     private uint recordedPullDutyFilter = AllRecordedPullDuties;
     private bool clearPendingDeathSelection;
-    private bool collapseRecordedPullsRequested;
     private bool showDebugTab;
     private bool windowStylePushed;
     private bool reviewTimelineSplitterDragging;
@@ -139,6 +138,9 @@ public sealed class RecapWindow : Window, IDisposable
     private const float ReplayPathOfLightTowerDistance = 8.0f;
     private const float ReplayPathOfLightFallbackDurationSeconds = 10.2f;
     private const float ReplayActionEffectSampleSnapWindowSeconds = 0.075f;
+    private const float ReplayActorTrailingHoldSeconds = 1.5f;
+    private const float ReplayActorLeadingHoldSeconds = 0.75f;
+    private const float ReplayActorMaximumInterpolationGapSeconds = 2.0f;
     private const float ReplayUntargetableStationaryHideSeconds = 15.0f;
     private const float ReplayPositionMovementEpsilon = 0.05f;
     private const float ReplayStationaryMaxSampleGapSeconds = 2.0f;
@@ -164,11 +166,13 @@ public sealed class RecapWindow : Window, IDisposable
     private const float ReplayMitigationOverlayDefaultWidthMax = 340.0f;
     private const float ReplayMitigationOverlayDefaultHeight = 156.0f;
     private const float ReplayMitigationOverlayMinHeight = 86.0f;
-    private const float ReplayMitigationOverlayMaxHeight = 300.0f;
+    private const float ReplayMitigationOverlayMaxHeight = 480.0f;
     private const float ReplayMitigationOverlayHeaderHeight = 22.0f;
     private const float ReplayMitigationOverlayResizeCornerSize = 20.0f;
     private const float ReplayMitigationOverlayRowGap = 5.0f;
     private const float ReplayMitigationOverlayIconSize = 20.0f;
+    private const float ReplayPartyHpRowHeight = 30.0f;
+    private const float ReplayPartyHpBarHeight = 8.0f;
     private const float ReplayMitigationOverlaySnapAnimationSpeed = 16.0f;
     private const float ReplayMitigationExternalPanelGap = 10.0f;
     private const float ReplayMitigationExternalPanelTransitionSeconds = 0.30f;
@@ -208,6 +212,7 @@ public sealed class RecapWindow : Window, IDisposable
     private const int MaxReplayMarkerBadgesPerActor = 3;
     private const string ReplayPathOfLightRawEventKind = "dmu-p2-path-of-light";
     private const string ReplayDmuP1FlagrantFireRawEventKind = "dmu-p1-flagrant-fire";
+    private const string ReplayDmuP5ArenaHoleRawEventKind = "dmu-p5-arena-hole";
     private const float PullBodyIndent = 8.0f;
     private const float DeathDetailIndent = 8.0f;
     private const float SectionBodyIndent = 8.0f;
@@ -353,13 +358,15 @@ public sealed class RecapWindow : Window, IDisposable
         float ElapsedSeconds);
 
     private sealed record ReplayMitigationExternalPanelTransitionState(
-        IReadOnlyList<ReplayMitigationOverlayEntry> Entries,
+        IReadOnlyList<ReplayPositionSnapshot> PartyHpEntries,
+        IReadOnlyList<ReplayMitigationOverlayEntry> MitigationEntries,
         Vector2 Size,
         float Visibility);
 
     private readonly record struct ReplayMitigationExternalPanelDisplay(
         bool Visible,
-        IReadOnlyList<ReplayMitigationOverlayEntry> Entries,
+        IReadOnlyList<ReplayPositionSnapshot> PartyHpEntries,
+        IReadOnlyList<ReplayMitigationOverlayEntry> MitigationEntries,
         Vector2 Size,
         float Alpha,
         float SlideOffsetX);
@@ -904,7 +911,9 @@ public sealed class RecapWindow : Window, IDisposable
             ImGui.CalcTextSize(nai).X +
             ImGui.CalcTextSize(middle).X +
             ImGui.CalcTextSize(you).X;
-        var creditX = MathF.Max(start.X, ImGui.GetWindowContentRegionMax().X - creditWidth);
+        var creditX = MathF.Max(
+            start.X,
+            ImGui.GetWindowContentRegionMax().X - ModernShellPadding - creditWidth);
         if (creditX > ImGui.GetCursorPosX() + (ImGui.GetStyle().ItemSpacing.X * 2.0f))
         {
             ImGui.SameLine(creditX);
@@ -1544,7 +1553,7 @@ public sealed class RecapWindow : Window, IDisposable
         if (detail is null)
         {
             DrawReplaySurfaceHeader($"Pull {summary.PullNumber} Replay", BuildReplayHeaderMeta(summary));
-            ImGui.TextDisabled(plugin.RecordedPullHistoryLoading
+            ImGui.TextDisabled(plugin.RecordedPullHistoryLoading || plugin.IsRecordedPullDetailsLoading(summary)
                 ? "Loading replay..."
                 : "Replay details could not be loaded.");
             DrawReviewPaneBottomPadding();
@@ -4998,121 +5007,6 @@ public sealed class RecapWindow : Window, IDisposable
         return string.IsNullOrWhiteSpace(initials) ? memberName : initials;
     }
 
-    private void DrawRecordedPulls()
-    {
-        ImGui.Separator();
-        ImGui.TextUnformatted("Recorded pulls");
-        DrawRecordedPullHeaderButtons();
-        DrawRecordedPullControls();
-        if (plugin.RecordedPulls.Count == 0)
-        {
-            ImGui.TextDisabled(plugin.RecordedPullHistoryLoading
-                ? "Loading saved pulls..."
-                : "No recorded pulls kept yet.");
-            collapseRecordedPullsRequested = false;
-            return;
-        }
-
-        var visiblePulls = GetVisibleRecordedPulls().ToList();
-        if (visiblePulls.Count == 0)
-        {
-            ImGui.TextDisabled("No recorded pulls match the selected duty.");
-            collapseRecordedPullsRequested = false;
-            return;
-        }
-
-        foreach (var (summary, pullNumber) in visiblePulls)
-        {
-            var pullId = $"{summary.PullNumber}:{summary.CapturedAtUtc.Ticks}";
-            var header = $"Pull {pullNumber} - {summary.TerritoryName} - Timer {FormatCombatTimer(summary.PullElapsedSeconds)}###RecordedPull{pullId}";
-            if (PendingDeathSelectionMatchesRecordedPull(summary))
-            {
-                ImGui.SetNextItemOpen(true, ImGuiCond.Always);
-            }
-            else if (collapseRecordedPullsRequested)
-            {
-                ImGui.SetNextItemOpen(false, ImGuiCond.Always);
-            }
-
-            if (!ImGui.CollapsingHeader(header))
-            {
-                continue;
-            }
-
-            using var recordedPullIndent = new ImGuiIndentScope(PullBodyIndent);
-            ImGui.TextDisabled(FormatRecordedPullCapturedTime(summary));
-            var detail = plugin.GetRecordedPullDetails(summary);
-            if (detail is null)
-            {
-                ImGui.TextDisabled(plugin.RecordedPullHistoryLoading
-                    ? "Loading pull details..."
-                    : "Pull details could not be loaded.");
-                continue;
-            }
-
-            DrawDeathTimeline(detail.Deaths, $"Pull{pullId}");
-            DrawDeathDetails(
-                detail.Deaths,
-                $"Pull{pullId}",
-                selectionSource: DeathSelectionSource.Recorded,
-                recordedPull: summary,
-                pullReplayMarkers: detail.ReplayMarkers);
-        }
-
-        collapseRecordedPullsRequested = false;
-    }
-
-    private void DrawRecordedPullHeaderButtons()
-    {
-        const string collapseIcon = "▲";
-        const string collapseLabel = $"{collapseIcon}##CollapseRecordedPulls";
-        var trashIcon = FontAwesomeIcon.Trash.ToIconString();
-        var style = ImGui.GetStyle();
-        var collapseButtonWidth = ImGui.CalcTextSize(collapseIcon).X + (style.FramePadding.X * 2.0f);
-        var clearButtonWidth = ImGui.CalcTextSize(trashIcon).X + (style.FramePadding.X * 2.0f);
-        var buttonWidth = MathF.Max(collapseButtonWidth, clearButtonWidth);
-        var buttonX = ImGui.GetCursorPosX() + ImGui.GetContentRegionAvail().X - buttonWidth;
-
-        var hasRecordedPulls = plugin.RecordedPulls.Count > 0;
-        ImGui.SameLine(MathF.Max(ImGui.GetCursorPosX(), buttonX + buttonWidth - clearButtonWidth));
-        if (!hasRecordedPulls)
-        {
-            ImGui.BeginDisabled();
-        }
-
-        if (DrawTransparentIconButton("ClearRecordedPulls", FontAwesomeIcon.Trash) &&
-            ImGui.GetIO().KeyCtrl)
-        {
-            plugin.ClearRecordedPulls();
-            pendingDeathSelection = null;
-            collapseRecordedPullsRequested = false;
-        }
-
-        if (!hasRecordedPulls)
-        {
-            ImGui.EndDisabled();
-        }
-
-        if (ImGui.IsItemHovered())
-        {
-            SetThemedTooltip("Ctrl+click to delete stored death recaps");
-        }
-
-        ImGui.SetCursorPosX(buttonX + buttonWidth - collapseButtonWidth);
-        using (new TransparentButtonScope())
-        {
-            if (ImGui.SmallButton(collapseLabel))
-            {
-                collapseRecordedPullsRequested = true;
-            }
-        }
-
-        if (ImGui.IsItemHovered())
-        {
-            SetThemedTooltip("Collapse all pulls");
-        }
-    }
-
     private void DrawChangelogTabItem()
     {
         var highlight = ShouldHighlightChangelogTab();
@@ -7420,14 +7314,7 @@ public sealed class RecapWindow : Window, IDisposable
             var checkboxValue = selected;
             if (DrawThemedCheckbox($"##PossibleMitigation{selectionKey}", ref checkboxValue))
             {
-                if (checkboxValue)
-                {
-                    selectedPossibleMitigationKeys.Add(selectionKey);
-                }
-                else
-                {
-                    selectedPossibleMitigationKeys.Remove(selectionKey);
-                }
+                SetPossibleMitigationSelected(options, idSuffix, option, checkboxValue);
             }
 
             ImGui.SameLine(0.0f, MathF.Max(2.0f, ImGui.GetStyle().ItemInnerSpacing.X * 0.5f));
@@ -7481,14 +7368,7 @@ public sealed class RecapWindow : Window, IDisposable
             var checkboxValue = selected;
             if (DrawThemedCheckbox($"##PossibleMitigation{selectionKey}", ref checkboxValue))
             {
-                if (checkboxValue)
-                {
-                    selectedPossibleMitigationKeys.Add(selectionKey);
-                }
-                else
-                {
-                    selectedPossibleMitigationKeys.Remove(selectionKey);
-                }
+                SetPossibleMitigationSelected(options, idSuffix, option, checkboxValue);
             }
 
             ImGui.SetCursorScreenPos(new Vector2(
@@ -7711,7 +7591,7 @@ public sealed class RecapWindow : Window, IDisposable
         var selectedStatuses = selectedOptions
             .SelectMany(option => option.Statuses)
             .ToList();
-        var combinedStatuses = DeduplicateWhatIfStatuses(activeStatuses.Concat(selectedStatuses));
+        var combinedStatuses = WhatIfMitigationRules.DeduplicateStatuses(activeStatuses.Concat(selectedStatuses));
         var potentialDamage = CalculateDamageWithAdditionalMitigation(damageEvents, selectedStatuses);
         var preventedDamage = observedDamage.Value > potentialDamage
             ? observedDamage.Value - potentialDamage
@@ -7744,10 +7624,11 @@ public sealed class RecapWindow : Window, IDisposable
         IReadOnlyList<CombatEventRecord> damageEvents,
         IReadOnlyList<StatusSnapshot> selectedStatuses)
     {
+        var deduplicatedStatuses = WhatIfMitigationRules.DeduplicateStatuses(selectedStatuses);
         var total = 0UL;
         foreach (var damageEvent in damageEvents)
         {
-            total += ApplyAdditionalMitigation(damageEvent.Amount, damageEvent.DamageType, selectedStatuses);
+            total += ApplyAdditionalMitigation(damageEvent.Amount, damageEvent.DamageType, deduplicatedStatuses);
         }
 
         return total;
@@ -7807,20 +7688,28 @@ public sealed class RecapWindow : Window, IDisposable
             string.Equals(activeStatus.Name, status.Name, StringComparison.OrdinalIgnoreCase));
     }
 
-    private static IReadOnlyList<StatusSnapshot> DeduplicateWhatIfStatuses(IEnumerable<StatusSnapshot> statuses)
+    private void SetPossibleMitigationSelected(
+        IReadOnlyList<PossibleMitigationSnapshot> options,
+        string idSuffix,
+        PossibleMitigationSnapshot option,
+        bool selected)
     {
-        var deduplicated = new List<StatusSnapshot>();
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var status in statuses)
+        var selectionKey = BuildPossibleMitigationSelectionKey(idSuffix, option);
+        if (!selected)
         {
-            var key = status.Id == 0 ? status.Name : status.Id.ToString(CultureInfo.InvariantCulture);
-            if (seen.Add(key))
+            selectedPossibleMitigationKeys.Remove(selectionKey);
+            return;
+        }
+
+        foreach (var candidate in options)
+        {
+            if (WhatIfMitigationRules.ShareStatus(option.Statuses, candidate.Statuses))
             {
-                deduplicated.Add(status);
+                selectedPossibleMitigationKeys.Remove(BuildPossibleMitigationSelectionKey(idSuffix, candidate));
             }
         }
 
-        return deduplicated;
+        selectedPossibleMitigationKeys.Add(selectionKey);
     }
 
     private static string BuildPossibleMitigationSelectionKey(string idSuffix, PossibleMitigationSnapshot option)
@@ -7969,7 +7858,7 @@ public sealed class RecapWindow : Window, IDisposable
             plugin.SetShowReplayPlayerHp(showReplayPlayerHp);
         }
 
-        DrawSettingsTooltip("Shows compact HP and shield percentages on the replay canvas.");
+        DrawSettingsTooltip("Shows the party HP and shield panel beside the replay.");
         if (CanFitInlineReplayControl(GetReplayWorldMarkerOpacityControlMinWidth(style), style))
         {
             ImGui.SameLine();
@@ -9134,28 +9023,34 @@ public sealed class RecapWindow : Window, IDisposable
             return actionEffectPosition;
         }
 
-        if (previous is null)
+        var selection = ReplaySampleSelection.Select(
+            previous?.SeenAtUtc,
+            next?.SeenAtUtc,
+            selectedAtUtc,
+            TimeSpan.FromSeconds(ReplayActorTrailingHoldSeconds),
+            TimeSpan.FromSeconds(ReplayActorLeadingHoldSeconds),
+            TimeSpan.FromSeconds(ReplayActorMaximumInterpolationGapSeconds));
+        if (selection.Kind == ReplaySampleSelectionKind.None)
         {
-            return next is not null && next.SeenAtUtc - selectedAtUtc <= TimeSpan.FromSeconds(0.75)
-                ? next
-                : null;
+            return null;
         }
 
-        if (next is null || next.SeenAtUtc == previous.SeenAtUtc)
-        {
-            return selectedAtUtc - previous.SeenAtUtc <= TimeSpan.FromSeconds(1.5)
-                ? previous
-                : null;
-        }
-
-        if (selectedAtUtc - previous.SeenAtUtc > TimeSpan.FromSeconds(1.5) ||
-            next.SeenAtUtc - selectedAtUtc > TimeSpan.FromSeconds(1.5))
+        if (selection.Kind == ReplaySampleSelectionKind.Previous)
         {
             return previous;
         }
 
-        var spanSeconds = Math.Max(0.001f, (float)(next.SeenAtUtc - previous.SeenAtUtc).TotalSeconds);
-        var t = Math.Clamp((float)(selectedAtUtc - previous.SeenAtUtc).TotalSeconds / spanSeconds, 0.0f, 1.0f);
+        if (selection.Kind == ReplaySampleSelectionKind.Next)
+        {
+            return next;
+        }
+
+        if (previous is null || next is null)
+        {
+            return null;
+        }
+
+        var t = selection.Interpolation;
         return previous with
         {
             SeenAtUtc = selectedAtUtc,
@@ -9810,15 +9705,20 @@ public sealed class RecapWindow : Window, IDisposable
         var availableWidth = MathF.Max(ReplayCanvasMinSide, ImGui.GetContentRegionAvail().X);
         var canvasSide = GetReplayCanvasSide(availableWidth);
         var canvasSize = new Vector2(canvasSide, canvasSide);
+        var partyHpEntries = BuildReplayPartyHpEntries(actorStates);
         var mitigationOverlayEntries = BuildReplayMitigationOverlayEntries(mitigations, scrubSeconds);
+        var hasReplayStatusEntries = partyHpEntries.Count > 0 || mitigationOverlayEntries.Count > 0;
         var canUseExternalMitigationPanel = TryGetReplayMitigationExternalPanelSize(
             availableWidth,
             canvasSide,
+            partyHpEntries,
+            mitigationOverlayEntries,
             out var targetExternalMitigationPanelSize);
         var externalMitigationPanel = UpdateReplayMitigationExternalPanelDisplay(
             idSuffix,
-            canUseExternalMitigationPanel && mitigationOverlayEntries.Count > 0,
+            canUseExternalMitigationPanel && hasReplayStatusEntries,
             canUseExternalMitigationPanel,
+            partyHpEntries,
             mitigationOverlayEntries,
             targetExternalMitigationPanelSize);
         var useExternalMitigationPanel = externalMitigationPanel.Visible;
@@ -9856,7 +9756,12 @@ public sealed class RecapWindow : Window, IDisposable
         var resizeState = SubmitReplayCanvasResizeHandles(idSuffix, canvasStart, canvasSize, availableWidth);
         var mitigationOverlayState = useExternalMitigationPanel
             ? default
-            : SubmitReplayMitigationOverlayInput(idSuffix, mitigationOverlayEntries, canvasStart, canvasSize);
+            : SubmitReplayMitigationOverlayInput(
+                idSuffix,
+                partyHpEntries,
+                mitigationOverlayEntries,
+                canvasStart,
+                canvasSize);
         var excludedCanvasInputRects = new List<(Vector2 Start, Vector2 Size)> { zoomOverlayRect };
         if (mitigationOverlayState.Visible)
         {
@@ -9900,7 +9805,7 @@ public sealed class RecapWindow : Window, IDisposable
             DrawCenteredCanvasText(drawList, canvasStart, canvasSize, "Replay positions could not be mapped.");
             if (!useExternalMitigationPanel)
             {
-                DrawReplayMitigationOverlay(idSuffix, mitigationOverlayEntries, mitigationOverlayState);
+                DrawReplayMitigationOverlay(idSuffix, partyHpEntries, mitigationOverlayEntries, mitigationOverlayState);
             }
 
             DrawReplayCanvasResizeHandleVisuals(drawList, canvasStart, canvasSize, resizeState);
@@ -9909,7 +9814,8 @@ public sealed class RecapWindow : Window, IDisposable
             if (useExternalMitigationPanel)
             {
                 DrawReplayMitigationExternalPanel(
-                    externalMitigationPanel.Entries,
+                    externalMitigationPanel.PartyHpEntries,
+                    externalMitigationPanel.MitigationEntries,
                     canvasStart + new Vector2(canvasSide + ReplayMitigationExternalPanelGap + externalMitigationPanel.SlideOffsetX, 0.0f),
                     externalMitigationPanel.Size,
                     externalMitigationPanel.Alpha);
@@ -9962,7 +9868,7 @@ public sealed class RecapWindow : Window, IDisposable
         DrawDeathReplayZoomOverlay(idSuffix, canvasStart, canvasSize);
         if (!useExternalMitigationPanel)
         {
-            DrawReplayMitigationOverlay(idSuffix, mitigationOverlayEntries, mitigationOverlayState);
+            DrawReplayMitigationOverlay(idSuffix, partyHpEntries, mitigationOverlayEntries, mitigationOverlayState);
         }
 
         DrawReplayCanvasResizeHandleVisuals(drawList, canvasStart, canvasSize, resizeState);
@@ -9973,7 +9879,8 @@ public sealed class RecapWindow : Window, IDisposable
         if (useExternalMitigationPanel)
         {
             DrawReplayMitigationExternalPanel(
-                externalMitigationPanel.Entries,
+                externalMitigationPanel.PartyHpEntries,
+                externalMitigationPanel.MitigationEntries,
                 canvasStart + new Vector2(canvasSide + ReplayMitigationExternalPanelGap + externalMitigationPanel.SlideOffsetX, 0.0f),
                 externalMitigationPanel.Size,
                 externalMitigationPanel.Alpha);
@@ -10054,7 +9961,8 @@ public sealed class RecapWindow : Window, IDisposable
         string idSuffix,
         bool targetVisible,
         bool canDrawExternalPanel,
-        IReadOnlyList<ReplayMitigationOverlayEntry> targetEntries,
+        IReadOnlyList<ReplayPositionSnapshot> targetPartyHpEntries,
+        IReadOnlyList<ReplayMitigationOverlayEntry> targetMitigationEntries,
         Vector2 targetSize)
     {
         var hasState = replayMitigationExternalPanelTransitionByDeathId.TryGetValue(idSuffix, out var state);
@@ -10076,10 +9984,15 @@ public sealed class RecapWindow : Window, IDisposable
         var nextVisibility = targetVisible
             ? MathF.Min(1.0f, currentVisibility + visibilityStep)
             : MathF.Max(0.0f, currentVisibility - visibilityStep);
-        var entries = targetVisible
-            ? targetEntries
+        var partyHpEntries = targetVisible
+            ? targetPartyHpEntries
             : hasState
-                ? state!.Entries
+                ? state!.PartyHpEntries
+                : [];
+        var mitigationEntries = targetVisible
+            ? targetMitigationEntries
+            : hasState
+                ? state!.MitigationEntries
                 : [];
         var size = targetVisible
             ? targetSize
@@ -10087,21 +10000,26 @@ public sealed class RecapWindow : Window, IDisposable
                 ? state!.Size
                 : targetSize;
 
-        if (entries.Count == 0 || size.X <= 1.0f || size.Y <= 1.0f || nextVisibility <= 0.01f)
+        if ((partyHpEntries.Count == 0 && mitigationEntries.Count == 0) ||
+            size.X <= 1.0f ||
+            size.Y <= 1.0f ||
+            nextVisibility <= 0.01f)
         {
             replayMitigationExternalPanelTransitionByDeathId.Remove(idSuffix);
             return default;
         }
 
         replayMitigationExternalPanelTransitionByDeathId[idSuffix] = new ReplayMitigationExternalPanelTransitionState(
-            entries,
+            partyHpEntries,
+            mitigationEntries,
             size,
             nextVisibility);
 
         var alpha = SmoothStep(nextVisibility);
         return new ReplayMitigationExternalPanelDisplay(
             true,
-            entries,
+            partyHpEntries,
+            mitigationEntries,
             size,
             alpha,
             (1.0f - alpha) * ReplayMitigationExternalPanelSlideOffset);
@@ -10116,6 +10034,8 @@ public sealed class RecapWindow : Window, IDisposable
     private bool TryGetReplayMitigationExternalPanelSize(
         float availableWidth,
         float canvasSide,
+        IReadOnlyList<ReplayPositionSnapshot> partyHpEntries,
+        IReadOnlyList<ReplayMitigationOverlayEntry> mitigationEntries,
         out Vector2 size)
     {
         size = default;
@@ -10138,13 +10058,34 @@ public sealed class RecapWindow : Window, IDisposable
         var maxHeight = MathF.Max(
             ReplayMitigationOverlayMinHeight,
             MathF.Min(ReplayMitigationOverlayMaxHeight, canvasSide));
+        var configuredHeight = configuration.ReplayMitigationOverlayHeight <= 0.0f
+            ? ReplayMitigationOverlayDefaultHeight
+            : configuration.ReplayMitigationOverlayHeight;
+        var targetHeight = MathF.Abs(configuredHeight - ReplayMitigationOverlayDefaultHeight) <= 0.5f
+            ? MathF.Max(configuredHeight, GetReplayStatusPanelPreferredHeight(partyHpEntries, mitigationEntries))
+            : configuredHeight;
         var height = Math.Clamp(
-            configuration.ReplayMitigationOverlayHeight <= 0.0f ? ReplayMitigationOverlayDefaultHeight : configuration.ReplayMitigationOverlayHeight,
+            targetHeight,
             ReplayMitigationOverlayMinHeight,
             maxHeight);
 
         size = new Vector2(width, height);
         return true;
+    }
+
+    private IReadOnlyList<ReplayPositionSnapshot> BuildReplayPartyHpEntries(
+        IReadOnlyList<ReplayPositionSnapshot> actorStates)
+    {
+        if (!configuration.ShowReplayPlayerHp)
+        {
+            return [];
+        }
+
+        return actorStates
+            .Where(actor => actor.ActorKind == ReplayActorKind.Player && actor.PartyIndex >= 0)
+            .OrderBy(actor => actor.PartyIndex)
+            .ThenBy(actor => actor.ActorName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     private void ClearReplayMitigationOverlayInteraction(string idSuffix)
@@ -10201,6 +10142,37 @@ public sealed class RecapWindow : Window, IDisposable
             .Distinct(StringComparer.OrdinalIgnoreCase));
     }
 
+    private static float GetReplayStatusPanelPreferredHeight(
+        IReadOnlyList<ReplayPositionSnapshot> partyHpEntries,
+        IReadOnlyList<ReplayMitigationOverlayEntry> mitigationEntries)
+    {
+        if (partyHpEntries.Count == 0)
+        {
+            return ReplayMitigationOverlayDefaultHeight;
+        }
+
+        var height =
+            ReplayMitigationOverlayHeaderHeight +
+            ReplayMitigationOverlayPadding +
+            (partyHpEntries.Count * ReplayPartyHpRowHeight) +
+            (Math.Max(0, partyHpEntries.Count - 1) * ReplayMitigationOverlayRowGap);
+        if (mitigationEntries.Count > 0)
+        {
+            var visibleMitigationCount = Math.Min(2, mitigationEntries.Count);
+            height +=
+                ReplayMitigationOverlayPadding +
+                ReplayMitigationOverlayRowGap +
+                ReplayMitigationOverlayHeaderHeight +
+                ReplayMitigationOverlayPadding +
+                mitigationEntries
+                    .Take(visibleMitigationCount)
+                    .Sum(GetReplayMitigationOverlayRowHeight) +
+                (Math.Max(0, visibleMitigationCount - 1) * ReplayMitigationOverlayRowGap);
+        }
+
+        return height + ReplayMitigationOverlayPadding + ReplayMitigationOverlayResizeCornerSize;
+    }
+
     private static bool StatusNameMatchesActionName(string statusName, string actionName)
     {
         return string.Equals(statusName, actionName, StringComparison.OrdinalIgnoreCase) ||
@@ -10211,11 +10183,12 @@ public sealed class RecapWindow : Window, IDisposable
 
     private ReplayMitigationOverlayInputState SubmitReplayMitigationOverlayInput(
         string idSuffix,
-        IReadOnlyList<ReplayMitigationOverlayEntry> entries,
+        IReadOnlyList<ReplayPositionSnapshot> partyHpEntries,
+        IReadOnlyList<ReplayMitigationOverlayEntry> mitigationEntries,
         Vector2 canvasStart,
         Vector2 canvasSize)
     {
-        if (entries.Count == 0)
+        if (partyHpEntries.Count == 0 && mitigationEntries.Count == 0)
         {
             if ((string.Equals(replayMitigationOverlayDraggingId, idSuffix, StringComparison.Ordinal) ||
                     string.Equals(replayMitigationOverlayResizeDraggingId, idSuffix, StringComparison.Ordinal)) &&
@@ -10230,7 +10203,7 @@ public sealed class RecapWindow : Window, IDisposable
         }
 
         var cursorBefore = ImGui.GetCursorScreenPos();
-        var overlaySize = GetReplayMitigationOverlaySize(canvasSize);
+        var overlaySize = GetReplayMitigationOverlaySize(canvasSize, partyHpEntries, mitigationEntries);
         var overlayStart = GetReplayMitigationOverlayStart(idSuffix, canvasStart, canvasSize, overlaySize);
         var hovered = IsMouseInsideRect(overlayStart, overlaySize);
         var active = false;
@@ -10405,7 +10378,10 @@ public sealed class RecapWindow : Window, IDisposable
         plugin.SaveConfiguration();
     }
 
-    private Vector2 GetReplayMitigationOverlaySize(Vector2 canvasSize)
+    private Vector2 GetReplayMitigationOverlaySize(
+        Vector2 canvasSize,
+        IReadOnlyList<ReplayPositionSnapshot> partyHpEntries,
+        IReadOnlyList<ReplayMitigationOverlayEntry> mitigationEntries)
     {
         var minWidth = GetReplayMitigationOverlayMinWidth(canvasSize);
         var maxWidth = GetReplayMitigationOverlayMaxWidth(canvasSize);
@@ -10417,8 +10393,14 @@ public sealed class RecapWindow : Window, IDisposable
             configuration.ReplayMitigationOverlayWidth <= 0.0f ? defaultWidth : configuration.ReplayMitigationOverlayWidth,
             minWidth,
             maxWidth);
+        var configuredHeight = configuration.ReplayMitigationOverlayHeight <= 0.0f
+            ? ReplayMitigationOverlayDefaultHeight
+            : configuration.ReplayMitigationOverlayHeight;
+        var targetHeight = MathF.Abs(configuredHeight - ReplayMitigationOverlayDefaultHeight) <= 0.5f
+            ? MathF.Max(configuredHeight, GetReplayStatusPanelPreferredHeight(partyHpEntries, mitigationEntries))
+            : configuredHeight;
         var height = Math.Clamp(
-            configuration.ReplayMitigationOverlayHeight <= 0.0f ? ReplayMitigationOverlayDefaultHeight : configuration.ReplayMitigationOverlayHeight,
+            targetHeight,
             ReplayMitigationOverlayMinHeight,
             GetReplayMitigationOverlayMaxHeight(canvasSize));
         return new Vector2(width, height);
@@ -10532,10 +10514,11 @@ public sealed class RecapWindow : Window, IDisposable
 
     private void DrawReplayMitigationOverlay(
         string idSuffix,
-        IReadOnlyList<ReplayMitigationOverlayEntry> entries,
+        IReadOnlyList<ReplayPositionSnapshot> partyHpEntries,
+        IReadOnlyList<ReplayMitigationOverlayEntry> mitigationEntries,
         ReplayMitigationOverlayInputState state)
     {
-        if (!state.Visible || entries.Count == 0)
+        if (!state.Visible || (partyHpEntries.Count == 0 && mitigationEntries.Count == 0))
         {
             return;
         }
@@ -10548,8 +10531,14 @@ public sealed class RecapWindow : Window, IDisposable
         drawList.AddRect(start, end, ImGui.GetColorU32(ModernPanelBorderColor with { W = state.Hovered || state.Active ? 0.92f : 0.70f }), 6.0f);
 
         ImGui.PushClipRect(start, end, true);
-        DrawReplayMitigationOverlayHeader(drawList, start, state.Size, state.Active);
-        DrawReplayMitigationOverlayRows(entries, start, state.Size);
+        DrawReplayStatusPanelContents(
+            partyHpEntries,
+            mitigationEntries,
+            start,
+            state.Size,
+            state.Active,
+            showGrip: true,
+            reserveResizeGrip: true);
         DrawReplayMitigationOverlayResizeGrip(
             drawList,
             start,
@@ -10561,13 +10550,14 @@ public sealed class RecapWindow : Window, IDisposable
     }
 
     private void DrawReplayMitigationExternalPanel(
-        IReadOnlyList<ReplayMitigationOverlayEntry> entries,
+        IReadOnlyList<ReplayPositionSnapshot> partyHpEntries,
+        IReadOnlyList<ReplayMitigationOverlayEntry> mitigationEntries,
         Vector2 start,
         Vector2 size,
         float alpha = 1.0f)
     {
         alpha = Math.Clamp(alpha, 0.0f, 1.0f);
-        if (entries.Count == 0 || alpha <= 0.01f)
+        if ((partyHpEntries.Count == 0 && mitigationEntries.Count == 0) || alpha <= 0.01f)
         {
             return;
         }
@@ -10579,22 +10569,244 @@ public sealed class RecapWindow : Window, IDisposable
         drawList.AddRect(start, end, ImGui.GetColorU32(ModernPanelBorderColor with { W = 0.78f * alpha }), 6.0f);
 
         ImGui.PushClipRect(start, end, true);
-        DrawReplayMitigationOverlayHeader(drawList, start, size, active: false, showGrip: false, alpha: alpha);
-        DrawReplayMitigationOverlayRows(entries, start, size, reserveResizeGrip: false, alpha: alpha);
+        DrawReplayStatusPanelContents(
+            partyHpEntries,
+            mitigationEntries,
+            start,
+            size,
+            active: false,
+            showGrip: false,
+            reserveResizeGrip: false,
+            alpha: alpha);
         ImGui.PopClipRect();
         ImGui.SetCursorScreenPos(cursorBefore);
+    }
+
+    private void DrawReplayStatusPanelContents(
+        IReadOnlyList<ReplayPositionSnapshot> partyHpEntries,
+        IReadOnlyList<ReplayMitigationOverlayEntry> mitigationEntries,
+        Vector2 start,
+        Vector2 size,
+        bool active,
+        bool showGrip,
+        bool reserveResizeGrip,
+        float alpha = 1.0f)
+    {
+        var drawList = ImGui.GetWindowDrawList();
+        var sectionStart = start;
+        var panelBottom = start.Y + size.Y -
+            (reserveResizeGrip ? ReplayMitigationOverlayResizeCornerSize : 0.0f);
+
+        if (partyHpEntries.Count > 0)
+        {
+            var mitigationMinimumHeight = mitigationEntries.Count == 0
+                ? 0.0f
+                : ReplayMitigationOverlayRowGap +
+                    ReplayMitigationOverlayHeaderHeight +
+                    ReplayMitigationOverlayPadding +
+                    GetReplayMitigationOverlayRowHeight(mitigationEntries[0]) +
+                    ReplayMitigationOverlayPadding;
+            var desiredPartyHeight =
+                ReplayMitigationOverlayHeaderHeight +
+                ReplayMitigationOverlayPadding +
+                (partyHpEntries.Count * ReplayPartyHpRowHeight) +
+                (Math.Max(0, partyHpEntries.Count - 1) * ReplayMitigationOverlayRowGap) +
+                ReplayMitigationOverlayPadding;
+            var availablePartyHeight = MathF.Max(
+                ReplayMitigationOverlayHeaderHeight,
+                panelBottom - sectionStart.Y - mitigationMinimumHeight);
+            var partySectionHeight = MathF.Min(desiredPartyHeight, availablePartyHeight);
+            var partySectionSize = new Vector2(size.X, partySectionHeight);
+
+            DrawReplayMitigationOverlayHeader(
+                drawList,
+                sectionStart,
+                partySectionSize,
+                "Party HP",
+                active,
+                showGrip,
+                alpha);
+            DrawReplayPartyHpRows(
+                partyHpEntries,
+                sectionStart,
+                partySectionSize,
+                alpha);
+
+            sectionStart.Y += partySectionHeight + ReplayMitigationOverlayRowGap;
+            active = false;
+            showGrip = false;
+        }
+
+        if (mitigationEntries.Count == 0 || sectionStart.Y + ReplayMitigationOverlayHeaderHeight > panelBottom)
+        {
+            return;
+        }
+
+        var mitigationSectionSize = new Vector2(size.X, start.Y + size.Y - sectionStart.Y);
+        DrawReplayMitigationOverlayHeader(
+            drawList,
+            sectionStart,
+            mitigationSectionSize,
+            "Active Mits",
+            active,
+            showGrip,
+            alpha);
+        DrawReplayMitigationOverlayRows(
+            mitigationEntries,
+            sectionStart,
+            mitigationSectionSize,
+            reserveResizeGrip,
+            alpha);
+    }
+
+    private void DrawReplayPartyHpRows(
+        IReadOnlyList<ReplayPositionSnapshot> entries,
+        Vector2 start,
+        Vector2 size,
+        float alpha)
+    {
+        var drawList = ImGui.GetWindowDrawList();
+        var rowY = start.Y + ReplayMitigationOverlayHeaderHeight + ReplayMitigationOverlayPadding;
+        var rowBottom = start.Y + size.Y - ReplayMitigationOverlayPadding;
+        var hiddenCount = 0;
+
+        for (var index = 0; index < entries.Count; index++)
+        {
+            if (rowY + ReplayPartyHpRowHeight > rowBottom)
+            {
+                hiddenCount = entries.Count - index;
+                break;
+            }
+
+            DrawReplayPartyHpRow(
+                drawList,
+                entries[index],
+                start.X + ReplayMitigationOverlayPadding,
+                rowY,
+                size.X - (ReplayMitigationOverlayPadding * 2.0f),
+                alpha);
+            rowY += ReplayPartyHpRowHeight + ReplayMitigationOverlayRowGap;
+        }
+
+        if (hiddenCount > 0 && rowY + ImGui.GetTextLineHeight() <= rowBottom + 1.0f)
+        {
+            drawList.AddText(
+                new Vector2(start.X + ReplayMitigationOverlayPadding, rowY),
+                ImGui.GetColorU32(ScaleAlpha(ModernMutedTextColor, alpha)),
+                $"+{hiddenCount} more");
+        }
+    }
+
+    private void DrawReplayPartyHpRow(
+        ImDrawListPtr drawList,
+        ReplayPositionSnapshot actor,
+        float x,
+        float y,
+        float width,
+        float alpha)
+    {
+        alpha = Math.Clamp(alpha, 0.0f, 1.0f);
+        var iconSize = MathF.Min(24.0f, ReplayPartyHpRowHeight);
+        var contentX = x + iconSize + 7.0f;
+        var contentWidth = MathF.Max(24.0f, width - iconSize - 7.0f);
+        var currentHp = actor.IsDead ? 0U : actor.CurrentHp;
+        var shieldHp = actor.IsDead ? 0U : actor.ShieldHp;
+        var hpText = actor.MaxHp == 0
+            ? "--"
+            : shieldHp > 0
+                ? $"{FormatReplayHpPercent(currentHp, actor.MaxHp)}% +{FormatReplayHpPercent(shieldHp, actor.MaxHp)}%"
+                : $"{FormatReplayHpPercent(currentHp, actor.MaxHp)}%";
+        var hpTextSize = ImGui.CalcTextSize(hpText);
+        var nameMaxWidth = MathF.Max(20.0f, contentWidth - hpTextSize.X - 8.0f);
+        var name = configuration.RedactPlayerNames
+            ? $"Party {actor.PartyIndex + 1}"
+            : FormatKnownPlayerName(actor.ActorName);
+
+        ImGui.SetCursorScreenPos(new Vector2(x, y));
+        ImGui.PushStyleVar(ImGuiStyleVar.Alpha, alpha);
+        DrawGameIcon(
+            GetClassJobIconId(actor.ClassJobId),
+            iconSize,
+            string.IsNullOrWhiteSpace(actor.ClassJobName) ? name : actor.ClassJobName);
+        ImGui.PopStyleVar();
+
+        drawList.AddText(
+            new Vector2(contentX, y),
+            ImGui.GetColorU32(ScaleAlpha(actor.IsDead ? DamageColor : ModernTextColor, alpha)),
+            ClipTextToWidth(name, nameMaxWidth));
+        drawList.AddText(
+            new Vector2(contentX + contentWidth - hpTextSize.X, y),
+            ImGui.GetColorU32(ScaleAlpha(shieldHp > 0 ? ShieldBarColor : ModernMutedTextColor, alpha)),
+            hpText);
+
+        var barStart = new Vector2(contentX, y + ImGui.GetTextLineHeight() + 2.0f);
+        DrawReplayPartyHpBar(drawList, barStart, contentWidth, currentHp, shieldHp, actor.MaxHp, alpha);
+    }
+
+    private static void DrawReplayPartyHpBar(
+        ImDrawListPtr drawList,
+        Vector2 start,
+        float width,
+        uint currentHp,
+        uint shieldHp,
+        uint maxHp,
+        float alpha)
+    {
+        var end = start + new Vector2(width, ReplayPartyHpBarHeight);
+        const float rounding = 2.0f;
+        drawList.AddRectFilled(start, end, ImGui.GetColorU32(ScaleAlpha(BarBackgroundColor, alpha)), rounding);
+
+        if (maxHp > 0)
+        {
+            var hpRatio = Math.Clamp((double)currentHp / maxHp, 0.0, 1.0);
+            var rawShieldRatio = Math.Clamp((double)shieldHp / maxHp, 0.0, double.PositiveInfinity);
+            var shieldRatio = Math.Min(rawShieldRatio, Math.Max(0.0, 1.0 - hpRatio));
+            var overflowShieldRatio = Math.Clamp(rawShieldRatio - shieldRatio, 0.0, 1.0);
+            var hpWidth = (float)(width * hpRatio);
+            var shieldWidth = (float)(width * shieldRatio);
+            var overflowShieldWidth = (float)(width * overflowShieldRatio);
+
+            if (hpWidth > 0.0f)
+            {
+                drawList.AddRectFilled(
+                    start,
+                    new Vector2(start.X + hpWidth, end.Y),
+                    ImGui.GetColorU32(ScaleAlpha(HpBarColor, alpha)),
+                    rounding);
+            }
+
+            if (shieldWidth > 0.0f)
+            {
+                drawList.AddRectFilled(
+                    new Vector2(start.X + hpWidth, start.Y),
+                    new Vector2(start.X + hpWidth + shieldWidth, end.Y),
+                    ImGui.GetColorU32(ScaleAlpha(ShieldBarColor, alpha)),
+                    rounding);
+            }
+
+            if (overflowShieldWidth > 0.0f)
+            {
+                drawList.AddRectFilled(
+                    start,
+                    new Vector2(start.X + overflowShieldWidth, end.Y),
+                    ImGui.GetColorU32(ScaleAlpha(ShieldBarColor, alpha)),
+                    rounding);
+            }
+        }
+
+        drawList.AddRect(start, end, ImGui.GetColorU32(ScaleAlpha(BarBorderColor, alpha)), rounding);
     }
 
     private static void DrawReplayMitigationOverlayHeader(
         ImDrawListPtr drawList,
         Vector2 start,
         Vector2 size,
+        string title,
         bool active,
         bool showGrip = true,
         float alpha = 1.0f)
     {
         alpha = Math.Clamp(alpha, 0.0f, 1.0f);
-        var title = "Active Mits";
         var titlePos = start + new Vector2(ReplayMitigationOverlayPadding, 4.0f);
         drawList.AddText(titlePos, ImGui.GetColorU32(ScaleAlpha(active ? LeadUpGoldColor : ModernTextColor, alpha)), title);
 
@@ -11600,8 +11812,13 @@ public sealed class RecapWindow : Window, IDisposable
     {
         alpha = Math.Clamp(alpha, 0.0f, 1.0f);
         var color = GetReplayMechanicColor(mechanic);
-        var fill = color with { W = (mechanic.IsKnown ? 0.16f : 0.10f) * alpha };
-        var border = color with { W = (mechanic.IsKnown ? 0.85f : 0.65f) * alpha };
+        var isArenaHole = IsReplayDmuP5ArenaHole(mechanic);
+        var fill = isArenaHole
+            ? ModernShellColor with { W = 0.94f * alpha }
+            : color with { W = (mechanic.IsKnown ? 0.16f : 0.10f) * alpha };
+        var border = isArenaHole
+            ? OverkillColor with { W = 0.92f * alpha }
+            : color with { W = (mechanic.IsKnown ? 0.85f : 0.65f) * alpha };
         var radius = Math.Clamp(ReplayWorldLengthToScreenRadius(Math.Max(1.0f, mechanic.Radius), canvasSize, minX, maxX, minZ, maxZ, zoom), 10.0f, 160.0f);
 
         switch (mechanic.Shape)
@@ -11652,12 +11869,18 @@ public sealed class RecapWindow : Window, IDisposable
     private static bool ShouldDrawReplayMechanicLabel(ReplayMechanicSnapshot mechanic, bool hideLabel)
     {
         if (hideLabel ||
-            mechanic.Shape == ReplayMechanicShape.Tether)
+            mechanic.Shape == ReplayMechanicShape.Tether ||
+            IsReplayDmuP5ArenaHole(mechanic))
         {
             return false;
         }
 
         return true;
+    }
+
+    private static bool IsReplayDmuP5ArenaHole(ReplayMechanicSnapshot mechanic)
+    {
+        return string.Equals(mechanic.RawEventKind, ReplayDmuP5ArenaHoleRawEventKind, StringComparison.Ordinal);
     }
 
     private static void DrawReplayDonutMechanic(
@@ -11992,13 +12215,12 @@ public sealed class RecapWindow : Window, IDisposable
 
         var hoverRevealsPlayerName = hovered && !configuration.ShowReplayPlayerNames;
         var forcePlayerName = focused || isDeathTarget || hoverRevealsPlayerName;
-        var forcePlayerHp = focused || isDeathTarget || hoverRevealsPlayerName;
         var shouldDrawPlayerInfoLabel = actor.ActorKind == ReplayActorKind.Player &&
-            (configuration.ShowReplayPlayerNames || configuration.ShowReplayPlayerJobs || configuration.ShowReplayPlayerHp);
+            (configuration.ShowReplayPlayerNames || configuration.ShowReplayPlayerJobs);
         var shouldDrawFullLabel = actor.ActorKind == ReplayActorKind.Enemy || forcePlayerName || shouldDrawPlayerInfoLabel;
         if (shouldDrawFullLabel)
         {
-            var label = FormatReplayActorLabel(actor, forcePlayerName, forcePlayerHp);
+            var label = FormatReplayActorLabel(actor, forcePlayerName);
             if (!string.IsNullOrWhiteSpace(label))
             {
                 var labelYOffset = actor.ActorKind == ReplayActorKind.Player
@@ -12455,7 +12677,7 @@ public sealed class RecapWindow : Window, IDisposable
         };
     }
 
-    private string FormatReplayActorLabel(ReplayPositionSnapshot actor, bool forcePlayerName = false, bool forcePlayerHp = false)
+    private string FormatReplayActorLabel(ReplayPositionSnapshot actor, bool forcePlayerName = false)
     {
         if (actor.ActorKind == ReplayActorKind.Enemy)
         {
@@ -12464,8 +12686,7 @@ public sealed class RecapWindow : Window, IDisposable
 
         var showName = forcePlayerName || configuration.ShowReplayPlayerNames;
         var showJob = configuration.ShowReplayPlayerJobs && !string.IsNullOrWhiteSpace(actor.ClassJobName);
-        var showHp = forcePlayerHp || configuration.ShowReplayPlayerHp;
-        if (!showName && !showJob && !showHp)
+        if (!showName && !showJob)
         {
             return string.Empty;
         }
@@ -12483,41 +12704,13 @@ public sealed class RecapWindow : Window, IDisposable
             name = FormatKnownPlayerName(actor.ActorName);
         }
 
-        var identityText = (showName, showJob) switch
+        return (showName, showJob) switch
         {
             (true, true) => $"{name} ({actor.ClassJobName})",
             (true, false) => name,
             (false, true) => actor.ClassJobName,
             _ => string.Empty,
         };
-        var hpText = showHp
-            ? FormatReplayActorHpLabel(actor)
-            : string.Empty;
-
-        if (string.IsNullOrWhiteSpace(identityText))
-        {
-            return hpText;
-        }
-
-        return string.IsNullOrWhiteSpace(hpText)
-            ? identityText
-            : $"{identityText} {hpText}";
-    }
-
-    private static string FormatReplayActorHpLabel(ReplayPositionSnapshot actor)
-    {
-        if (actor.MaxHp == 0)
-        {
-            return string.Empty;
-        }
-
-        var currentPercent = actor.IsDead
-            ? 0
-            : FormatReplayHpPercent(actor.CurrentHp, actor.MaxHp);
-        var shieldText = actor.ShieldHp > 0
-            ? $" +{FormatReplayHpPercent(actor.ShieldHp, actor.MaxHp)}%"
-            : string.Empty;
-        return $"{currentPercent}%{shieldText}";
     }
 
     private static int FormatReplayHpPercent(uint amount, uint maxHp)
@@ -17880,8 +18073,7 @@ public sealed class RecapWindow : Window, IDisposable
                     continue;
                 }
 
-                var detail = plugin.GetRecordedPullDetails(summary);
-                if (detail is not null && ContainsDeath(detail.Deaths, deathSeenAtTicks, memberKeyHash))
+                if (RecordedPullLookup.MayContainDeath(summary, deathSeenAtTicks, memberKeyHash))
                 {
                     return BuildRecordedDeathSelectionTarget(deathSeenAtTicks, memberKeyHash, summary);
                 }
@@ -17894,8 +18086,7 @@ public sealed class RecapWindow : Window, IDisposable
 
         foreach (var summary in plugin.RecordedPulls.AsEnumerable().Reverse())
         {
-            var detail = plugin.GetRecordedPullDetails(summary);
-            if (detail is not null && ContainsDeath(detail.Deaths, deathSeenAtTicks, memberKeyHash))
+            if (RecordedPullLookup.MayContainDeath(summary, deathSeenAtTicks, memberKeyHash))
             {
                 return BuildRecordedDeathSelectionTarget(deathSeenAtTicks, memberKeyHash, summary);
             }

@@ -127,7 +127,7 @@ public sealed partial class Plugin
             recordedPulls.Add(CreateRecordedPullState(snapshot, detailDirty: true));
             TrimRecordedPullsLocked();
             UpdateRecordedPullSummariesLocked();
-            recordedPullStorageDirty = true;
+            MarkRecordedPullStorageDirtyLocked();
         }
 
         SaveRecordedPullHistory();
@@ -191,6 +191,7 @@ public sealed partial class Plugin
         recentReplayMitigations.Clear();
         replayWorldMarkersCapturedForPull = false;
         activeDmuP2PathOfLightTowersByIndex.Clear();
+        activeDmuP5ArenaHoleIndices.Clear();
         activeReplayMechanicsByKey.Clear();
         recentSourceMitigationHistoryBySource.Clear();
         pendingEffectResultsByMemberSequence.Clear();
@@ -224,33 +225,25 @@ public sealed partial class Plugin
 
     private bool ShouldCaptureLiveCombat(DateTime now)
     {
-        if (IsPvPCaptureBlocked() || !IsDutyCaptureActive())
-        {
-            return false;
-        }
-
-        if (Condition[ConditionFlag.InCombat])
-        {
-            return true;
-        }
-
-        return lastInCombatAtUtc is { } lastInCombat &&
-            now - lastInCombat <= PostCombatCaptureGrace;
+        return CaptureTimingPolicy.IsLiveCombatCapture(
+            IsDutyCaptureActive(),
+            IsPvPCaptureBlocked(),
+            Condition[ConditionFlag.InCombat],
+            lastInCombatAtUtc,
+            now,
+            PostCombatCaptureGrace);
     }
 
     private bool ShouldAcceptRawCombatCapture(DateTime now)
     {
-        if (IsPvPCaptureBlocked() ||
-            !IsDutyCaptureActive() ||
-            (!Configuration.CapturePartyDeaths && !Configuration.CaptureOtherDeaths))
-        {
-            return false;
-        }
-
-        return Condition[ConditionFlag.InCombat] ||
-            pullStartedAtUtc is not null ||
-            lastInCombatAtUtc is { } lastInCombat && now - lastInCombat <= PostCombatCaptureGrace ||
-            currentMembers.Count > 0;
+        return CaptureTimingPolicy.ShouldAcceptRawCombatCapture(
+            IsDutyCaptureActive(),
+            IsPvPCaptureBlocked(),
+            Configuration.CapturePartyDeaths || Configuration.CaptureOtherDeaths,
+            Condition[ConditionFlag.InCombat],
+            lastInCombatAtUtc,
+            now,
+            PostCombatCaptureGrace);
     }
 
     private void StartPostResetDeathSuppression()
@@ -373,11 +366,33 @@ public sealed partial class Plugin
             return;
         }
 
-        if (combatTimerRunning)
+        if (CaptureTimingPolicy.ShouldClosePull(
+                IsDutyCaptureActive(),
+                IsPvPCaptureBlocked(),
+                inCombat,
+                pullStartedAtUtc is not null,
+                currentPullClosedForReview,
+                lastInCombatAtUtc,
+                now,
+                PostCombatCaptureGrace))
         {
-            lastKnownPullElapsedSeconds = CalculatePullElapsed(now);
+            var closeAtUtc = CaptureTimingPolicy.GetPullCloseTime(lastInCombatAtUtc!.Value, PostCombatCaptureGrace);
+            lastKnownPullElapsedSeconds = CalculatePullElapsed(closeAtUtc);
             combatTimerRunning = false;
+            ArchiveCurrentPullForReview("Combat ended", suppressResetStateDeaths: false);
+            return;
         }
+
+        if (pullStartedAtUtc is not null &&
+            lastInCombatAtUtc is not null &&
+            ShouldCaptureLiveCombat(now))
+        {
+            combatTimerRunning = true;
+            lastKnownPullElapsedSeconds = CalculatePullElapsed(now);
+            return;
+        }
+
+        combatTimerRunning = false;
     }
 
     private float CalculatePullElapsed(DateTime now)

@@ -54,17 +54,27 @@ public sealed partial class Plugin
         Migrated,
     }
 
-    private async Task MigrateToPuniRepositoryAsync()
+    private void BeginPuniRepositoryMigration()
     {
         if (Configuration.PuniRepositoryMigrationComplete)
         {
             return;
         }
 
+        repositoryMigrationTask = CheckPuniRepositoryMigrationAsync(repositoryMigrationCts.Token);
+    }
+
+    private async Task CheckPuniRepositoryMigrationAsync(CancellationToken cancellationToken)
+    {
         try
         {
-            using var httpClient = new HttpClient();
-            using var response = await httpClient.GetAsync(PuniDalamudRepositoryUrl).ConfigureAwait(false);
+            using var httpClient = new HttpClient
+            {
+                Timeout = TimeSpan.FromSeconds(10),
+            };
+            using var response = await httpClient
+                .GetAsync(PuniDalamudRepositoryUrl, cancellationToken)
+                .ConfigureAwait(false);
             if (!response.IsSuccessStatusCode)
             {
                 Log.Debug(
@@ -74,24 +84,59 @@ public sealed partial class Plugin
                 return;
             }
 
-            var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+            var json = await response.Content
+                .ReadAsStringAsync(cancellationToken)
+                .ConfigureAwait(false);
             if (!PuniRepositoryContainsInstallableBetterDeaths(json))
             {
                 Log.Debug("Better Deaths Puni repository migration skipped because the Puni feed does not contain an installable BetterDeaths release yet.");
                 return;
             }
 
-            TryAddDalamudRepository(PuniDalamudRepositoryUrl);
-            var migrationResult = TryMigrateInstalledPluginRepository();
-            if (migrationResult is RepositoryMigrationResult.Migrated or RepositoryMigrationResult.AlreadyMigrated)
-            {
-                Configuration.PuniRepositoryMigrationComplete = true;
-                SaveConfiguration();
-            }
+            cancellationToken.ThrowIfCancellationRequested();
+            repositoryMigrationReady = true;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
         }
         catch (Exception ex)
         {
             Log.Debug(ex, "Better Deaths Puni repository migration failed.");
+        }
+    }
+
+    private void ApplyPendingPuniRepositoryMigration()
+    {
+        if (!repositoryMigrationReady || disposing)
+        {
+            return;
+        }
+
+        repositoryMigrationReady = false;
+        TryAddDalamudRepository(PuniDalamudRepositoryUrl);
+        var migrationResult = TryMigrateInstalledPluginRepository();
+        if (migrationResult is RepositoryMigrationResult.Migrated or RepositoryMigrationResult.AlreadyMigrated)
+        {
+            Configuration.PuniRepositoryMigrationComplete = true;
+            SaveConfiguration();
+        }
+    }
+
+    private void WaitForRepositoryMigration(TimeSpan timeout)
+    {
+        var task = repositoryMigrationTask;
+        if (task is null || task.IsCompleted)
+        {
+            return;
+        }
+
+        try
+        {
+            task.Wait(timeout);
+        }
+        catch (Exception ex) when (ex is AggregateException or OperationCanceledException)
+        {
+            Log.Debug(ex, "Better Deaths repository migration stopped during disposal.");
         }
     }
 

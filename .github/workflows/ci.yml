@@ -1,0 +1,53 @@
+name: CI
+
+"on":
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    env:
+      DALAMUD_HOME: /tmp/dalamud
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Download Dalamud
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "${DALAMUD_HOME}"
+          curl --fail --location --show-error --silent \
+            https://goatcorp.github.io/dalamud-distrib/latest.zip \
+            --output "${RUNNER_TEMP}/dalamud.zip"
+          unzip -q "${RUNNER_TEMP}/dalamud.zip" -d "${DALAMUD_HOME}"
+
+      - name: Restore
+        run: |
+          dotnet restore BetterDeaths/BetterDeaths.csproj -p:EnableWindowsTargeting=true
+          dotnet restore tests/BetterDeaths.Tests/BetterDeaths.Tests.csproj
+
+      - name: Verify formatting
+        run: dotnet format BetterDeaths/BetterDeaths.csproj --verify-no-changes --no-restore
+
+      - name: Test
+        run: dotnet test tests/BetterDeaths.Tests/BetterDeaths.Tests.csproj --configuration Release --no-restore
+
+      - name: Build and validate package
+        run: dotnet build BetterDeaths/BetterDeaths.csproj --configuration Release --no-restore -p:EnableWindowsTargeting=true

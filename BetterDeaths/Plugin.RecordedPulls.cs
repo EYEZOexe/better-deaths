@@ -68,6 +68,10 @@ public sealed partial class Plugin
         public IReadOnlyList<string> DeathMemberNames { get; init; } = [];
 
         public bool DeathMemberNamesIndexed { get; init; }
+
+        public IReadOnlyList<RecordedDeathReference> DeathReferences { get; init; } = [];
+
+        public bool DeathReferencesIndexed { get; init; }
     }
 
     private readonly record struct RecordedPullIndexBackfillCandidate(
@@ -87,6 +91,7 @@ public sealed partial class Plugin
             DetailFileName = detailFileName;
             Detail = detail;
             DetailDirty = detailDirty;
+            DetailLoadAttempted = detail is not null;
         }
 
         public RecordedPullSummary Summary { get; set; }
@@ -96,17 +101,36 @@ public sealed partial class Plugin
         public PullDeathSnapshot? Detail { get; set; }
 
         public bool DetailDirty { get; set; }
+
+        public bool DetailLoadAttempted { get; set; }
+
+        public Task? DetailLoadTask { get; set; }
+
+        public string? DetailLoadError { get; set; }
+
+        public DateTime DetailRetainUntilUtc { get; set; }
     }
 
     public void ClearRecordedPulls()
     {
         WaitForRecordedPullHistoryLoadForMutation();
+        if (!WaitForRecordedPullDetailLoads(TimeSpan.FromSeconds(10)))
+        {
+            return;
+        }
+
+        if (!WaitForRecordedPullSave(TimeSpan.FromSeconds(10)))
+        {
+            return;
+        }
+
         lock (recordedPullLock)
         {
             recordedPulls.Clear();
             recordedPullSummaries = [];
             nextRecordedPullNumber = 1;
             recordedPullStorageDirty = false;
+            recordedPullStorageRevision++;
         }
 
         currentPullRecordedPullNumber = 0;
@@ -118,8 +142,14 @@ public sealed partial class Plugin
         while (recordedPulls.Count > Configuration.MaxRecordedPulls)
         {
             recordedPulls.RemoveAt(0);
-            recordedPullStorageDirty = true;
+            MarkRecordedPullStorageDirtyLocked();
         }
+    }
+
+    private void MarkRecordedPullStorageDirtyLocked()
+    {
+        recordedPullStorageDirty = true;
+        recordedPullStorageRevision++;
     }
 
     private void UpdateRecordedPullSummariesLocked()
@@ -324,6 +354,7 @@ public sealed partial class Plugin
             UpdateRecordedPullSummariesLocked();
             nextRecordedPullNumber = GetNextRecordedPullNumberLocked();
             recordedPullStorageDirty = false;
+            recordedPullStorageRevision++;
         }
     }
 
@@ -438,6 +469,7 @@ public sealed partial class Plugin
                 .Select(entry =>
                 {
                     var deathMemberNames = NormalizeRecordedPullDeathMemberNames(entry.DeathMemberNames);
+                    var deathReferences = NormalizeRecordedPullDeathReferences(entry.DeathReferences);
                     var summary = new RecordedPullSummary(
                         entry.CapturedAtUtc,
                         entry.Reason,
@@ -452,6 +484,8 @@ public sealed partial class Plugin
                         PullGroupColorIndex = entry.PullGroupColorIndex,
                         DeathMemberNames = deathMemberNames,
                         DeathMemberNamesIndexed = entry.DeathMemberNamesIndexed || deathMemberNames.Count > 0,
+                        DeathReferences = deathReferences,
+                        DeathReferencesIndexed = entry.DeathReferencesIndexed || deathReferences.Count > 0,
                     };
                     return new RecordedPullState(summary, entry.DetailFileName, null, detailDirty: false);
                 })
@@ -466,39 +500,110 @@ public sealed partial class Plugin
 
     private void SaveRecordedPullHistory()
     {
-        if (!recordedPullStorageDirty)
-        {
-            return;
-        }
-
-        WaitForRecordedPullHistoryLoadForMutation();
-        List<RecordedPullState> snapshot;
         lock (recordedPullLock)
         {
-            if (!recordedPullStorageDirty)
+            if (!recordedPullStorageDirty ||
+                recordedPullSaveTask is { IsCompleted: false })
             {
                 return;
             }
 
-            snapshot = recordedPulls.ToList();
+            StartRecordedPullSaveLocked();
         }
+    }
 
+    private void StartRecordedPullSaveLocked()
+    {
+        var revision = recordedPullStorageRevision;
+        var snapshot = recordedPulls
+            .Select(state => new RecordedPullState(
+                state.Summary,
+                state.DetailFileName,
+                state.Detail,
+                state.DetailDirty))
+            .ToList();
+        recordedPullSaveTask = Task.Run(() => SaveRecordedPullHistoryInBackground(snapshot, revision));
+    }
+
+    private void SaveRecordedPullHistoryInBackground(List<RecordedPullState> snapshot, long revision)
+    {
+        var succeeded = false;
         try
         {
             WriteRecordedPullStorageSnapshot(snapshot, createBackup: true);
-            lock (recordedPullLock)
-            {
-                foreach (var state in recordedPulls)
-                {
-                    state.DetailDirty = false;
-                }
-
-                recordedPullStorageDirty = false;
-            }
+            succeeded = true;
         }
         catch (Exception ex)
         {
             Log.Warning(ex, "Could not save Better Deaths recorded pull history.");
+        }
+        finally
+        {
+            lock (recordedPullLock)
+            {
+                if (succeeded)
+                {
+                    foreach (var savedState in snapshot.Where(state => state.Detail is not null))
+                    {
+                        var liveState = FindRecordedPullStateLocked(
+                            savedState.Summary.PullNumber,
+                            savedState.Summary.CapturedAtUtc.Ticks);
+                        if (liveState is null || !ReferenceEquals(liveState.Detail, savedState.Detail))
+                        {
+                            continue;
+                        }
+
+                        liveState.DetailDirty = false;
+                        liveState.DetailFileName = savedState.DetailFileName;
+                    }
+
+                    if (recordedPullStorageRevision == revision)
+                    {
+                        recordedPullStorageDirty = false;
+                    }
+                }
+
+                recordedPullSaveTask = null;
+                if (succeeded && recordedPullStorageDirty && recordedPullStorageRevision != revision)
+                {
+                    StartRecordedPullSaveLocked();
+                }
+            }
+        }
+    }
+
+    private bool WaitForRecordedPullSave(TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (true)
+        {
+            Task? task;
+            lock (recordedPullLock)
+            {
+                task = recordedPullSaveTask;
+            }
+
+            if (task is null || task.IsCompleted)
+            {
+                return true;
+            }
+
+            var remaining = deadline - DateTime.UtcNow;
+            if (remaining <= TimeSpan.Zero)
+            {
+                Log.Warning("Better Deaths recorded pull save did not finish within {TimeoutSeconds:0.0} seconds.", timeout.TotalSeconds);
+                return false;
+            }
+
+            try
+            {
+                task.Wait(remaining);
+            }
+            catch (Exception ex) when (ex is AggregateException or OperationCanceledException)
+            {
+                Log.Warning(ex, "Better Deaths recorded pull save did not finish cleanly.");
+                return false;
+            }
         }
     }
 
@@ -544,6 +649,8 @@ public sealed partial class Plugin
                     PullGroupColorIndex = state.Summary.PullGroupColorIndex,
                     DeathMemberNames = NormalizeRecordedPullDeathMemberNames(state.Summary.DeathMemberNames),
                     DeathMemberNamesIndexed = state.Summary.DeathMemberNamesIndexed,
+                    DeathReferences = NormalizeRecordedPullDeathReferences(state.Summary.DeathReferences),
+                    DeathReferencesIndexed = state.Summary.DeathReferencesIndexed,
                 })
                 .ToList());
         var indexJson = JsonSerializer.Serialize(index, RecordedPullHistoryJsonOptions);
@@ -593,54 +700,144 @@ public sealed partial class Plugin
 
     public PullDeathSnapshot? GetRecordedPullDetails(RecordedPullSummary summary)
     {
-        RecordedPullState? state;
         lock (recordedPullLock)
         {
-            state = FindRecordedPullStateLocked(summary);
+            var state = FindRecordedPullStateLocked(summary);
             if (state?.Detail is not null)
             {
                 return state.Detail;
             }
-        }
 
-        if (state is null)
-        {
+            if (state is null || state.DetailLoadAttempted)
+            {
+                return null;
+            }
+
+            state.DetailLoadAttempted = true;
+            state.DetailLoadError = null;
+            var pullNumber = state.Summary.PullNumber;
+            var capturedAtUtcTicks = state.Summary.CapturedAtUtc.Ticks;
+            var detailFileName = state.DetailFileName;
+            var cancellationToken = recordedPullDetailLoadCts.Token;
+            state.DetailLoadTask = Task.Run(() =>
+                LoadRecordedPullDetailsInBackground(
+                    pullNumber,
+                    capturedAtUtcTicks,
+                    detailFileName,
+                    cancellationToken),
+                cancellationToken);
             return null;
         }
+    }
 
-        var detail = TryReadRecordedPullDetailFile(GetRecordedPullDetailPath(state.DetailFileName), out var resolvedDetailPath);
-        if (detail is null)
-        {
-            return null;
-        }
-
+    public bool IsRecordedPullDetailsLoading(RecordedPullSummary summary)
+    {
         lock (recordedPullLock)
         {
-            state = FindRecordedPullStateLocked(summary);
-            if (state is null)
-            {
-                return detail;
-            }
+            return FindRecordedPullStateLocked(summary)?.DetailLoadTask is { IsCompleted: false };
+        }
+    }
 
-            state.Detail = detail;
-            state.DetailDirty = false;
-            if (state.Summary.DeathMemberNames.Count == 0 && detail.Deaths.Count > 0)
+    private void LoadRecordedPullDetailsInBackground(
+        long pullNumber,
+        long capturedAtUtcTicks,
+        string detailFileName,
+        CancellationToken cancellationToken)
+    {
+        recordedPullDetailLoadSemaphore.Wait(cancellationToken);
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var detail = TryReadRecordedPullDetailFile(GetRecordedPullDetailPath(detailFileName), out var resolvedDetailPath);
+            cancellationToken.ThrowIfCancellationRequested();
+            var shouldSaveIndex = false;
+            lock (recordedPullLock)
             {
-                state.Summary = state.Summary with
+                var state = FindRecordedPullStateLocked(pullNumber, capturedAtUtcTicks);
+                if (state is null)
                 {
-                    DeathMemberNames = BuildRecordedPullDeathMemberNames(detail.Deaths),
-                    DeathMemberNamesIndexed = true,
-                };
-                UpdateRecordedPullSummariesLocked();
-                recordedPullStorageDirty = true;
+                    return;
+                }
+
+                state.DetailLoadTask = null;
+                if (disposing)
+                {
+                    return;
+                }
+
+                if (detail is null)
+                {
+                    state.DetailLoadError = "Replay details could not be loaded.";
+                    return;
+                }
+
+                state.Detail = detail;
+                state.DetailDirty = false;
+                state.DetailLoadError = null;
+                state.DetailRetainUntilUtc = DateTime.UtcNow.AddSeconds(15);
+                if ((!state.Summary.DeathMemberNamesIndexed || !state.Summary.DeathReferencesIndexed) &&
+                    detail.Deaths.Count > 0)
+                {
+                    state.Summary = state.Summary with
+                    {
+                        DeathMemberNames = BuildRecordedPullDeathMemberNames(detail.Deaths),
+                        DeathMemberNamesIndexed = true,
+                        DeathReferences = BuildRecordedPullDeathReferences(detail.Deaths),
+                        DeathReferencesIndexed = true,
+                    };
+                    UpdateRecordedPullSummariesLocked();
+                    MarkRecordedPullStorageDirtyLocked();
+                    shouldSaveIndex = true;
+                }
+
+                if (!string.IsNullOrWhiteSpace(resolvedDetailPath))
+                {
+                    state.DetailFileName = Path.GetFileName(resolvedDetailPath);
+                }
             }
 
-            if (!string.IsNullOrWhiteSpace(resolvedDetailPath))
+            if (shouldSaveIndex)
             {
-                state.DetailFileName = Path.GetFileName(resolvedDetailPath);
+                SaveRecordedPullHistory();
+            }
+        }
+        finally
+        {
+            recordedPullDetailLoadSemaphore.Release();
+        }
+    }
+
+    private bool WaitForRecordedPullDetailLoads(TimeSpan timeout)
+    {
+        Task[] tasks;
+        lock (recordedPullLock)
+        {
+            tasks = recordedPulls
+                .Select(state => state.DetailLoadTask)
+                .Where(task => task is not null)
+                .Cast<Task>()
+                .ToArray();
+        }
+
+        if (tasks.Length == 0)
+        {
+            return true;
+        }
+
+        try
+        {
+            if (!Task.WaitAll(tasks, timeout))
+            {
+                Log.Warning("Better Deaths recorded pull detail loads did not finish within {TimeoutSeconds:0.0} seconds.", timeout.TotalSeconds);
+                return false;
             }
 
-            return state.Detail;
+            return true;
+        }
+        catch (Exception ex) when (ex is AggregateException or OperationCanceledException)
+        {
+            Log.Debug(ex, "Better Deaths recorded pull detail loads stopped during disposal.");
+            return disposing;
         }
     }
 
@@ -652,28 +849,6 @@ public sealed partial class Plugin
         }
     }
 
-    private PullDeathSnapshot? GetRecordedPullDetailsForTransientSearch(RecordedPullSummary summary)
-    {
-        string detailFileName;
-        lock (recordedPullLock)
-        {
-            var state = FindRecordedPullStateLocked(summary);
-            if (state?.Detail is not null)
-            {
-                return state.Detail;
-            }
-
-            if (state is null)
-            {
-                return null;
-            }
-
-            detailFileName = state.DetailFileName;
-        }
-
-        return TryReadRecordedPullDetailFile(GetRecordedPullDetailPath(detailFileName));
-    }
-
     public void RetainLoadedRecordedPullDetails(RecordedPullSummary? activeSummary)
     {
         lock (recordedPullLock)
@@ -682,12 +857,16 @@ public sealed partial class Plugin
             {
                 if (state.Detail is null ||
                     state.DetailDirty ||
+                    state.DetailRetainUntilUtc > DateTime.UtcNow ||
                     RecordedPullSummariesMatch(state.Summary, activeSummary))
                 {
                     continue;
                 }
 
                 state.Detail = null;
+                state.DetailLoadAttempted = false;
+                state.DetailLoadError = null;
+                state.DetailRetainUntilUtc = DateTime.MinValue;
             }
         }
     }
@@ -768,7 +947,7 @@ public sealed partial class Plugin
             if (IsCompressedRecordedPullDetailFileName(path))
             {
                 using var fileStream = File.Create(tempPath);
-                using var gzipStream = new GZipStream(fileStream, CompressionLevel.SmallestSize);
+                using var gzipStream = new GZipStream(fileStream, CompressionLevel.Optimal);
                 JsonSerializer.Serialize(gzipStream, detail, RecordedPullHistoryJsonOptions);
             }
             else
@@ -801,6 +980,8 @@ public sealed partial class Plugin
             PullGroupColorIndex = pull.PullGroupColorIndex,
             DeathMemberNames = BuildRecordedPullDeathMemberNames(pull.Deaths),
             DeathMemberNamesIndexed = true,
+            DeathReferences = BuildRecordedPullDeathReferences(pull.Deaths),
+            DeathReferencesIndexed = true,
         };
         return new RecordedPullState(summary, BuildRecordedPullDetailFileName(pull), pull, detailDirty);
     }
@@ -832,7 +1013,7 @@ public sealed partial class Plugin
         {
             var state = recordedPulls
                 .Where(state => state.Summary.DeathCount > 0 &&
-                    !state.Summary.DeathMemberNamesIndexed &&
+                    (!state.Summary.DeathMemberNamesIndexed || !state.Summary.DeathReferencesIndexed) &&
                     !string.IsNullOrWhiteSpace(state.DetailFileName))
                 .OrderByDescending(state => state.Summary.PullNumber)
                 .ThenByDescending(state => state.Summary.CapturedAtUtc)
@@ -872,6 +1053,8 @@ public sealed partial class Plugin
                 {
                     DeathMemberNames = deathMemberNames,
                     DeathMemberNamesIndexed = true,
+                    DeathReferences = detail is null ? [] : BuildRecordedPullDeathReferences(detail.Deaths),
+                    DeathReferencesIndexed = true,
                 };
                 if (!string.IsNullOrWhiteSpace(resolvedDetailPath))
                 {
@@ -879,7 +1062,7 @@ public sealed partial class Plugin
                 }
 
                 UpdateRecordedPullSummariesLocked();
-                recordedPullStorageDirty = true;
+                MarkRecordedPullStorageDirtyLocked();
             }
 
             SaveRecordedPullHistory();
@@ -926,6 +1109,32 @@ public sealed partial class Plugin
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
             .ToList();
+    }
+
+    private static IReadOnlyList<RecordedDeathReference> BuildRecordedPullDeathReferences(
+        IReadOnlyList<PartyDeathRecord> deaths)
+    {
+        return deaths
+            .Select(death => new RecordedDeathReference(
+                death.SeenAtUtc.Ticks,
+                GetMemberKeyHash(death.MemberKey)))
+            .Distinct()
+            .OrderBy(reference => reference.SeenAtUtcTicks)
+            .ThenBy(reference => reference.MemberKeyHash)
+            .ToList();
+    }
+
+    private static IReadOnlyList<RecordedDeathReference> NormalizeRecordedPullDeathReferences(
+        IReadOnlyList<RecordedDeathReference>? references)
+    {
+        return references is null
+            ? []
+            : references
+                .Where(reference => reference.SeenAtUtcTicks > 0)
+                .Distinct()
+                .OrderBy(reference => reference.SeenAtUtcTicks)
+                .ThenBy(reference => reference.MemberKeyHash)
+                .ToList();
     }
 
     private static string BuildRecordedPullDetailFileName(PullDeathSnapshot pull)
@@ -1004,7 +1213,7 @@ public sealed partial class Plugin
         {
             using (var sourceStream = File.OpenRead(sourcePath))
             using (var targetStream = File.Create(tempPath))
-            using (var gzipStream = new GZipStream(targetStream, CompressionLevel.SmallestSize))
+            using (var gzipStream = new GZipStream(targetStream, CompressionLevel.Optimal))
             {
                 sourceStream.CopyTo(gzipStream);
             }

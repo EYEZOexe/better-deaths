@@ -385,7 +385,13 @@ public sealed record RecordedPullSummary(
     public IReadOnlyList<string> DeathMemberNames { get; init; } = [];
 
     public bool DeathMemberNamesIndexed { get; init; }
+
+    public IReadOnlyList<RecordedDeathReference> DeathReferences { get; init; } = [];
+
+    public bool DeathReferencesIndexed { get; init; }
 }
+
+public readonly record struct RecordedDeathReference(long SeenAtUtcTicks, uint MemberKeyHash);
 
 public sealed record DebugLogEntry(
     DateTime SeenAtUtc,

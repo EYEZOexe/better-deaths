@@ -83,6 +83,8 @@ internal interface IReplayEncounterModule
 
 internal static class ReplayEncounterModules
 {
+    internal const uint DmuP5ArenaHoleMapEffectState = 0x00200010;
+    internal const float DmuP5ArenaHoleRadius = 8.0f;
     private const uint DmuP1FireSpreadMarkerId = 127;
     private const uint DmuP1FireStackMarkerId = 128;
     private const uint DmuP1MysteryMagicFireLieMarkerId = 673;
@@ -108,6 +110,19 @@ internal static class ReplayEncounterModules
     private const uint DmuP4AccelerationBombStatusId = 5546;
     private const uint DmuP4EntropyStatusId = 5547;
     private const uint DmuP4DynamicFluidStatusId = 5548;
+    private const uint DmuP5ArenaHoleFirstMapEffectIndex = 0x14;
+    private static readonly (float X, float Z)[] DmuP5ArenaHolePositions =
+    [
+        (100.0f, 100.0f),
+        (113.5f, 100.0f),
+        (100.0f, 86.5f),
+        (86.5f, 100.0f),
+        (100.0f, 113.5f),
+        (113.5f, 113.5f),
+        (113.5f, 86.5f),
+        (86.5f, 86.5f),
+        (86.5f, 113.5f),
+    ];
     private static readonly IReplayEncounterModule FallbackModule = new GenericReplayEncounterModule();
     private static readonly IReadOnlyList<IReplayEncounterModule> Modules =
     [
@@ -129,6 +144,20 @@ internal static class ReplayEncounterModules
     public static bool IsDancingMadUltimate(uint territoryId)
     {
         return territoryId == DmuReplayEncounterModule.TerritoryDancingMadUltimate;
+    }
+
+    public static bool TryGetDmuP5ArenaHolePosition(uint mapEffectIndex, out float x, out float z)
+    {
+        var positionIndex = mapEffectIndex - DmuP5ArenaHoleFirstMapEffectIndex;
+        if (positionIndex >= DmuP5ArenaHolePositions.Length)
+        {
+            x = 0.0f;
+            z = 0.0f;
+            return false;
+        }
+
+        (x, z) = DmuP5ArenaHolePositions[positionIndex];
+        return true;
     }
 
     public static bool IsDmuP4RealityTellMarker(uint markerId)
@@ -534,10 +563,10 @@ internal static class ReplayEncounterModules
                 DmuP1MysteryMagicIceTruthMarkerId => new ReplayMarkerInfo("Real Ice", "Mystery Magic ice truth"),
                 DmuP1MysteryMagicThunderLieMarkerId => new ReplayMarkerInfo("Fake Thunder", "Mystery Magic thunder lie"),
                 DmuP1MysteryMagicThunderTruthMarkerId => new ReplayMarkerInfo("Real Thunder", "Mystery Magic thunder truth"),
-                161 => new ReplayMarkerInfo("Stack", "Final stack", ReplayMechanicShape.Stack, Radius: 5.0f, DurationSeconds: 10.0f),
+                161 => new ReplayMarkerInfo("Stack", "Forsaken Bonds", ReplayMechanicShape.Stack, Radius: 6.0f, DurationSeconds: 5.1f),
                 715 => new ReplayMarkerInfo("Stack", "Forsaken stack", ReplayMechanicShape.Stack, Radius: 5.0f),
                 716 => new ReplayMarkerInfo("Spread", "Forsaken spread", ReplayMechanicShape.Spread, Radius: 5.0f),
-                717 => new ReplayMarkerInfo("Cone", "Forsaken cone", ReplayMechanicShape.Cone, Radius: 18.0f, Length: 18.0f, AngleDegrees: 60.0f, ConeBaitsClosestPlayer: true),
+                717 => new ReplayMarkerInfo("Cone", "Forsaken cone", ReplayMechanicShape.Cone, Radius: 40.0f, Length: 40.0f, AngleDegrees: 90.0f, ConeBaitsClosestPlayer: true),
                 DmuP3EntropyStatusId => new ReplayMarkerInfo("Entropy", "Entropy", ReplayMechanicShape.Circle, Radius: 5.0f),
                 DmuP3DynamicFluidStatusId => new ReplayMarkerInfo("Fluid", "Dynamic Fluid", ReplayMechanicShape.Donut, Radius: 10.0f, Width: 4.0f),
                 DmuP3HeadwindStatusId => new ReplayMarkerInfo("Headwind", "Headwind"),
@@ -552,8 +581,8 @@ internal static class ReplayEncounterModules
                 3005 => new ReplayMarkerInfo("2nd", "Second in line"),
                 3006 => new ReplayMarkerInfo("3rd", "Third in line"),
                 5084 => new ReplayMarkerInfo("Stack", "Head stack", ReplayMechanicShape.Stack, Radius: 5.0f),
-                5085 => new ReplayMarkerInfo("Circle", "Circle", ReplayMechanicShape.Circle, Radius: 5.0f),
-                5086 => new ReplayMarkerInfo("Fan", "Fan", ReplayMechanicShape.Cone, Radius: 18.0f, Length: 18.0f, AngleDegrees: 70.0f, ConeBaitsClosestPlayer: true),
+                5085 => new ReplayMarkerInfo("Spread", "Forsaken spread", ReplayMechanicShape.Spread, Radius: 5.0f),
+                5086 => new ReplayMarkerInfo("Cone", "Forsaken cone", ReplayMechanicShape.Cone, Radius: 40.0f, Length: 40.0f, AngleDegrees: 90.0f, ConeBaitsClosestPlayer: true),
                 DmuP4RealityTellStatusId => new ReplayMarkerInfo("Tell", "P4 real/fake tell"),
                 DmuP4CursedShriekStatusId => new ReplayMarkerInfo("Shriek", "Cursed Shriek"),
                 DmuP4ForkedLightningStatusId => new ReplayMarkerInfo("Lightning", "Forked Lightning"),

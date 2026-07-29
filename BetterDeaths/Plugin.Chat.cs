@@ -45,6 +45,9 @@ namespace BetterDeaths;
 
 public sealed partial class Plugin
 {
+    private const int PendingSharedDeathPostSeconds = 15;
+    private const int MaxSharedDeathPostPullCandidates = 3;
+
     private static readonly Regex SharedDamageDeathPostRegex = new(
         @"^(?:\[Better Deaths\]\s*)?Recap:\s*(?<timer>\d{2,}:\d{2})\s+(?<name>.+?)\s+\((?<job>[^)]*)\):\s+(?<amount>[\d,]+)\s+damage\.(?:\s+(?:HP before hit|HP):\s+.+?\.)?(?:\s+Overkill:\s+(?:[\d,]+|-)\.)?$",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
@@ -514,6 +517,13 @@ public sealed partial class Plugin
                 return;
             }
 
+            if (HasSharedDeathPostDetailLoadInProgress(post))
+            {
+                QueuePendingSharedDeathPost(post);
+                AddDebugLog($"Loading saved pull details for shared Better Deaths recap from {post.MemberName}.");
+                return;
+            }
+
             AddDebugLog($"Shared Better Deaths recap did not match a captured death for {post.MemberName}.");
         }
         catch (Exception ex)
@@ -701,13 +711,79 @@ public sealed partial class Plugin
 
     private IEnumerable<PullDeathSnapshot> GetRecordedPullDetailsForSharedPostSearch(SharedDeathPost post)
     {
+        foreach (var summary in RecordedPulls
+            .Where(summary => RecordedPullMayContainSharedPost(summary, post))
+            .OrderByDescending(summary => summary.PullNumber)
+            .ThenByDescending(summary => summary.CapturedAtUtc)
+            .Take(MaxSharedDeathPostPullCandidates))
+        {
+            var detail = GetLoadedRecordedPullDetails(summary);
+            if (detail is not null)
+            {
+                yield return detail;
+                continue;
+            }
+
+            GetRecordedPullDetails(summary);
+        }
+    }
+
+    private bool HasSharedDeathPostDetailLoadInProgress(SharedDeathPost post)
+    {
         return RecordedPulls
             .Where(summary => RecordedPullMayContainSharedPost(summary, post))
             .OrderByDescending(summary => summary.PullNumber)
             .ThenByDescending(summary => summary.CapturedAtUtc)
-            .Select(GetRecordedPullDetailsForTransientSearch)
-            .Where(detail => detail is not null)
-            .Cast<PullDeathSnapshot>();
+            .Take(MaxSharedDeathPostPullCandidates)
+            .Any(IsRecordedPullDetailsLoading);
+    }
+
+    private void QueuePendingSharedDeathPost(SharedDeathPost post)
+    {
+        var expiresAtUtc = DateTime.UtcNow.AddSeconds(PendingSharedDeathPostSeconds);
+        for (var index = 0; index < pendingSharedDeathPosts.Count; index++)
+        {
+            if (!PostsMatch(pendingSharedDeathPosts[index].Post, post))
+            {
+                continue;
+            }
+
+            pendingSharedDeathPosts[index] = new PendingSharedDeathPost(post, expiresAtUtc);
+            return;
+        }
+
+        pendingSharedDeathPosts.Add(new PendingSharedDeathPost(post, expiresAtUtc));
+    }
+
+    private void ResolvePendingSharedDeathPosts(DateTime now)
+    {
+        for (var index = pendingSharedDeathPosts.Count - 1; index >= 0; index--)
+        {
+            var pending = pendingSharedDeathPosts[index];
+            if (pending.ExpiresAtUtc <= now)
+            {
+                pendingSharedDeathPosts.RemoveAt(index);
+                continue;
+            }
+
+            if (FindSharedDeathPost(pending.Post) is { } death)
+            {
+                pendingSharedDeathPosts.RemoveAt(index);
+                if (HasDeathRecapDetails(death))
+                {
+                    QueueDetectedSharedRecapLink(death);
+                    AddDebugLog($"Linked shared Better Deaths recap for {death.MemberName} after loading saved pull details.");
+                }
+
+                continue;
+            }
+
+            if (!HasSharedDeathPostDetailLoadInProgress(pending.Post))
+            {
+                pendingSharedDeathPosts.RemoveAt(index);
+                AddDebugLog($"Shared Better Deaths recap did not match a captured death for {pending.Post.MemberName}.");
+            }
+        }
     }
 
     private bool RecordedPullMayContainSharedPost(RecordedPullSummary summary, SharedDeathPost post)
@@ -1304,6 +1380,10 @@ public sealed partial class Plugin
         ulong? HpBeforeHit);
 
     private readonly record struct RecentOwnSharedDeathPost(
+        SharedDeathPost Post,
+        DateTime ExpiresAtUtc);
+
+    private readonly record struct PendingSharedDeathPost(
         SharedDeathPost Post,
         DateTime ExpiresAtUtc);
 

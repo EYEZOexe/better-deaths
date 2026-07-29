@@ -334,6 +334,7 @@ public sealed partial class Plugin
         TrackPossibleMitigationActionUse(packet);
         CaptureReplayBlackHoleBlast(packet);
         ResolveActiveReplayMechanicsForAction(packet);
+        CaptureReplayDmuP1Action(packet);
         CaptureReplayDmuP2ForsakenAction(packet);
         CaptureReplayDmuP3Action(packet);
         CaptureReplayDmuP4Action(packet);

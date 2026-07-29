@@ -263,9 +263,15 @@ public sealed partial class Plugin
 
     public void ClearSavedDebugCaptureFile()
     {
+        if (!WaitForDebugCaptureWrites(TimeSpan.FromSeconds(5)))
+        {
+            return;
+        }
+
         lock (debugCaptureFileLock)
         {
             debugCaptureFileLines.Clear();
+            debugCaptureWriteBatches.Clear();
         }
 
         try
@@ -692,17 +698,73 @@ public sealed partial class Plugin
             }
         }
 
+        lock (debugCaptureFileLock)
+        {
+            debugCaptureWriteBatches.Enqueue(lines);
+            lastDebugCaptureFlushAtUtc = currentTime;
+            if (debugCaptureWriteTask is null || debugCaptureWriteTask.IsCompleted)
+            {
+                debugCaptureWriteTask = Task.Run(ProcessDebugCaptureWriteBatches);
+            }
+        }
+    }
+
+    private void ProcessDebugCaptureWriteBatches()
+    {
+        while (true)
+        {
+            IReadOnlyList<string> lines;
+            lock (debugCaptureFileLock)
+            {
+                if (debugCaptureWriteBatches.Count == 0)
+                {
+                    debugCaptureWriteTask = null;
+                    return;
+                }
+
+                lines = debugCaptureWriteBatches.Dequeue();
+            }
+
+            try
+            {
+                Directory.CreateDirectory(PluginInterface.ConfigDirectory.FullName);
+                File.AppendAllLines(DebugCaptureFileFullPath, lines, Encoding.UTF8);
+                TrimDebugCaptureFileToCap();
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Could not write Better Deaths debug capture file.");
+            }
+        }
+    }
+
+    private bool WaitForDebugCaptureWrites(TimeSpan timeout)
+    {
+        Task? task;
+        lock (debugCaptureFileLock)
+        {
+            task = debugCaptureWriteTask;
+        }
+
+        if (task is null || task.IsCompleted)
+        {
+            return true;
+        }
+
         try
         {
-            Directory.CreateDirectory(PluginInterface.ConfigDirectory.FullName);
-            File.AppendAllLines(DebugCaptureFileFullPath, lines, Encoding.UTF8);
-            TrimDebugCaptureFileToCap();
-            lastDebugCaptureFlushAtUtc = currentTime;
+            if (!task.Wait(timeout))
+            {
+                Log.Warning("Better Deaths debug capture writes did not finish within {TimeoutSeconds:0.0} seconds.", timeout.TotalSeconds);
+                return false;
+            }
+
+            return true;
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is AggregateException or OperationCanceledException)
         {
-            lastDebugCaptureFlushAtUtc = currentTime;
-            Log.Warning(ex, "Could not write Better Deaths debug capture file.");
+            Log.Warning(ex, "Better Deaths debug capture writes did not finish cleanly.");
+            return false;
         }
     }
 

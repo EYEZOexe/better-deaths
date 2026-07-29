@@ -75,7 +75,7 @@ public sealed partial class Plugin : IDalamudPlugin
     private const string RecordedPullDetailCompressedExtension = ".json.gz";
     private const string RecordedPullDetailMigrationTempSuffix = ".migration.tmp";
     private const int RecordedPullHistorySchemaVersion = 3;
-    private const int RecordedPullIndexSchemaVersion = 6;
+    private const int RecordedPullIndexSchemaVersion = 7;
     private const int CurrentConfigurationVersion = 4;
     internal const int PullGroupColorPaletteSize = 8;
     private static readonly TimeSpan RecentPullGroupRestoreWindow = TimeSpan.FromHours(3);
@@ -100,6 +100,21 @@ public sealed partial class Plugin : IDalamudPlugin
     private const uint DmuGravenImageTetherId = 45;
     private const uint DmuGravenImageBaseId = 19505;
     private const uint DmuBlackHoleNothingnessActionId = 47868;
+    private const uint DmuP1RevoltingRuinFirstActionId = 50179;
+    private const uint DmuP1RevoltingRuinSecondActionId = 50401;
+    private const uint DmuP1BlizzardFirstActionId = 47768;
+    private const uint DmuP1BlizzardSecondActionId = 47774;
+    private const uint DmuP1ThunderFirstActionId = 47775;
+    private const uint DmuP1ThunderSecondActionId = 47777;
+    private const uint DmuP1DoubleTroubleActionId = 47783;
+    private const uint DmuP1WaveCannonActionId = 47784;
+    private const uint DmuP1ExplosionActionId = 47786;
+    private const uint DmuP1HyperdriveActionId = 49739;
+    private const uint DmuP1GravitasActionId = 47788;
+    private const uint DmuP1GravityActionId = 47791;
+    private const uint DmuP1VitrophyreActionId = 47792;
+    private const uint DmuP1GravitationalWaveActionId = 47793;
+    private const uint DmuP1IntemperateWillActionId = 47794;
     private const uint DmuP2PathOfLightActionId = 47806;
     private static readonly TimeSpan EnvironmentalDeathMotionWindow = TimeSpan.FromSeconds(4);
     private static readonly TimeSpan EnvironmentalDeathPartyReferenceWindow = TimeSpan.FromSeconds(2.5);
@@ -112,6 +127,10 @@ public sealed partial class Plugin : IDalamudPlugin
     private const uint DmuP2PastsEndCloneActionId = 47833;
     private const uint DmuP2AllThingsEndingFirstActionId = 47836;
     private const uint DmuP2AllThingsEndingSecondActionId = 47837;
+    private const uint DmuP2UltimateEmbraceActionId = 49740;
+    private const uint DmuP2WingsLeftActionId = 47821;
+    private const uint DmuP2WingsRightActionId = 47822;
+    private const uint DmuP2WingsBusterActionId = 47823;
     private const uint DmuP2PathOfLightMapEffectState = 0x00020001;
     private const uint DmuP3AeroIIIAssaultActionId = 50167;
     private const uint DmuP3ThunderIIICircleActionId = 47890;
@@ -170,10 +189,23 @@ public sealed partial class Plugin : IDalamudPlugin
     private const uint DmuP5ChaoticFlareActionId = 47955;
     private const uint DmuP5FlareDiffusionActionId = 47957;
     private const uint DmuP5ChaoticHolyActionId = 47958;
+    private const uint DmuP5TriadFireActionId = 47939;
+    private const uint DmuP5TriadBlizzardActionId = 47940;
+    private const uint DmuP5TriadThunderActionId = 47941;
+    private const uint DmuP5QuakeActionId = 47946;
+    private const uint DmuP5TornadoActionId = 47947;
+    private const uint DmuP5StrayApocalypseFirstActionId = 47932;
+    private const uint DmuP5StrayApocalypseRestActionId = 47933;
+    private const uint DmuP5StrayEntropyActionId = 47935;
+    private const uint DmuP5ForsakenGroundActionId = 47927;
+    private const uint DmuP5ForsakenPuddleActionId = 47928;
+    private const uint DmuP5ForsakenBondsActionId = 47929;
     private const float DmuReplayActiveMechanicMinDurationSeconds = 0.05f;
     private const float DmuReplayPredictionFallbackGraceSeconds = 0.75f;
-    private const float DmuReplaySlapHappyPredictionExtraSeconds = 4.2f;
-    private const float DmuReplayStompAMolePredictionExtraSeconds = 3.8f;
+    private const float DmuP5FloodPredictionExtraSeconds = 4.5f;
+    private const float DmuP5ArenaHoleSampleHoldSeconds = 0.75f;
+    private static readonly float[] DmuReplaySlapHappyResolveDelaySeconds = [0.8f, 1.3f, 2.1f, 3.3f];
+    private static readonly float[] DmuReplayStompAMoleResolveDelaySeconds = [1.6f, 2.9f];
     private const float DmuArenaCenterX = 100.0f;
     private const float DmuArenaCenterZ = 100.0f;
     private const float DmuP2PathOfLightTowerDistance = 8.0f;
@@ -305,6 +337,7 @@ public sealed partial class Plugin : IDalamudPlugin
     private readonly List<AddonInspectorEvent> addonInspectorEvents = [];
     private readonly Dictionary<string, DateTime> addonInspectorEventSeenAtBySignature = new(StringComparer.Ordinal);
     private readonly Queue<string> debugCaptureFileLines = new();
+    private readonly Queue<IReadOnlyList<string>> debugCaptureWriteBatches = new();
     private readonly object debugCaptureFileLock = new();
     private readonly DalamudLinkPayload deathChatLinkPayload;
     private readonly Dictionary<string, List<CombatEventRecord>> recentEventsByMember = new(StringComparer.Ordinal);
@@ -334,15 +367,19 @@ public sealed partial class Plugin : IDalamudPlugin
     private readonly Dictionary<uint, string> classJobNameCache = new();
     private readonly Dictionary<uint, string> territoryNameCache = new();
     private readonly List<RecentOwnSharedDeathPost> recentOwnSharedDeathPosts = [];
+    private readonly List<PendingSharedDeathPost> pendingSharedDeathPosts = [];
     private readonly List<PartyDeathRecord> pendingDeathRecapLinks = [];
     private readonly Queue<QueuedChatMessage> queuedChatMessages = [];
     private readonly object rawCombatQueueLock = new();
+    private readonly SemaphoreSlim recordedPullDetailLoadSemaphore = new(1, 1);
+    private readonly CancellationTokenSource recordedPullDetailLoadCts = new();
     private readonly Queue<RawActionEffectPacket> rawActionEffectPackets = [];
     private readonly Queue<RawCombatLogMessage> rawCombatLogMessages = [];
     private readonly Queue<RawEffectResultPacket> rawEffectResultPackets = [];
     private readonly Queue<RawActorControlPacket> rawActorControlPackets = [];
     private readonly Queue<RawMapEffectPacket> rawMapEffectPackets = [];
     private readonly Dictionary<uint, ActiveDmuP2PathOfLightTower> activeDmuP2PathOfLightTowersByIndex = [];
+    private readonly HashSet<uint> activeDmuP5ArenaHoleIndices = [];
     private readonly Dictionary<string, ActiveReplayMechanic> activeReplayMechanicsByKey = new(StringComparer.Ordinal);
     private long nextRawActionEffectSequence = 1;
     private long nextRawCombatLogSequence = 1;
@@ -362,11 +399,17 @@ public sealed partial class Plugin : IDalamudPlugin
     private AddonInspectorSnapshot? addonInspectorSnapshot;
     private string? pendingUpdateNoticeKey;
     private CancellationTokenSource? recordedPullHistoryLoadCts;
+    private readonly CancellationTokenSource repositoryMigrationCts = new();
     private Task? recordedPullHistoryLoadTask;
     private Task? recordedPullIndexBackfillTask;
+    private Task? recordedPullSaveTask;
+    private Task? repositoryMigrationTask;
+    private Task? debugCaptureWriteTask;
     private string? recordedPullHistoryLoadError;
     private bool recordedPullHistoryLoading;
     private bool recordedPullStorageDirty;
+    private long recordedPullStorageRevision;
+    private volatile bool repositoryMigrationReady;
     private bool updateCheckInProgress;
     private bool effectResultHookEnabled;
     private bool actorControlHookEnabled;
@@ -602,7 +645,7 @@ public sealed partial class Plugin : IDalamudPlugin
         PluginInterface.UiBuilder.Draw += DrawUi;
         PluginInterface.UiBuilder.OpenMainUi += OpenMainUi;
         PluginInterface.UiBuilder.OpenConfigUi += OpenMainUi;
-        _ = MigrateToPuniRepositoryAsync();
+        BeginPuniRepositoryMigration();
     }
 
     public void Dispose()
@@ -610,7 +653,13 @@ public sealed partial class Plugin : IDalamudPlugin
         disposing = true;
         CaptureCurrentPullSnapshot("Plugin unloaded");
         SaveRecordedPullHistory();
+        _ = WaitForRecordedPullSave(TimeSpan.FromSeconds(10));
+        recordedPullDetailLoadCts.Cancel();
+        _ = WaitForRecordedPullDetailLoads(TimeSpan.FromSeconds(2));
         FlushDebugCaptureFile(force: true);
+        _ = WaitForDebugCaptureWrites(TimeSpan.FromSeconds(5));
+        repositoryMigrationCts.Cancel();
+        WaitForRepositoryMigration(TimeSpan.FromSeconds(1));
         recordedPullHistoryLoadCts?.Cancel();
         try
         {
@@ -631,6 +680,8 @@ public sealed partial class Plugin : IDalamudPlugin
         }
 
         recordedPullHistoryLoadCts?.Dispose();
+        recordedPullDetailLoadCts.Dispose();
+        repositoryMigrationCts.Dispose();
         PluginInterface.UiBuilder.OpenConfigUi -= OpenMainUi;
         PluginInterface.UiBuilder.OpenMainUi -= OpenMainUi;
         PluginInterface.UiBuilder.Draw -= DrawUi;
@@ -689,7 +740,9 @@ public sealed partial class Plugin : IDalamudPlugin
             FlushDebugCaptureFile(now);
             PruneLiveCaptureState(now);
             PruneRecentOwnSharedDeathPosts(now);
+            ResolvePendingSharedDeathPosts(now);
             MaybeBackfillRecordedPullDeathMemberNames(now);
+            ApplyPendingPuniRepositoryMigration();
         }
         catch (Exception ex)
         {

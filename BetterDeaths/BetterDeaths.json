@@ -5,7 +5,7 @@
   "DownloadCount": 4872,
   "Punchline": "A clearer party death review.",
   "Description": "Records party deaths with pull grouping, fatal events, active statuses, and recent action timelines.",
-  "Changelog": "Fixed fallback replay alignment. Improved Death Replay layout and spacing. Cleaned up Better Deaths navigation. Merged Feedback into the Data tab.",
+  "Changelog": "Added timeline-synced party HP and shields to Death Replay. Improved DMU replay mechanics and pull loading. Fixed duplicate What If mitigation stacking and replay reliability issues.",
   "RepoUrl": "https://github.com/Nainaiowo/better-deaths",
   "IconUrl": "https://raw.githubusercontent.com/Nainaiowo/better-deaths/main/assets/icon.png",
   "ApplicableVersion": "any",
