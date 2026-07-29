@@ -374,6 +374,10 @@ public sealed class Configuration : IPluginConfiguration
 
     public float ReplayMitigationOverlayHeight { get; set; } = 156.0f;
 
+    public float ReplayPartyHpPanelWidth { get; set; }
+
+    public float ReplayPartyHpPanelHeight { get; set; }
+
     public float ReplayWorldMarkerOpacity { get; set; } = 0.75f;
 
     public bool UseCustomPullGroupColors { get; set; }
