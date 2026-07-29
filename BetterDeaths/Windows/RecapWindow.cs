@@ -171,6 +171,8 @@ public sealed class RecapWindow : Window, IDisposable
     private const float ReplayMitigationOverlayResizeCornerSize = 20.0f;
     private const float ReplayMitigationOverlayRowGap = 5.0f;
     private const float ReplayMitigationOverlayIconSize = 20.0f;
+    private const float ReplayStatusPanelGap = 8.0f;
+    private const float ReplayStatusPanelPairMinWidth = 320.0f;
     private const float ReplayPartyHpRowHeight = 30.0f;
     private const float ReplayPartyHpBarHeight = 8.0f;
     private const float ReplayMitigationOverlaySnapAnimationSpeed = 16.0f;
@@ -9723,17 +9725,24 @@ public sealed class RecapWindow : Window, IDisposable
             targetExternalMitigationPanelSize);
         var useExternalMitigationPanel = externalMitigationPanel.Visible;
 
-        if (useExternalMitigationPanel)
-        {
-            ClearReplayMitigationOverlayInteraction(idSuffix);
-        }
-
         var replayGroupWidth = useExternalMitigationPanel
             ? canvasSide + ReplayMitigationExternalPanelGap + externalMitigationPanel.Size.X
             : canvasSide;
         var targetCanvasX = cursorStart.X + MathF.Max(0.0f, (availableWidth - replayGroupWidth) * 0.5f);
         var maxCanvasX = cursorStart.X + MathF.Max(0.0f, availableWidth - replayGroupWidth);
         var canvasX = GetReplayCanvasDisplayX(idSuffix, targetCanvasX, cursorStart.X, maxCanvasX);
+        var externalMitigationPanelState = useExternalMitigationPanel
+            ? SubmitReplayMitigationExternalPanelInput(
+                idSuffix,
+                new Vector2(
+                    canvasX + canvasSide + ReplayMitigationExternalPanelGap + externalMitigationPanel.SlideOffsetX,
+                    cursorStart.Y),
+                externalMitigationPanel.Size,
+                availableWidth,
+                canvasSide,
+                externalMitigationPanel.PartyHpEntries.Count > 0 &&
+                    externalMitigationPanel.MitigationEntries.Count > 0)
+            : default;
         ImGui.SetCursorScreenPos(new Vector2(canvasX, cursorStart.Y));
         ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, Vector2.Zero);
         var canvasChildVisible = ImGui.BeginChild($"##DeathReplayCanvasScrollBlock{idSuffix}", canvasSize, false, ReplayCanvasChildFlags);
@@ -9816,8 +9825,7 @@ public sealed class RecapWindow : Window, IDisposable
                 DrawReplayMitigationExternalPanel(
                     externalMitigationPanel.PartyHpEntries,
                     externalMitigationPanel.MitigationEntries,
-                    canvasStart + new Vector2(canvasSide + ReplayMitigationExternalPanelGap + externalMitigationPanel.SlideOffsetX, 0.0f),
-                    externalMitigationPanel.Size,
+                    externalMitigationPanelState,
                     externalMitigationPanel.Alpha);
             }
 
@@ -9881,8 +9889,7 @@ public sealed class RecapWindow : Window, IDisposable
             DrawReplayMitigationExternalPanel(
                 externalMitigationPanel.PartyHpEntries,
                 externalMitigationPanel.MitigationEntries,
-                canvasStart + new Vector2(canvasSide + ReplayMitigationExternalPanelGap + externalMitigationPanel.SlideOffsetX, 0.0f),
-                externalMitigationPanel.Size,
+                externalMitigationPanelState,
                 externalMitigationPanel.Alpha);
         }
 
@@ -10040,13 +10047,16 @@ public sealed class RecapWindow : Window, IDisposable
     {
         size = default;
         var availablePanelWidth = availableWidth - canvasSide - ReplayMitigationExternalPanelGap;
-        if (availablePanelWidth < ReplayMitigationOverlayWidthMin)
+        var minimumPanelWidth = partyHpEntries.Count > 0 && mitigationEntries.Count > 0
+            ? ReplayStatusPanelPairMinWidth
+            : ReplayMitigationOverlayWidthMin;
+        if (availablePanelWidth < minimumPanelWidth)
         {
             return false;
         }
 
         var maxWidth = MathF.Min(ReplayMitigationOverlayWidthMax, availablePanelWidth);
-        var minWidth = MathF.Min(ReplayMitigationOverlayWidthMin, maxWidth);
+        var minWidth = MathF.Min(minimumPanelWidth, maxWidth);
         var defaultWidth = Math.Clamp(
             ReplayMitigationOverlayDefaultWidthMax,
             minWidth,
@@ -10088,18 +10098,54 @@ public sealed class RecapWindow : Window, IDisposable
             .ToList();
     }
 
-    private void ClearReplayMitigationOverlayInteraction(string idSuffix)
+    private ReplayMitigationOverlayInputState SubmitReplayMitigationExternalPanelInput(
+        string idSuffix,
+        Vector2 panelStart,
+        Vector2 panelSize,
+        float availableWidth,
+        float canvasSide,
+        bool hasSplitPanels)
     {
+        var cursorBefore = ImGui.GetCursorScreenPos();
         if (string.Equals(replayMitigationOverlayDraggingId, idSuffix, StringComparison.Ordinal))
         {
             replayMitigationOverlayDraggingId = null;
         }
 
+        var hovered = IsMouseInsideRect(panelStart, panelSize);
+        var active = false;
+        SubmitReplayMitigationOverlayCornerResizeHandle(
+            idSuffix,
+            panelStart,
+            panelSize,
+            ReplayOverlayDockSide.Left,
+            ref hovered,
+            ref active);
+
         if (string.Equals(replayMitigationOverlayResizeDraggingId, idSuffix, StringComparison.Ordinal))
         {
-            replayMitigationOverlayResizeDraggingId = null;
-            replayMitigationOverlayResizeMode = ReplayMitigationOverlayResizeMode.None;
+            var maxWidth = MathF.Max(
+                ReplayMitigationOverlayWidthMin,
+                MathF.Min(
+                    ReplayMitigationOverlayWidthMax,
+                    availableWidth - canvasSide - ReplayMitigationExternalPanelGap));
+            var minWidth = MathF.Min(
+                hasSplitPanels ? ReplayStatusPanelPairMinWidth : ReplayMitigationOverlayWidthMin,
+                maxWidth);
+            var maxHeight = MathF.Max(
+                ReplayMitigationOverlayMinHeight,
+                MathF.Min(ReplayMitigationOverlayMaxHeight, canvasSide));
+            var mouseDelta = ImGui.GetIO().MouseDelta;
+            panelSize = new Vector2(
+                Math.Clamp(panelSize.X + mouseDelta.X, minWidth, maxWidth),
+                Math.Clamp(panelSize.Y + mouseDelta.Y, ReplayMitigationOverlayMinHeight, maxHeight));
+            configuration.ReplayMitigationOverlayWidth = panelSize.X;
+            configuration.ReplayMitigationOverlayHeight = panelSize.Y;
         }
+
+        FinalizeReplayMitigationOverlayResize(idSuffix);
+        ImGui.SetCursorScreenPos(cursorBefore);
+        return new ReplayMitigationOverlayInputState(true, hovered, active, panelStart, panelSize);
     }
 
     private IReadOnlyList<ReplayMitigationOverlayEntry> BuildReplayMitigationOverlayEntries(
@@ -10151,26 +10197,13 @@ public sealed class RecapWindow : Window, IDisposable
             return ReplayMitigationOverlayDefaultHeight;
         }
 
-        var height =
+        var partyHeight =
             ReplayMitigationOverlayHeaderHeight +
             ReplayMitigationOverlayPadding +
             (partyHpEntries.Count * ReplayPartyHpRowHeight) +
-            (Math.Max(0, partyHpEntries.Count - 1) * ReplayMitigationOverlayRowGap);
-        if (mitigationEntries.Count > 0)
-        {
-            var visibleMitigationCount = Math.Min(2, mitigationEntries.Count);
-            height +=
-                ReplayMitigationOverlayPadding +
-                ReplayMitigationOverlayRowGap +
-                ReplayMitigationOverlayHeaderHeight +
-                ReplayMitigationOverlayPadding +
-                mitigationEntries
-                    .Take(visibleMitigationCount)
-                    .Sum(GetReplayMitigationOverlayRowHeight) +
-                (Math.Max(0, visibleMitigationCount - 1) * ReplayMitigationOverlayRowGap);
-        }
-
-        return height + ReplayMitigationOverlayPadding + ReplayMitigationOverlayResizeCornerSize;
+            (Math.Max(0, partyHpEntries.Count - 1) * ReplayMitigationOverlayRowGap) +
+            ReplayMitigationOverlayPadding;
+        return MathF.Max(ReplayMitigationOverlayDefaultHeight, partyHeight);
     }
 
     private static bool StatusNameMatchesActionName(string statusName, string actionName)
@@ -10385,6 +10418,10 @@ public sealed class RecapWindow : Window, IDisposable
     {
         var minWidth = GetReplayMitigationOverlayMinWidth(canvasSize);
         var maxWidth = GetReplayMitigationOverlayMaxWidth(canvasSize);
+        if (partyHpEntries.Count > 0 && mitigationEntries.Count > 0)
+        {
+            minWidth = MathF.Min(ReplayStatusPanelPairMinWidth, maxWidth);
+        }
         var defaultWidth = Math.Clamp(
             canvasSize.X * 0.48f,
             minWidth,
@@ -10527,8 +10564,6 @@ public sealed class RecapWindow : Window, IDisposable
         var drawList = ImGui.GetWindowDrawList();
         var start = state.Start;
         var end = state.Start + state.Size;
-        drawList.AddRectFilled(start, end, ImGui.GetColorU32(ModernPanelColor with { W = 0.88f }), 6.0f);
-        drawList.AddRect(start, end, ImGui.GetColorU32(ModernPanelBorderColor with { W = state.Hovered || state.Active ? 0.92f : 0.70f }), 6.0f);
 
         ImGui.PushClipRect(start, end, true);
         DrawReplayStatusPanelContents(
@@ -10536,6 +10571,8 @@ public sealed class RecapWindow : Window, IDisposable
             mitigationEntries,
             start,
             state.Size,
+            GetReplayMitigationOverlayDockSide(),
+            state.Hovered,
             state.Active,
             showGrip: true,
             reserveResizeGrip: true);
@@ -10552,32 +10589,39 @@ public sealed class RecapWindow : Window, IDisposable
     private void DrawReplayMitigationExternalPanel(
         IReadOnlyList<ReplayPositionSnapshot> partyHpEntries,
         IReadOnlyList<ReplayMitigationOverlayEntry> mitigationEntries,
-        Vector2 start,
-        Vector2 size,
+        ReplayMitigationOverlayInputState state,
         float alpha = 1.0f)
     {
         alpha = Math.Clamp(alpha, 0.0f, 1.0f);
-        if ((partyHpEntries.Count == 0 && mitigationEntries.Count == 0) || alpha <= 0.01f)
+        if (!state.Visible ||
+            (partyHpEntries.Count == 0 && mitigationEntries.Count == 0) ||
+            alpha <= 0.01f)
         {
             return;
         }
 
         var cursorBefore = ImGui.GetCursorScreenPos();
         var drawList = ImGui.GetWindowDrawList();
-        var end = start + size;
-        drawList.AddRectFilled(start, end, ImGui.GetColorU32(ModernPanelColor with { W = 0.92f * alpha }), 6.0f);
-        drawList.AddRect(start, end, ImGui.GetColorU32(ModernPanelBorderColor with { W = 0.78f * alpha }), 6.0f);
+        var end = state.Start + state.Size;
 
-        ImGui.PushClipRect(start, end, true);
+        ImGui.PushClipRect(state.Start, end, true);
         DrawReplayStatusPanelContents(
             partyHpEntries,
             mitigationEntries,
-            start,
-            size,
-            active: false,
+            state.Start,
+            state.Size,
+            ReplayOverlayDockSide.Left,
+            state.Hovered,
+            state.Active,
             showGrip: false,
-            reserveResizeGrip: false,
+            reserveResizeGrip: true,
             alpha: alpha);
+        DrawReplayMitigationOverlayResizeGrip(
+            drawList,
+            state.Start,
+            state.Size,
+            ReplayOverlayDockSide.Left,
+            state.Active);
         ImGui.PopClipRect();
         ImGui.SetCursorScreenPos(cursorBefore);
     }
@@ -10587,87 +10631,108 @@ public sealed class RecapWindow : Window, IDisposable
         IReadOnlyList<ReplayMitigationOverlayEntry> mitigationEntries,
         Vector2 start,
         Vector2 size,
+        ReplayOverlayDockSide resizeDockSide,
+        bool hovered,
         bool active,
         bool showGrip,
         bool reserveResizeGrip,
         float alpha = 1.0f)
     {
         var drawList = ImGui.GetWindowDrawList();
-        var sectionStart = start;
-        var panelBottom = start.Y + size.Y -
-            (reserveResizeGrip ? ReplayMitigationOverlayResizeCornerSize : 0.0f);
-
-        if (partyHpEntries.Count > 0)
+        var hasPartyHp = partyHpEntries.Count > 0;
+        var hasMitigation = mitigationEntries.Count > 0;
+        if (!hasPartyHp && !hasMitigation)
         {
-            var mitigationMinimumHeight = mitigationEntries.Count == 0
-                ? 0.0f
-                : ReplayMitigationOverlayRowGap +
-                    ReplayMitigationOverlayHeaderHeight +
-                    ReplayMitigationOverlayPadding +
-                    GetReplayMitigationOverlayRowHeight(mitigationEntries[0]) +
-                    ReplayMitigationOverlayPadding;
-            var desiredPartyHeight =
-                ReplayMitigationOverlayHeaderHeight +
-                ReplayMitigationOverlayPadding +
-                (partyHpEntries.Count * ReplayPartyHpRowHeight) +
-                (Math.Max(0, partyHpEntries.Count - 1) * ReplayMitigationOverlayRowGap) +
-                ReplayMitigationOverlayPadding;
-            var availablePartyHeight = MathF.Max(
-                ReplayMitigationOverlayHeaderHeight,
-                panelBottom - sectionStart.Y - mitigationMinimumHeight);
-            var partySectionHeight = MathF.Min(desiredPartyHeight, availablePartyHeight);
-            var partySectionSize = new Vector2(size.X, partySectionHeight);
+            return;
+        }
 
+        var partyStart = start;
+        var partySize = size;
+        var mitigationStart = start;
+        var mitigationSize = size;
+        if (hasPartyHp && hasMitigation)
+        {
+            var panelWidth = MathF.Max(1.0f, MathF.Floor((size.X - ReplayStatusPanelGap) * 0.5f));
+            partySize = new Vector2(panelWidth, size.Y);
+            mitigationStart = new Vector2(start.X + panelWidth + ReplayStatusPanelGap, start.Y);
+            mitigationSize = new Vector2(
+                MathF.Max(1.0f, size.X - panelWidth - ReplayStatusPanelGap),
+                size.Y);
+        }
+
+        if (hasPartyHp)
+        {
+            DrawReplayStatusPanelFrame(drawList, partyStart, partySize, hovered, active, alpha);
             DrawReplayMitigationOverlayHeader(
                 drawList,
-                sectionStart,
-                partySectionSize,
+                partyStart,
+                partySize,
                 "Party HP",
                 active,
                 showGrip,
                 alpha);
             DrawReplayPartyHpRows(
                 partyHpEntries,
-                sectionStart,
-                partySectionSize,
+                partyStart,
+                partySize,
+                reserveResizeGrip &&
+                    (!hasMitigation || resizeDockSide == ReplayOverlayDockSide.Right),
                 alpha);
-
-            sectionStart.Y += partySectionHeight + ReplayMitigationOverlayRowGap;
-            active = false;
-            showGrip = false;
         }
 
-        if (mitigationEntries.Count == 0 || sectionStart.Y + ReplayMitigationOverlayHeaderHeight > panelBottom)
+        if (hasMitigation)
         {
-            return;
+            DrawReplayStatusPanelFrame(drawList, mitigationStart, mitigationSize, hovered, active, alpha);
+            DrawReplayMitigationOverlayHeader(
+                drawList,
+                mitigationStart,
+                mitigationSize,
+                "Active Mits",
+                active,
+                showGrip,
+                alpha);
+            DrawReplayMitigationOverlayRows(
+                mitigationEntries,
+                mitigationStart,
+                mitigationSize,
+                reserveResizeGrip &&
+                    (!hasPartyHp || resizeDockSide == ReplayOverlayDockSide.Left),
+                alpha);
         }
+    }
 
-        var mitigationSectionSize = new Vector2(size.X, start.Y + size.Y - sectionStart.Y);
-        DrawReplayMitigationOverlayHeader(
-            drawList,
-            sectionStart,
-            mitigationSectionSize,
-            "Active Mits",
-            active,
-            showGrip,
-            alpha);
-        DrawReplayMitigationOverlayRows(
-            mitigationEntries,
-            sectionStart,
-            mitigationSectionSize,
-            reserveResizeGrip,
-            alpha);
+    private static void DrawReplayStatusPanelFrame(
+        ImDrawListPtr drawList,
+        Vector2 start,
+        Vector2 size,
+        bool hovered,
+        bool active,
+        float alpha)
+    {
+        var end = start + size;
+        drawList.AddRectFilled(
+            start,
+            end,
+            ImGui.GetColorU32(ModernPanelColor with { W = 0.90f * alpha }),
+            6.0f);
+        drawList.AddRect(
+            start,
+            end,
+            ImGui.GetColorU32(ModernPanelBorderColor with { W = (hovered || active ? 0.92f : 0.72f) * alpha }),
+            6.0f);
     }
 
     private void DrawReplayPartyHpRows(
         IReadOnlyList<ReplayPositionSnapshot> entries,
         Vector2 start,
         Vector2 size,
+        bool reserveResizeGrip,
         float alpha)
     {
         var drawList = ImGui.GetWindowDrawList();
         var rowY = start.Y + ReplayMitigationOverlayHeaderHeight + ReplayMitigationOverlayPadding;
-        var rowBottom = start.Y + size.Y - ReplayMitigationOverlayPadding;
+        var bottomReservedHeight = reserveResizeGrip ? ReplayMitigationOverlayResizeCornerSize : 0.0f;
+        var rowBottom = start.Y + size.Y - bottomReservedHeight - ReplayMitigationOverlayPadding;
         var hiddenCount = 0;
 
         for (var index = 0; index < entries.Count; index++)
