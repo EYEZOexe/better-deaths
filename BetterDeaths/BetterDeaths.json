@@ -5,7 +5,7 @@
   "DownloadCount": 4872,
   "Punchline": "A clearer party death review.",
   "Description": "Records party deaths with pull grouping, fatal events, active statuses, and recent action timelines.",
-  "Changelog": "Expanded Death Replay support across Ultimate encounters and common mechanics. Fixed a bug causing multi-hits to show as non-overkill deaths.",
+  "Changelog": "Fixed Death Replay arenas changing size while moving through the timeline. Improved automatic arena framing for unsupported fights so replays use the full available space without being distorted by waymarks, oversized mechanics, or invisible enemies.",
   "RepoUrl": "https://github.com/Nainaiowo/better-deaths",
   "IconUrl": "https://raw.githubusercontent.com/Nainaiowo/better-deaths/main/assets/icon.png",
   "ApplicableVersion": "any",

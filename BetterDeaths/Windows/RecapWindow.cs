@@ -120,7 +120,7 @@ public sealed class RecapWindow : Window, IDisposable
     private const string LikelyAutoAttackTooltip = "Possible auto attack. Better Deaths could not resolve a named action here; named spells and abilities usually show their action name.";
     private const string AutoActionDisplayName = "Auto";
     private const uint AllRecordedPullDuties = uint.MaxValue;
-    private const string CurrentChangelogVersion = "0.1.0.275";
+    private const string CurrentChangelogVersion = "0.1.0.276";
     private const string FeedbackDiscordUrl = "https://discord.com/invite/Zzrcc8kmvy";
     private const string FeedbackConfirmPopupId = "Open Punish Discord?##BetterDeathsFeedbackConfirm";
     private const string KofiUrl = "https://ko-fi.com/nainaiowo";
@@ -150,13 +150,6 @@ public sealed class RecapWindow : Window, IDisposable
     private const float ReplayMaxZoom = 4.0f;
     private const float ReplayCanvasHorizontalGutter = 20.0f;
     private const float ReplayCanvasSlideDurationSeconds = 1.0f;
-    private const float ReplayDefaultArenaCenterX = 100.0f;
-    private const float ReplayDefaultArenaCenterZ = 100.0f;
-    private const float ReplayWorldMarkerAnchorMinimumRadius = 20.0f;
-    private const float ReplayWorldMarkerAnchorPaddingScale = 1.25f;
-    private const float ReplayWorldMarkerAnchorMinimumSpread = 8.0f;
-    private const float ReplayWorldMarkerAnchorCenterSnapTolerance = 3.0f;
-    private const int ReplayWorldMarkerAnchorMinimumCount = 4;
     private const float ReplayCanvasResizeHandleSize = 24.0f;
     private const float ReplayCanvasResizeKnobInset = 8.0f;
     private const float ReplayCanvasResizeKnobRadius = 4.0f;
@@ -9816,15 +9809,12 @@ public sealed class RecapWindow : Window, IDisposable
             ImGui.GetColorU32(BlendColors(ModernPanelBorderColor, ModernAccentColor, 0.42f) with { W = 0.88f }),
             5.0f);
 
-        var boundsMechanics = allPositions.Count == 0
-            ? allMechanics
-            : mechanicStates;
         if (!TryGetReplayBounds(
                 replayModule,
                 allPositions,
                 actorStates,
                 selectedAtUtc,
-                boundsMechanics,
+                allMechanics,
                 allWorldMarkers,
                 out var replayArena,
                 out var minX,
@@ -11752,12 +11742,17 @@ public sealed class RecapWindow : Window, IDisposable
             return true;
         }
 
-        if (TryGetWorldMarkerAnchoredReplayBounds(worldMarkers, mechanics, out replayArena, out minX, out maxX, out minZ, out maxZ))
+        if (!ReplayBoundsInference.TryInfer(positions, mechanics, worldMarkers, out var inferredBounds))
         {
-            return true;
+            minX = maxX = minZ = maxZ = 0.0f;
+            return false;
         }
 
-        return TryGetInferredReplayBounds(positions, mechanics, worldMarkers, out minX, out maxX, out minZ, out maxZ);
+        minX = inferredBounds.MinX;
+        maxX = inferredBounds.MaxX;
+        minZ = inferredBounds.MinZ;
+        maxZ = inferredBounds.MaxZ;
+        return true;
     }
 
     private static bool TryGetKnownReplayArenaBounds(
@@ -11787,196 +11782,6 @@ public sealed class RecapWindow : Window, IDisposable
         return true;
     }
 
-    private static bool TryGetWorldMarkerAnchoredReplayBounds(
-        IReadOnlyList<ReplayWorldMarkerSnapshot> worldMarkers,
-        IReadOnlyList<ReplayMechanicSnapshot> mechanics,
-        out ReplayArenaInfo? replayArena,
-        out float minX,
-        out float maxX,
-        out float minZ,
-        out float maxZ)
-    {
-        replayArena = null;
-        minX = maxX = minZ = maxZ = 0.0f;
-
-        var markers = worldMarkers
-            .Where(marker => marker.Active &&
-                float.IsFinite(marker.X) &&
-                float.IsFinite(marker.Z))
-            .GroupBy(marker => marker.MarkerIndex)
-            .Select(group => group.OrderByDescending(marker => marker.SeenAtUtc).First())
-            .ToList();
-        if (markers.Count < ReplayWorldMarkerAnchorMinimumCount)
-        {
-            return false;
-        }
-
-        var markerMinX = markers.Min(marker => marker.X);
-        var markerMaxX = markers.Max(marker => marker.X);
-        var markerMinZ = markers.Min(marker => marker.Z);
-        var markerMaxZ = markers.Max(marker => marker.Z);
-        var markerRangeX = markerMaxX - markerMinX;
-        var markerRangeZ = markerMaxZ - markerMinZ;
-        if (markerRangeX < ReplayWorldMarkerAnchorMinimumSpread ||
-            markerRangeZ < ReplayWorldMarkerAnchorMinimumSpread)
-        {
-            return false;
-        }
-
-        var centerX = (markerMinX + markerMaxX) * 0.5f;
-        var centerZ = (markerMinZ + markerMaxZ) * 0.5f;
-        if (MathF.Abs(centerX - ReplayDefaultArenaCenterX) <= ReplayWorldMarkerAnchorCenterSnapTolerance &&
-            MathF.Abs(centerZ - ReplayDefaultArenaCenterZ) <= ReplayWorldMarkerAnchorCenterSnapTolerance)
-        {
-            centerX = ReplayDefaultArenaCenterX;
-            centerZ = ReplayDefaultArenaCenterZ;
-        }
-
-        var radius = ReplayWorldMarkerAnchorMinimumRadius;
-        foreach (var marker in markers)
-        {
-            radius = MathF.Max(
-                radius,
-                MathF.Max(
-                    MathF.Abs(marker.X - centerX),
-                    MathF.Abs(marker.Z - centerZ)) * ReplayWorldMarkerAnchorPaddingScale);
-        }
-
-        foreach (var mechanic in mechanics)
-        {
-            if (!float.IsFinite(mechanic.X) || !float.IsFinite(mechanic.Z))
-            {
-                continue;
-            }
-
-            var mechanicRadius = GetReplayMechanicBoundsRadius(mechanic);
-            radius = MathF.Max(
-                radius,
-                MathF.Max(
-                    MathF.Abs(mechanic.X - centerX) + mechanicRadius,
-                    MathF.Abs(mechanic.Z - centerZ) + mechanicRadius));
-        }
-
-        if (!float.IsFinite(centerX) ||
-            !float.IsFinite(centerZ) ||
-            !float.IsFinite(radius) ||
-            radius <= 0.1f)
-        {
-            return false;
-        }
-
-        replayArena = new ReplayArenaInfo(centerX, centerZ, radius, ReplayArenaShape.Circle);
-        minX = centerX - radius;
-        maxX = centerX + radius;
-        minZ = centerZ - radius;
-        maxZ = centerZ + radius;
-        return true;
-    }
-
-    private static bool TryGetInferredReplayBounds(
-        IReadOnlyList<ReplayPositionSnapshot> positions,
-        IReadOnlyList<ReplayMechanicSnapshot> mechanics,
-        IReadOnlyList<ReplayWorldMarkerSnapshot> worldMarkers,
-        out float minX,
-        out float maxX,
-        out float minZ,
-        out float maxZ)
-    {
-        var hasBounds = false;
-        minX = maxX = minZ = maxZ = 0.0f;
-        foreach (var position in positions)
-        {
-            if (!float.IsFinite(position.X) || !float.IsFinite(position.Z))
-            {
-                continue;
-            }
-
-            IncludeReplayBounds(position.X, position.X, position.Z, position.Z, ref hasBounds, ref minX, ref maxX, ref minZ, ref maxZ);
-        }
-
-        foreach (var mechanic in mechanics)
-        {
-            if (!float.IsFinite(mechanic.X) || !float.IsFinite(mechanic.Z))
-            {
-                continue;
-            }
-
-            var radius = GetReplayMechanicBoundsRadius(mechanic);
-            IncludeReplayBounds(mechanic.X - radius, mechanic.X + radius, mechanic.Z - radius, mechanic.Z + radius, ref hasBounds, ref minX, ref maxX, ref minZ, ref maxZ);
-        }
-
-        foreach (var marker in worldMarkers)
-        {
-            if (!marker.Active ||
-                !float.IsFinite(marker.X) ||
-                !float.IsFinite(marker.Z))
-            {
-                continue;
-            }
-
-            IncludeReplayBounds(marker.X, marker.X, marker.Z, marker.Z, ref hasBounds, ref minX, ref maxX, ref minZ, ref maxZ);
-        }
-
-        if (!hasBounds)
-        {
-            minX = maxX = minZ = maxZ = 0.0f;
-            return false;
-        }
-
-        if (maxX - minX < 1.0f)
-        {
-            minX -= 1.0f;
-            maxX += 1.0f;
-        }
-
-        if (maxZ - minZ < 1.0f)
-        {
-            minZ -= 1.0f;
-            maxZ += 1.0f;
-        }
-
-        const float inferredMinimumRange = 30.0f;
-        const float inferredPaddingScale = 1.18f;
-        var xRange = maxX - minX;
-        var zRange = maxZ - minZ;
-        var evenRange = MathF.Max(MathF.Max(xRange, zRange), inferredMinimumRange) * inferredPaddingScale;
-        var centerX = (minX + maxX) * 0.5f;
-        var centerZ = (minZ + maxZ) * 0.5f;
-        minX = centerX - (evenRange * 0.5f);
-        maxX = centerX + (evenRange * 0.5f);
-        minZ = centerZ - (evenRange * 0.5f);
-        maxZ = centerZ + (evenRange * 0.5f);
-
-        return true;
-    }
-
-    private static void IncludeReplayBounds(
-        float candidateMinX,
-        float candidateMaxX,
-        float candidateMinZ,
-        float candidateMaxZ,
-        ref bool hasBounds,
-        ref float minX,
-        ref float maxX,
-        ref float minZ,
-        ref float maxZ)
-    {
-        if (!hasBounds)
-        {
-            minX = candidateMinX;
-            maxX = candidateMaxX;
-            minZ = candidateMinZ;
-            maxZ = candidateMaxZ;
-            hasBounds = true;
-            return;
-        }
-
-        minX = MathF.Min(minX, candidateMinX);
-        maxX = MathF.Max(maxX, candidateMaxX);
-        minZ = MathF.Min(minZ, candidateMinZ);
-        maxZ = MathF.Max(maxZ, candidateMaxZ);
-    }
-
     private static void DrawReplayGrid(
         ImDrawListPtr drawList,
         Vector2 canvasStart,
@@ -11997,16 +11802,16 @@ public sealed class RecapWindow : Window, IDisposable
         var arenaCenterZ = replayArena?.CenterZ ?? centerZ;
         var arenaHalfWidth = replayArena?.HalfWidth ?? arenaRadius;
         var arenaHalfHeight = replayArena?.HalfHeight ?? arenaRadius;
-        var arenaShape = replayArena?.Shape ?? ReplayArenaShape.Circle;
+        var arenaShape = replayArena?.Shape;
         var arenaCenter = ReplayWorldPointToScreen(arenaCenterX, arenaCenterZ, canvasStart, canvasSize, minX, maxX, minZ, maxZ, zoom, pan);
         var screenRadius = ReplayWorldLengthToScreenRadius(arenaRadius, canvasSize, minX, maxX, minZ, maxZ, zoom);
 
-        if (arenaShape == ReplayArenaShape.Circle)
+        if (arenaShape is ReplayArenaShape.Circle)
         {
             drawList.AddCircle(arenaCenter, screenRadius, ImGui.GetColorU32(ModernPanelBorderColor with { W = 0.9f }), 96, 1.6f);
             drawList.AddCircle(arenaCenter, screenRadius * 0.5f, ImGui.GetColorU32(ModernDividerColor with { W = 0.22f }), 72, 1.0f);
         }
-        else
+        else if (arenaShape is ReplayArenaShape.Square or ReplayArenaShape.Rectangle)
         {
             var arenaMin = ReplayWorldPointToScreen(arenaCenterX - arenaHalfWidth, arenaCenterZ - arenaHalfHeight, canvasStart, canvasSize, minX, maxX, minZ, maxZ, zoom, pan);
             var arenaMax = ReplayWorldPointToScreen(arenaCenterX + arenaHalfWidth, arenaCenterZ + arenaHalfHeight, canvasStart, canvasSize, minX, maxX, minZ, maxZ, zoom, pan);
@@ -12996,19 +12801,6 @@ public sealed class RecapWindow : Window, IDisposable
         var zScale = innerHeight / MathF.Max(1.0f, maxZ - minZ);
         var clampedZoom = Math.Clamp(zoom, ReplayMinZoom, ReplayMaxZoom);
         return new Vector2(worldDirection.X * xScale * clampedZoom, worldDirection.Y * zScale * clampedZoom);
-    }
-
-    private static float GetReplayMechanicBoundsRadius(ReplayMechanicSnapshot mechanic)
-    {
-        return mechanic.Shape switch
-        {
-            ReplayMechanicShape.Donut => Math.Max(2.0f, mechanic.Radius),
-            ReplayMechanicShape.Cone => Math.Max(mechanic.Radius, mechanic.Length),
-            ReplayMechanicShape.Line => Math.Max(mechanic.Radius, mechanic.Length * 0.5f) + Math.Max(0.0f, mechanic.Width * 0.5f),
-            ReplayMechanicShape.Tether => Math.Max(2.0f, mechanic.Length * 0.5f),
-            ReplayMechanicShape.Label => 2.0f,
-            _ => Math.Max(2.0f, mechanic.Radius),
-        };
     }
 
     private static Vector4 GetReplayMechanicColor(ReplayMechanicSnapshot mechanic)
@@ -18838,6 +18630,13 @@ public sealed class RecapWindow : Window, IDisposable
 
     private static void DrawChangelogTab()
     {
+        ImGui.TextUnformatted("v0.1.0.276");
+        ImGui.TextDisabled("Stable update.");
+        DrawHighlightedChangelogBullet("Fixed Death Replay arenas changing size while moving through the timeline.");
+        DrawHighlightedChangelogBullet("Improved automatic arena framing for unsupported fights so replays use the full available space without being distorted by waymarks, oversized mechanics, or invisible enemies.");
+
+        ImGui.Separator();
+
         ImGui.TextUnformatted("v0.1.0.275");
         ImGui.TextDisabled("Stable update.");
         DrawHighlightedChangelogBullet("Expanded Death Replay support across UCOB, UWU, TEA, DSR, TOP, FRU, and DMU.");
