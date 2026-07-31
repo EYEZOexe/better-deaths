@@ -65,6 +65,7 @@ public static class DeathDisplaySelector
     private static readonly TimeSpan FatalTailLookback = TimeSpan.FromMilliseconds(1500);
     private static readonly TimeSpan FatalTailForwardBuffer = TimeSpan.FromMilliseconds(500);
     private static readonly TimeSpan CombatLogActionEffectMatchWindow = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan MultiHitBurstWindow = TimeSpan.FromMilliseconds(100);
 
     public static DeathDisplaySelection Select(PartyDeathRecord death)
     {
@@ -563,7 +564,9 @@ public static class DeathDisplaySelector
                 : fallbackHpBeforeHit;
             if (hpBeforeHit > 0 && total >= hpBeforeHit)
             {
-                return orderedEvents.Skip(index).ToList();
+                return orderedEvents
+                    .Skip(ExpandMultiHitBurstStart(orderedEvents, index))
+                    .ToList();
             }
         }
 
@@ -591,11 +594,55 @@ public static class DeathDisplaySelector
             total += events[index].Amount;
             if (total >= hpBeforeHit)
             {
-                return events.Skip(index).ToList();
+                return events
+                    .Skip(ExpandMultiHitBurstStart(events, index))
+                    .ToList();
             }
         }
 
         return [];
+    }
+
+    private static int ExpandMultiHitBurstStart(IReadOnlyList<CombatEventRecord> events, int startIndex)
+    {
+        var anchor = events[startIndex];
+        while (startIndex > 0)
+        {
+            var candidate = events[startIndex - 1];
+            if (anchor.SeenAtUtc - candidate.SeenAtUtc > MultiHitBurstWindow ||
+                candidate.Kind != anchor.Kind ||
+                candidate.SourceEntityId != anchor.SourceEntityId ||
+                candidate.ActionId != anchor.ActionId ||
+                !string.Equals(candidate.SourceName, anchor.SourceName, StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(candidate.ActionName, anchor.ActionName, StringComparison.OrdinalIgnoreCase))
+            {
+                break;
+            }
+
+            startIndex--;
+        }
+
+        return startIndex;
+    }
+
+    private static int ExpandMultiHitBurstStart(IReadOnlyList<CombatLogEventRecord> events, int startIndex)
+    {
+        var anchor = events[startIndex];
+        while (startIndex > 0)
+        {
+            var candidate = events[startIndex - 1];
+            if (anchor.SeenAtUtc - candidate.SeenAtUtc > MultiHitBurstWindow ||
+                !string.Equals(candidate.SourceName, anchor.SourceName, StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(candidate.TargetName, anchor.TargetName, StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(candidate.ActionName, anchor.ActionName, StringComparison.OrdinalIgnoreCase))
+            {
+                break;
+            }
+
+            startIndex--;
+        }
+
+        return startIndex;
     }
 
     private static IReadOnlyList<FatalEventGroup> BuildFatalEventGroups(IReadOnlyList<CombatEventRecord> events)

@@ -332,13 +332,19 @@ public sealed partial class Plugin
     private void ResolveRawActionEffectPacket(RawActionEffectPacket packet)
     {
         TrackPossibleMitigationActionUse(packet);
+        var replayMechanicCaptureRevisionBeforeSpecializedHandlers = replayMechanicCaptureRevision;
         CaptureReplayBlackHoleBlast(packet);
+        var hadActiveReplayMechanic = HasActiveReplayMechanicForAction(packet);
         ResolveActiveReplayMechanicsForAction(packet);
         CaptureReplayDmuP1Action(packet);
         CaptureReplayDmuP2ForsakenAction(packet);
         CaptureReplayDmuP3Action(packet);
         CaptureReplayDmuP4Action(packet);
         CaptureReplayDmuP5Action(packet);
+        CaptureReplayCatalogActionEffect(
+            packet,
+            hadActiveReplayMechanic ||
+                replayMechanicCaptureRevision != replayMechanicCaptureRevisionBeforeSpecializedHandlers);
 
         string? actionName = null;
         uint? actionIconId = null;

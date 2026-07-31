@@ -120,7 +120,7 @@ public sealed class RecapWindow : Window, IDisposable
     private const string LikelyAutoAttackTooltip = "Possible auto attack. Better Deaths could not resolve a named action here; named spells and abilities usually show their action name.";
     private const string AutoActionDisplayName = "Auto";
     private const uint AllRecordedPullDuties = uint.MaxValue;
-    private const string CurrentChangelogVersion = "0.1.0.271";
+    private const string CurrentChangelogVersion = "0.1.0.275";
     private const string FeedbackDiscordUrl = "https://discord.com/invite/Zzrcc8kmvy";
     private const string FeedbackConfirmPopupId = "Open Punish Discord?##BetterDeathsFeedbackConfirm";
     private const string KofiUrl = "https://ko-fi.com/nainaiowo";
@@ -18838,6 +18838,16 @@ public sealed class RecapWindow : Window, IDisposable
 
     private static void DrawChangelogTab()
     {
+        ImGui.TextUnformatted("v0.1.0.275");
+        ImGui.TextDisabled("Stable update.");
+        DrawHighlightedChangelogBullet("Expanded Death Replay support across UCOB, UWU, TEA, DSR, TOP, FRU, and DMU.");
+        DrawHighlightedChangelogBullet("Added general replay support for common circles, cones, lines, stack and spread markers, and tethers.");
+        DrawWrappedBullet("Existing custom DMU replay handling remains in place, with imported data filling unsupported mechanics.");
+        DrawWrappedBullet("Fixed a bug causing multi-hits to show as non-overkill deaths.");
+        DrawWrappedBullet("New replay mechanic captures require pulls recorded after this update.");
+
+        ImGui.Separator();
+
         ImGui.TextUnformatted("v0.1.0.271");
         ImGui.TextDisabled("Stable update.");
         DrawHighlightedChangelogBullet("Fixed fallback replay alignment.");

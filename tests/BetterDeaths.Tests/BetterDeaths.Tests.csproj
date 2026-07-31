@@ -15,8 +15,11 @@
 
   <ItemGroup>
     <Compile Include="../../BetterDeaths/CaptureTimingPolicy.cs" Link="CaptureTimingPolicy.cs" />
+    <Compile Include="../../BetterDeaths/DeathDisplaySelection.cs" Link="DeathDisplaySelection.cs" />
     <Compile Include="../../BetterDeaths/Models.cs" Link="Models.cs" />
     <Compile Include="../../BetterDeaths/RecordedPullLookup.cs" Link="RecordedPullLookup.cs" />
+    <Compile Include="../../BetterDeaths/ReplayMechanicCatalog.cs" Link="ReplayMechanicCatalog.cs" />
+    <Compile Include="../../BetterDeaths/BossModUltimateCatalog.Generated.cs" Link="BossModUltimateCatalog.Generated.cs" />
     <Compile Include="../../BetterDeaths/ReplayEncounterModules.cs" Link="ReplayEncounterModules.cs" />
     <Compile Include="../../BetterDeaths/ReplaySampleSelection.cs" Link="ReplaySampleSelection.cs" />
     <Compile Include="../../BetterDeaths/WhatIfMitigationRules.cs" Link="WhatIfMitigationRules.cs" />

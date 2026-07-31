@@ -167,7 +167,8 @@ function Assert-ExactPackageFiles {
     $expectedFiles = @(
         "$ExpectedAssemblyName.deps.json",
         "$ExpectedAssemblyName.dll",
-        "$ExpectedAssemblyName.json"
+        "$ExpectedAssemblyName.json",
+        "THIRD_PARTY_NOTICES.md"
     ) | Sort-Object
     $actualFiles = @(Get-ChildItem -LiteralPath $rootPath -Recurse -File | ForEach-Object {
         $_.FullName.Substring($rootPath.Length).TrimStart(
@@ -184,11 +185,20 @@ $projectFullPath = ConvertTo-AbsolutePath -BasePath (Get-Location).Path -Path $P
 $outputFullPath = ConvertTo-AbsolutePath -BasePath $projectFullPath -Path $OutputPath
 $sourceManifestPath = Join-Path $projectFullPath "$AssemblyName.json"
 $generatedManifestPath = Join-Path $outputFullPath "$AssemblyName.json"
-$packagedManifestPath = Join-Path (Join-Path $outputFullPath $AssemblyName) "$AssemblyName.json"
+$packagedDirectoryPath = Join-Path $outputFullPath $AssemblyName
+$packagedManifestPath = Join-Path $packagedDirectoryPath "$AssemblyName.json"
+$thirdPartyNoticeSourcePath = Join-Path (Split-Path -Parent $projectFullPath) "THIRD_PARTY_NOTICES.md"
+$packagedThirdPartyNoticePath = Join-Path $packagedDirectoryPath "THIRD_PARTY_NOTICES.md"
 $projectFilePath = Join-Path $projectFullPath "$AssemblyName.csproj"
 if (-not (Test-Path -LiteralPath $projectFilePath)) {
     throw "Project file does not exist: $projectFilePath"
 }
+
+if (-not (Test-Path -LiteralPath $thirdPartyNoticeSourcePath)) {
+    throw "Third-party notice does not exist: $thirdPartyNoticeSourcePath"
+}
+
+Copy-Item -LiteralPath $thirdPartyNoticeSourcePath -Destination $packagedThirdPartyNoticePath -Force
 
 [xml] $project = Get-Content -Raw -LiteralPath $projectFilePath
 $versionNode = $project.SelectSingleNode("/Project/PropertyGroup/Version")
@@ -231,6 +241,7 @@ $tempPath = Join-Path ([System.IO.Path]::GetTempPath()) "$AssemblyName-package-v
 New-Item -ItemType Directory -Path $tempPath | Out-Null
 try {
     Expand-Archive -LiteralPath $zipPath -DestinationPath $tempPath -Force
+    Copy-Item -LiteralPath $thirdPartyNoticeSourcePath -Destination (Join-Path $tempPath "THIRD_PARTY_NOTICES.md") -Force
     Sync-DownloadCountSnapshot -ManifestPath (Join-Path $tempPath "$AssemblyName.json") -ExpectedSnapshot $expectedDownloadCountSnapshot
     Compress-Archive -Path (Join-Path $tempPath "*") -DestinationPath $zipPath -Force
     Assert-ExactPackageFiles -DirectoryPath $tempPath -ExpectedAssemblyName $AssemblyName

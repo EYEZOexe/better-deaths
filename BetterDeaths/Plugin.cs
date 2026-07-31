@@ -366,6 +366,8 @@ public sealed partial class Plugin : IDalamudPlugin
     private readonly Dictionary<uint, uint> statusIconCache = new();
     private readonly Dictionary<uint, string> classJobNameCache = new();
     private readonly Dictionary<uint, string> territoryNameCache = new();
+    private readonly Dictionary<uint, ReplayActionSheetMetadata?> replayActionSheetMetadataCache = new();
+    private long replayMechanicCaptureRevision;
     private readonly List<RecentOwnSharedDeathPost> recentOwnSharedDeathPosts = [];
     private readonly List<PendingSharedDeathPost> pendingSharedDeathPosts = [];
     private readonly List<PartyDeathRecord> pendingDeathRecapLinks = [];

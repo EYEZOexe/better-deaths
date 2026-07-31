@@ -63,6 +63,14 @@ public sealed partial class Plugin
         bool EndsWhenSourceMissing,
         bool EndsWhenSourceStopsCasting);
 
+    private readonly record struct ReplayActionSheetMetadata(
+        string Name,
+        byte CastType,
+        byte EffectRange,
+        byte XAxisModifier,
+        sbyte Range,
+        bool TargetArea);
+
     private void ResolveRawMapEffectPacket(RawMapEffectPacket packet)
     {
         CaptureReplayDmuP2PathOfLightMapEffect(packet);
@@ -950,6 +958,290 @@ public sealed partial class Plugin
                     2.0f);
                 break;
         }
+    }
+
+    private void CaptureReplayCatalogCastPrediction(
+        Dalamud.Game.ClientState.Objects.Types.IBattleNpc battleNpc,
+        string sourceName,
+        DateTime seenAtUtc,
+        List<ReplayMechanicSnapshot> mechanicSnapshots)
+    {
+        if (battleNpc is not Dalamud.Game.ClientState.Objects.Types.IBattleChara battleChara ||
+            !battleChara.IsCasting ||
+            battleChara.CastActionId == 0 ||
+            HasActiveReplayMechanicForCast(battleNpc.EntityId, battleChara.CastActionId) ||
+            !TryResolveReplayMechanic(battleChara.CastActionId, out var mechanic))
+        {
+            return;
+        }
+
+        var position = battleNpc.Position;
+        if (mechanic.Anchor == ReplayMechanicAnchor.Target &&
+            TryGetReplayCastTargetPosition(battleChara, out var targetPosition))
+        {
+            position = targetPosition;
+        }
+
+        position = GetReplayMechanicDrawPosition(position, battleNpc.Rotation, mechanic.Geometry);
+        var rawEventKind = mechanic.IsKnown ? "bossmod-cast" : "action-sheet-cast";
+        var durationSeconds = GetRemainingReplayCastSeconds(battleChara) + DmuReplayPredictionFallbackGraceSeconds;
+        var castStartedAtUtc = GetReplayCastStartedAtUtc(seenAtUtc, battleChara);
+        var sourceKey = $"{rawEventKind}:{battleNpc.EntityId:X8}:{battleChara.CastActionId}:{castStartedAtUtc.Ticks}";
+        var snapshot = CreateReplayCatalogSnapshot(
+            seenAtUtc,
+            durationSeconds,
+            sourceKey,
+            sourceName,
+            mechanic,
+            position,
+            battleNpc.Rotation,
+            rawEventKind,
+            battleChara.CastActionId,
+            battleNpc.EntityId);
+
+        RegisterActiveReplayMechanicSnapshot(
+            mechanicSnapshots,
+            snapshot,
+            BuildActiveReplayMechanicKey(rawEventKind, battleNpc.EntityId, battleChara.CastActionId, "main"),
+            battleNpc.EntityId,
+            battleChara.CastActionId,
+            battleChara.CastActionId,
+            true,
+            true,
+            castStartedAtUtc);
+    }
+
+    private void CaptureReplayCatalogActionEffect(RawActionEffectPacket packet, bool suppressActionEffect)
+    {
+        if (suppressActionEffect ||
+            !TryGetReplayPacketEnemySourcePose(packet, out var sourcePosition, out var sourceRotation, out var sourceName) ||
+            !TryResolveReplayMechanic(packet.ActionId, out var mechanic))
+        {
+            return;
+        }
+
+        var rawEventKind = mechanic.IsKnown ? "bossmod-action" : "action-sheet-action";
+        if (mechanic.Anchor == ReplayMechanicAnchor.Target)
+        {
+            var targetPositions = GetReplayPacketTargetPositions(packet);
+            for (var index = 0; index < targetPositions.Count; index++)
+            {
+                var position = GetReplayMechanicDrawPosition(targetPositions[index], sourceRotation, mechanic.Geometry);
+                AddRecentReplayMechanicSnapshot(CreateReplayCatalogSnapshot(
+                    packet.SeenAtUtc,
+                    1.4f,
+                    $"{rawEventKind}:{packet.CasterEntityId:X8}:{packet.Sequence}:{index}",
+                    sourceName,
+                    mechanic,
+                    position,
+                    sourceRotation,
+                    rawEventKind,
+                    packet.ActionId,
+                    packet.CasterEntityId));
+            }
+
+            return;
+        }
+
+        sourcePosition = GetReplayMechanicDrawPosition(sourcePosition, sourceRotation, mechanic.Geometry);
+        AddRecentReplayMechanicSnapshot(CreateReplayCatalogSnapshot(
+            packet.SeenAtUtc,
+            1.4f,
+            $"{rawEventKind}:{packet.CasterEntityId:X8}:{packet.Sequence}",
+            sourceName,
+            mechanic,
+            sourcePosition,
+            sourceRotation,
+            rawEventKind,
+            packet.ActionId,
+            packet.CasterEntityId));
+    }
+
+    private bool TryResolveReplayMechanic(uint actionId, out ResolvedReplayMechanic mechanic)
+    {
+        var territoryId = currentPullTerritoryId == 0
+            ? currentTerritoryId
+            : currentPullTerritoryId;
+        var metadata = GetReplayActionSheetMetadata(actionId);
+        return ReplayMechanicCatalog.TryResolve(
+            territoryId,
+            actionId,
+            metadata?.Name ?? GetActionName(actionId),
+            metadata?.CastType ?? 0,
+            metadata?.EffectRange ?? 0,
+            metadata?.XAxisModifier ?? 0,
+            metadata?.Range ?? 0,
+            metadata?.TargetArea ?? false,
+            out mechanic);
+    }
+
+    private ReplayActionSheetMetadata? GetReplayActionSheetMetadata(uint actionId)
+    {
+        if (replayActionSheetMetadataCache.TryGetValue(actionId, out var cached))
+        {
+            return cached;
+        }
+
+        ReplayActionSheetMetadata? result = null;
+        try
+        {
+            var action = DataManager.GetExcelSheet<LuminaAction>()?.GetRowOrDefault(actionId);
+            if (action is not null)
+            {
+                result = new ReplayActionSheetMetadata(
+                    action.Value.Name.ExtractText(),
+                    action.Value.CastType,
+                    action.Value.EffectRange,
+                    action.Value.XAxisModifier,
+                    action.Value.Range,
+                    action.Value.TargetArea);
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Debug(ex, "Could not load replay geometry for action {ActionId}.", actionId);
+        }
+
+        replayActionSheetMetadataCache[actionId] = result;
+        return result;
+    }
+
+    private bool TryGetReplayCastTargetPosition(
+        Dalamud.Game.ClientState.Objects.Types.IBattleChara battleChara,
+        out Vector3 position)
+    {
+        position = default;
+        try
+        {
+            var target = ObjectTable.SearchById(battleChara.CastTargetObjectId);
+            if (target is null || !IsUsableReplayPosition(target.Position))
+            {
+                return false;
+            }
+
+            position = target.Position;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Log.Debug(ex, "Could not resolve replay cast target for action {ActionId}.", battleChara.CastActionId);
+            return false;
+        }
+    }
+
+    private bool TryGetReplayPacketEnemySourcePose(
+        RawActionEffectPacket packet,
+        out Vector3 position,
+        out float rotation,
+        out string name)
+    {
+        var capturedPose = packet.ReplayPoses.FirstOrDefault(pose =>
+            pose.SampleSource == ReplayPositionSampleSource.ActionEffectSource &&
+            pose.ActorKind == ReplayActorKind.Enemy &&
+            IsUsableReplayPosition(pose.Position));
+        if (capturedPose is not null)
+        {
+            position = capturedPose.Position;
+            rotation = capturedPose.Rotation;
+            name = capturedPose.ActorName;
+            return true;
+        }
+
+        try
+        {
+            if (ObjectTable.SearchByEntityId(packet.CasterEntityId) is not Dalamud.Game.ClientState.Objects.Types.IBattleNpc)
+            {
+                position = default;
+                rotation = 0.0f;
+                name = string.Empty;
+                return false;
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Debug(ex, "Could not inspect replay action source {EntityId:X8}.", packet.CasterEntityId);
+            position = default;
+            rotation = 0.0f;
+            name = string.Empty;
+            return false;
+        }
+
+        return TryGetReplayActionSourcePose(packet, out position, out rotation, out name);
+    }
+
+    private IReadOnlyList<Vector3> GetReplayPacketTargetPositions(RawActionEffectPacket packet)
+    {
+        var positions = packet.ReplayPoses
+            .Where(pose =>
+                pose.SampleSource == ReplayPositionSampleSource.ActionEffectTarget &&
+                IsUsableReplayPosition(pose.Position))
+            .GroupBy(pose => pose.EntityId)
+            .Select(group => group.First().Position)
+            .ToList();
+        if (positions.Count > 0)
+        {
+            return positions;
+        }
+
+        if (packet.HasTargetPosition && IsUsableReplayPosition(packet.TargetPosition))
+        {
+            return [packet.TargetPosition];
+        }
+
+        if (TryGetReplayPacketMechanicCenter(packet, out var center))
+        {
+            return [center];
+        }
+
+        return [];
+    }
+
+    private ReplayMechanicSnapshot CreateReplayCatalogSnapshot(
+        DateTime seenAtUtc,
+        float durationSeconds,
+        string sourceKey,
+        string sourceName,
+        ResolvedReplayMechanic mechanic,
+        Vector3 position,
+        float rotation,
+        string rawEventKind,
+        uint actionId,
+        uint sourceEntityId)
+    {
+        return new ReplayMechanicSnapshot(
+            seenAtUtc,
+            CalculatePullElapsed(seenAtUtc),
+            durationSeconds,
+            sourceKey,
+            sourceName,
+            mechanic.Geometry.Shape,
+            position.X,
+            position.Y,
+            position.Z,
+            rotation,
+            mechanic.Geometry.Radius,
+            mechanic.Geometry.Length,
+            mechanic.Geometry.Width,
+            mechanic.Geometry.AngleDegrees,
+            mechanic.Label,
+            rawEventKind,
+            actionId,
+            sourceEntityId,
+            mechanic.IsKnown);
+    }
+
+    private static Vector3 GetReplayMechanicDrawPosition(
+        Vector3 anchor,
+        float rotation,
+        ReplayMechanicGeometry geometry)
+    {
+        if (geometry.Shape != ReplayMechanicShape.Line || geometry.Length <= 0.0f)
+        {
+            return anchor;
+        }
+
+        var direction = ReplayDirectionFromRotation(rotation);
+        return OffsetReplayPosition(anchor, direction * (geometry.Length * 0.5f));
     }
 
     private void CaptureReplayDmuP3CastPrediction(
@@ -2158,8 +2450,7 @@ public sealed partial class Plugin
 
     private void ResolveActiveReplayMechanicsForAction(RawActionEffectPacket packet)
     {
-        if (!IsDmuReplayCaptureContext() ||
-            activeReplayMechanicsByKey.Count == 0)
+        if (activeReplayMechanicsByKey.Count == 0)
         {
             return;
         }
@@ -2171,6 +2462,18 @@ public sealed partial class Plugin
             ClampRecentReplayMechanicEnd(entry.SourceKey, packet.SeenAtUtc);
             activeReplayMechanicsByKey.Remove(entry.ActiveKey);
         }
+    }
+
+    private bool HasActiveReplayMechanicForAction(RawActionEffectPacket packet)
+    {
+        return activeReplayMechanicsByKey.Values.Any(active => ReplayActiveMechanicMatchesResolveAction(active, packet));
+    }
+
+    private bool HasActiveReplayMechanicForCast(uint sourceEntityId, uint castActionId)
+    {
+        return activeReplayMechanicsByKey.Values.Any(active =>
+            active.SourceEntityId == sourceEntityId &&
+            active.CastActionId == castActionId);
     }
 
     private void AddActionEffectReplayPoseSamples(RawActionEffectPacket packet)
@@ -2904,6 +3207,7 @@ public sealed partial class Plugin
             CaptureReplayDmuP1P2CastPrediction(battleNpc, name, seenAtUtc, mechanicSnapshots);
             CaptureReplayDmuP3CastPrediction(battleNpc, name, seenAtUtc, mechanicSnapshots);
             CaptureReplayDmuP4P5CastPrediction(battleNpc, name, seenAtUtc, mechanicSnapshots);
+            CaptureReplayCatalogCastPrediction(battleNpc, name, seenAtUtc, mechanicSnapshots);
 
             if (string.Equals(name, "Black Hole", StringComparison.OrdinalIgnoreCase))
             {
@@ -2961,7 +3265,7 @@ public sealed partial class Plugin
         }
 
         UpdateActiveReplayMechanicLifetimes(seenAtUtc, seenEntityIds, castingActionByEntityId);
-        CaptureReplayDmuTethersFromPlayers(seenAtUtc, sampleInterval, mechanicSnapshots);
+        CaptureReplayTethersFromPlayers(seenAtUtc, sampleInterval, mechanicSnapshots);
 
         return (
             enemySnapshots
@@ -3047,7 +3351,7 @@ public sealed partial class Plugin
                     continue;
                 }
 
-                AddReplayDmuTetherSnapshot(
+                AddReplayTetherSnapshot(
                     seenAtUtc,
                     battleNpc.EntityId,
                     battleNpc.Name.TextValue,
@@ -3056,6 +3360,7 @@ public sealed partial class Plugin
                     "black-hole-tether",
                     DmuBlackHoleTetherId,
                     "Tether",
+                    true,
                     sampleInterval,
                     mechanicSnapshots);
             }
@@ -3066,16 +3371,12 @@ public sealed partial class Plugin
         }
     }
 
-    private unsafe void CaptureReplayDmuTethersFromPlayers(
+    private unsafe void CaptureReplayTethersFromPlayers(
         DateTime seenAtUtc,
         TimeSpan sampleInterval,
         List<ReplayMechanicSnapshot> mechanicSnapshots)
     {
-        if (!IsDmuReplayCaptureContext())
-        {
-            return;
-        }
-
+        var isDmu = IsDmuReplayCaptureContext();
         foreach (var member in currentMembers)
         {
             if (member.EntityId == 0 ||
@@ -3098,10 +3399,11 @@ public sealed partial class Plugin
                         continue;
                     }
 
-                    if (tether.Id == DmuBlackHoleTetherId &&
+                    if (isDmu &&
+                        tether.Id == DmuBlackHoleTetherId &&
                         IsReplayBlackHoleObject(tetherSource.EntityId, tetherSource.Name.TextValue))
                     {
-                        AddReplayDmuTetherSnapshot(
+                        AddReplayTetherSnapshot(
                             seenAtUtc,
                             tetherSource.EntityId,
                             tetherSource.Name.TextValue,
@@ -3110,15 +3412,17 @@ public sealed partial class Plugin
                             "black-hole-tether",
                             DmuBlackHoleTetherId,
                             "Tether",
+                            true,
                             sampleInterval,
                             mechanicSnapshots);
                         continue;
                     }
 
-                    if (tether.Id == DmuGravenImageTetherId &&
+                    if (isDmu &&
+                        tether.Id == DmuGravenImageTetherId &&
                         IsReplayGravenImageObject(tetherSource.EntityId, tetherSource.Name.TextValue))
                     {
-                        AddReplayDmuTetherSnapshot(
+                        AddReplayTetherSnapshot(
                             seenAtUtc,
                             tetherSource.EntityId,
                             tetherSource.Name.TextValue,
@@ -3127,9 +3431,33 @@ public sealed partial class Plugin
                             "graven-image-tether",
                             DmuGravenImageTetherId,
                             "Tether",
+                            true,
                             sampleInterval,
                             mechanicSnapshots);
+                        continue;
                     }
+
+                    var territoryId = currentPullTerritoryId == 0
+                        ? currentTerritoryId
+                        : currentPullTerritoryId;
+                    var catalogEntries = BossModUltimateCatalog.FindIdentifiers(
+                        territoryId,
+                        ReplayCatalogIdentifierKind.Tether,
+                        tether.Id);
+                    var catalogEntry = catalogEntries.FirstOrDefault();
+                    var isKnown = catalogEntries.Count > 0;
+                    AddReplayTetherSnapshot(
+                        seenAtUtc,
+                        tetherSource.EntityId,
+                        tetherSource.Name.TextValue,
+                        tetherSource.Position,
+                        member,
+                        isKnown ? "bossmod-tether" : "generic-tether",
+                        tether.Id,
+                        isKnown ? ReplayMechanicCatalog.HumanizeIdentifier(catalogEntry.Name) : $"Tether #{tether.Id}",
+                        isKnown,
+                        sampleInterval,
+                        mechanicSnapshots);
                 }
             }
             catch (Exception ex)
@@ -3139,7 +3467,7 @@ public sealed partial class Plugin
         }
     }
 
-    private void AddReplayDmuTetherSnapshot(
+    private void AddReplayTetherSnapshot(
         DateTime seenAtUtc,
         uint sourceEntityId,
         string sourceName,
@@ -3148,6 +3476,7 @@ public sealed partial class Plugin
         string rawEventKind,
         uint rawEventId,
         string label,
+        bool isKnown,
         TimeSpan sampleInterval,
         List<ReplayMechanicSnapshot> mechanicSnapshots)
     {
@@ -3191,7 +3520,7 @@ public sealed partial class Plugin
             rawEventKind,
             rawEventId,
             targetMember.EntityId,
-            true));
+            isKnown));
     }
 
     private bool IsDmuReplayCaptureContext()
@@ -3322,6 +3651,7 @@ public sealed partial class Plugin
 
     private void AddRecentReplayMechanicSnapshot(ReplayMechanicSnapshot snapshot)
     {
+        replayMechanicCaptureRevision++;
         if (!recentReplayMechanicsBySource.TryGetValue(snapshot.SourceKey, out var history))
         {
             history = [];

@@ -128,6 +128,12 @@ internal static class ReplayEncounterModules
     [
         new CrownReplayEncounterModule(),
         new ArcadiaReplayEncounterModule(),
+        new UltimateReplayEncounterModule(733, "UCOB", new ReplayArenaInfo(0.0f, 0.0f, 21.0f, ReplayArenaShape.Circle)),
+        new UltimateReplayEncounterModule(777, "UWU", new ReplayArenaInfo(100.0f, 100.0f, 20.0f, ReplayArenaShape.Circle)),
+        new UltimateReplayEncounterModule(887, "TEA", new ReplayArenaInfo(100.0f, 100.0f, 20.0f, ReplayArenaShape.Circle)),
+        new UltimateReplayEncounterModule(968, "DSR", new ReplayArenaInfo(100.0f, 100.0f, 21.0f, ReplayArenaShape.Circle)),
+        new UltimateReplayEncounterModule(1122, "TOP", new ReplayArenaInfo(100.0f, 100.0f, 20.0f, ReplayArenaShape.Circle)),
+        new UltimateReplayEncounterModule(1238, "FRU", new ReplayArenaInfo(100.0f, 100.0f, 20.0f, ReplayArenaShape.Circle)),
         new DmuReplayEncounterModule(),
     ];
 
@@ -173,6 +179,39 @@ internal static class ReplayEncounterModules
             DmuP4AccelerationBombStatusId or
             DmuP4EntropyStatusId or
             DmuP4DynamicFluidStatusId;
+    }
+
+    private static bool TryGetUltimateCatalogMarkerInfo(
+        uint territoryId,
+        string encounterName,
+        uint markerId,
+        out ReplayMarkerInfo info)
+    {
+        var catalogEntries = BossModUltimateCatalog.FindIdentifiers(
+            territoryId,
+            ReplayCatalogIdentifierKind.Icon,
+            markerId);
+        if (catalogEntries.Count == 0)
+        {
+            info = default;
+            return false;
+        }
+
+        var label = ReplayMechanicCatalog.HumanizeIdentifier(catalogEntries[0].Name);
+        ReplayMechanicShape? shape = label.Contains("Spread", StringComparison.OrdinalIgnoreCase)
+            ? ReplayMechanicShape.Spread
+            : label.Contains("Stack", StringComparison.OrdinalIgnoreCase) ||
+                label.Contains("Share", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(label, "Enumeration", StringComparison.OrdinalIgnoreCase)
+                    ? ReplayMechanicShape.Stack
+                    : null;
+        info = new ReplayMarkerInfo(
+            label,
+            $"{encounterName}: {label}",
+            shape,
+            Radius: 5.0f,
+            DurationSeconds: 6.0f);
+        return true;
     }
 
     public static bool TryResolveDmuP1FireMarkerInfo(
@@ -354,6 +393,59 @@ internal static class ReplayEncounterModules
             IReadOnlyList<ReplayPositionSnapshot> positions,
             DateTime selectedAtUtc) => true;
 
+    }
+
+    private sealed class UltimateReplayEncounterModule : IReplayEncounterModule
+    {
+        private readonly uint territoryId;
+        private readonly ReplayArenaInfo arena;
+
+        public UltimateReplayEncounterModule(uint territoryId, string name, ReplayArenaInfo arena)
+        {
+            this.territoryId = territoryId;
+            Name = name;
+            this.arena = arena;
+        }
+
+        public string Name { get; }
+
+        public bool AppliesTo(uint candidateTerritoryId) => candidateTerritoryId == territoryId;
+
+        public bool TryGetReplayArena(
+            IReadOnlyList<ReplayPositionSnapshot> positions,
+            IReadOnlyList<ReplayPositionSnapshot> actorStates,
+            DateTime selectedAtUtc,
+            out ReplayArenaInfo arena)
+        {
+            arena = this.arena;
+            return true;
+        }
+
+        public bool IsReplayOverheadStatus(uint statusId) => false;
+
+        public bool TryGetMarkerInfo(uint markerId, out ReplayMarkerInfo info)
+        {
+            if (!TryGetUltimateCatalogMarkerInfo(territoryId, Name, markerId, out info))
+            {
+                return GenericTryGetMarkerInfo(markerId, out info);
+            }
+
+            return true;
+        }
+
+        public bool ShouldCreateReplayMarkerMechanic(
+            ReplayMarkerSnapshot marker,
+            IReadOnlyList<ReplayMarkerSnapshot> markers)
+        {
+            return TryGetMarkerInfo(marker.MarkerId, out var info) &&
+                info.Shape is not null;
+        }
+
+        public bool ShouldDisplayReplayMarker(
+            ReplayMarkerSnapshot marker,
+            IReadOnlyList<ReplayMarkerSnapshot> markers,
+            IReadOnlyList<ReplayPositionSnapshot> positions,
+            DateTime selectedAtUtc) => true;
     }
 
     private sealed class CrownReplayEncounterModule : IReplayEncounterModule
@@ -594,6 +686,7 @@ internal static class ReplayEncounterModules
             };
             return !string.IsNullOrEmpty(info.ShortLabel) ||
                 !string.IsNullOrEmpty(info.Description) ||
+                TryGetUltimateCatalogMarkerInfo(TerritoryDancingMadUltimate, Name, markerId, out info) ||
                 FallbackModule.TryGetMarkerInfo(markerId, out info);
         }
 
