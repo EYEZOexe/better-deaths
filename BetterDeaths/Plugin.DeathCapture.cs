@@ -1252,6 +1252,7 @@ public sealed partial class Plugin
             return;
         }
 
+        CaptureReplayPlayerDebuffStatusChange(packet, member, status);
         CaptureReplayOverheadStatus(packet, member, status);
 
         if (!IsRelevantDeathStatus(status) && !IsTrackedStatusDeathCandidate(status))
@@ -1676,8 +1677,8 @@ public sealed partial class Plugin
         DateTime deathSeenAtUtc,
         DeathCaptureContext? deathContext)
     {
-        var events = GetRecentEvents(member.MemberKey, deathSeenAtUtc, Math.Max(Configuration.RecentEventSeconds, BetterDeathsLeadUpCaptureSeconds));
-        var hpHistory = GetRecentHpHistory(member.MemberKey, deathSeenAtUtc, BetterDeathsLeadUpCaptureSeconds);
+        var events = GetRecentEvents(member.MemberKey, deathSeenAtUtc, Math.Max(Configuration.RecentEventSeconds, LeadUpTimingPolicy.CaptureSeconds));
+        var hpHistory = GetRecentHpHistory(member.MemberKey, deathSeenAtUtc, LeadUpTimingPolicy.CaptureSeconds);
         var enemyHpAtDeath = CaptureEnemyHpSnapshotsAtDeath(deathSeenAtUtc);
         CaptureSourceMitigationSnapshotsForActiveEnemies(enemyHpAtDeath, deathSeenAtUtc);
         var sourceMitigationHistory = GetRecentSourceMitigationHistory(
@@ -1685,7 +1686,7 @@ public sealed partial class Plugin
                 .Select(combatEvent => combatEvent.SourceEntityId)
                 .Concat(enemyHpAtDeath.Select(enemy => enemy.EntityId)),
             deathSeenAtUtc,
-            BetterDeathsLeadUpCaptureSeconds);
+            LeadUpTimingPolicy.CaptureSeconds);
         var fatalSequence = CreateFatalSequence(member.MemberKey, deathSeenAtUtc, events, hpHistory);
         var causeCutoff = deathSeenAtUtc - TimeSpan.FromSeconds(Configuration.DeathCauseSeconds);
         var sequenceCause = fatalSequence is not null
@@ -1894,7 +1895,7 @@ public sealed partial class Plugin
             return false;
         }
 
-        var startAtUtc = death.SeenAtUtc - TimeSpan.FromSeconds(BetterDeathsLeadUpCaptureSeconds);
+        var startAtUtc = death.SeenAtUtc - TimeSpan.FromSeconds(LeadUpTimingPolicy.CaptureSeconds);
         var endAtUtc = death.SeenAtUtc + FatalSequenceEndBuffer;
         return IsTimestampInWindow(record.SeenAtUtc, startAtUtc, endAtUtc) ||
             record.ResultSeenAtUtc is { } resultSeenAtUtc &&
@@ -1941,7 +1942,7 @@ public sealed partial class Plugin
             return false;
         }
 
-        var causeCutoff = death.SeenAtUtc - TimeSpan.FromSeconds(BetterDeathsLeadUpSeconds);
+        var causeCutoff = death.SeenAtUtc - TimeSpan.FromSeconds(LeadUpTimingPolicy.LateFatalCauseLookbackSeconds);
         if (record.SeenAtUtc < causeCutoff ||
             record.SeenAtUtc > death.SeenAtUtc + FatalSequenceEndBuffer)
         {
@@ -2647,6 +2648,7 @@ public sealed partial class Plugin
         PruneRecentReplayMechanics(now);
         PruneRecentReplayWorldMarkers(now);
         PruneRecentReplayMitigations(now);
+        PruneRecentReplayDebuffs(now);
         PruneRecentSourceMitigationHistory(now);
         PrunePendingEffectResults(now);
     }
@@ -2658,7 +2660,8 @@ public sealed partial class Plugin
             return;
         }
 
-        var cutoff = now - TimeSpan.FromSeconds(Math.Max(Configuration.RecentEventSeconds, Configuration.DeathCauseSeconds) + 10);
+        var configuredRetentionSeconds = Math.Max(Configuration.RecentEventSeconds, Configuration.DeathCauseSeconds) + 10;
+        var cutoff = now - TimeSpan.FromSeconds(Math.Max(configuredRetentionSeconds, LeadUpTimingPolicy.LiveRetentionSeconds));
         foreach (var key in recentEventsByMember.Keys.ToList())
         {
             recentEventsByMember[key].RemoveAll(combatEvent => combatEvent.SeenAtUtc < cutoff);

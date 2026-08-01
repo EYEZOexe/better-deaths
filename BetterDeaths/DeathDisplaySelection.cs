@@ -60,7 +60,6 @@ public sealed record FatalEventGroup(IReadOnlyList<CombatEventRecord> Events)
 
 public static class DeathDisplaySelector
 {
-    private const float LeadUpHistorySeconds = 10.0f;
     private static readonly TimeSpan MaxHeadlineHpSampleAge = TimeSpan.FromMilliseconds(1500);
     private static readonly TimeSpan FatalTailLookback = TimeSpan.FromMilliseconds(1500);
     private static readonly TimeSpan FatalTailForwardBuffer = TimeSpan.FromMilliseconds(500);
@@ -83,9 +82,14 @@ public static class DeathDisplaySelector
 
     public static IReadOnlyList<CombatEventRecord> GetLeadUpEvents(PartyDeathRecord death)
     {
+        return GetLeadUpEvents(death, LeadUpTimingPolicy.DefaultDisplaySeconds);
+    }
+
+    public static IReadOnlyList<CombatEventRecord> GetLeadUpEvents(PartyDeathRecord death, int displaySeconds)
+    {
         var displayAnchorSeenAtUtc = death.SeenAtUtc;
         var anchorSeenAtUtc = GetLeadUpAnchorSeenAtUtc(death);
-        var cutoff = displayAnchorSeenAtUtc - TimeSpan.FromSeconds(LeadUpHistorySeconds);
+        var cutoff = displayAnchorSeenAtUtc - TimeSpan.FromSeconds(LeadUpTimingPolicy.NormalizeDisplaySeconds(displaySeconds));
         var events = death.RecentEvents.AsEnumerable();
         if (death.FatalSequence is { Events.Count: > 0 } sequence)
         {
@@ -235,7 +239,7 @@ public static class DeathDisplaySelector
 
     private static IReadOnlyList<HpHistorySnapshot> GetLeadUpHpHistory(PartyDeathRecord death, DateTime anchorSeenAtUtc)
     {
-        var cutoff = anchorSeenAtUtc - TimeSpan.FromSeconds(LeadUpHistorySeconds);
+        var cutoff = anchorSeenAtUtc - TimeSpan.FromSeconds(LeadUpTimingPolicy.DefaultDisplaySeconds);
         return death.HpHistory
             .Where(snapshot => snapshot.SeenAtUtc >= cutoff && snapshot.SeenAtUtc <= anchorSeenAtUtc)
             .Where(snapshot => snapshot.CurrentHp > 0 || snapshot.ShieldHp > 0)

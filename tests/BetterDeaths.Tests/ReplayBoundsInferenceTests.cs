@@ -119,6 +119,61 @@ public sealed class ReplayBoundsInferenceTests
         Assert.Equal(120.0f, bounds.MaxZ, precision: 2);
     }
 
+    [Fact]
+    public void TargetableBossPositionDoesNotDefineTheArenaWhenPlayersAreAvailable()
+    {
+        var positions = new[]
+        {
+            CreatePosition(90.0f, 90.0f),
+            CreatePosition(110.0f, 110.0f),
+            CreateEnemyPosition(50.0f, 100.0f, isTargetable: true),
+        };
+
+        Assert.True(ReplayBoundsInference.TryInfer(positions, [], [], out var bounds));
+
+        Assert.Equal(80.0f, bounds.MinX, precision: 2);
+        Assert.Equal(120.0f, bounds.MaxX, precision: 2);
+        Assert.Equal(80.0f, bounds.MinZ, precision: 2);
+        Assert.Equal(120.0f, bounds.MaxZ, precision: 2);
+    }
+
+    [Fact]
+    public void RemoteTeleportPocketsDoNotExpandTheDominantArena()
+    {
+        var positions = Enumerable.Range(0, 400)
+            .Select(index => CreatePosition(
+                84.0f + (index % 33),
+                84.0f + ((index * 7) % 33)))
+            .Concat(Enumerable.Range(0, 30).Select(index => CreatePosition(
+                index % 2 == 0 ? -100.0f : 300.0f,
+                index % 3 == 0 ? -92.5f : 307.5f)))
+            .ToList();
+
+        Assert.True(ReplayBoundsInference.TryInfer(positions, [], [], out var bounds));
+
+        Assert.Equal(80.0f, bounds.MinX, precision: 2);
+        Assert.Equal(120.0f, bounds.MaxX, precision: 2);
+        Assert.Equal(80.0f, bounds.MinZ, precision: 2);
+        Assert.Equal(120.0f, bounds.MaxZ, precision: 2);
+    }
+
+    [Fact]
+    public void SustainedEvidenceCanExpandADefaultCenteredArena()
+    {
+        var positions = Enumerable.Range(0, 100)
+            .Select(index => CreatePosition(
+                index % 2 == 0 ? 70.0f : 130.0f,
+                index % 4 < 2 ? 70.0f : 130.0f))
+            .ToList();
+
+        Assert.True(ReplayBoundsInference.TryInfer(positions, [], [], out var bounds));
+
+        Assert.Equal(70.0f, bounds.MinX, precision: 2);
+        Assert.Equal(130.0f, bounds.MaxX, precision: 2);
+        Assert.Equal(70.0f, bounds.MinZ, precision: 2);
+        Assert.Equal(130.0f, bounds.MaxZ, precision: 2);
+    }
+
     private static ReplayPositionSnapshot CreatePosition(float x, float z)
     {
         return new ReplayPositionSnapshot(

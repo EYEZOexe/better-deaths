@@ -62,6 +62,13 @@ public enum ReplayOverlayDockSide
     Right,
 }
 
+public enum ReplayActiveEffectsMode
+{
+    Mitigations,
+    Debuffs,
+    Split,
+}
+
 public enum DeathRecapPopupVisibilityMode
 {
     DutyOnly,
@@ -289,6 +296,8 @@ public sealed class Configuration : IPluginConfiguration
 
     public bool ShowScrollbars { get; set; }
 
+    public bool GoofyMode { get; set; }
+
     public BetterDeathsTheme Theme { get; set; } = BetterDeathsTheme.Classic;
 
     public CustomThemeConfiguration CustomTheme { get; set; } = new();
@@ -308,6 +317,8 @@ public sealed class Configuration : IPluginConfiguration
     public ReviewDisplayMode ReviewDisplayMode { get; set; } = ReviewDisplayMode.Focused;
 
     public LeadUpTimelineOrder LeadUpTimelineOrder { get; set; } = LeadUpTimelineOrder.Newest;
+
+    public int LeadUpHistorySeconds { get; set; } = LeadUpTimingPolicy.DefaultDisplaySeconds;
 
     public bool RemoveChatBranding { get; set; }
 
@@ -373,6 +384,10 @@ public sealed class Configuration : IPluginConfiguration
     public float ReplayMitigationOverlayWidth { get; set; }
 
     public float ReplayMitigationOverlayHeight { get; set; } = 156.0f;
+
+    public ReplayActiveEffectsMode ReplayActiveEffectsDisplayMode { get; set; } = ReplayActiveEffectsMode.Mitigations;
+
+    public float ReplayActiveEffectsSplitRatio { get; set; } = 0.5f;
 
     public float ReplayPartyHpPanelWidth { get; set; }
 

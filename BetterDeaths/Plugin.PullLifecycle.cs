@@ -100,6 +100,7 @@ public sealed partial class Plugin
         var replayMechanics = GetCurrentPullReplayMechanics(now);
         var replayWorldMarkers = GetCurrentPullReplayWorldMarkers(now);
         var replayMitigations = GetCurrentPullReplayMitigations(now);
+        var replayDebuffs = GetCurrentPullReplayDebuffs(now);
         WaitForRecordedPullHistoryLoadForMutation();
         EnsureCurrentDutyInstancePullGroup();
         var pullNumber = GetNextRecordedPullNumber();
@@ -120,6 +121,8 @@ public sealed partial class Plugin
             ReplayMechanics = replayMechanics,
             ReplayWorldMarkers = replayWorldMarkers,
             ReplayMitigations = replayMitigations,
+            ReplayDebuffs = replayDebuffs,
+            ReplayDebuffsCaptured = true,
         };
 
         lock (recordedPullLock)
@@ -189,6 +192,8 @@ public sealed partial class Plugin
         recentReplayMechanicsBySource.Clear();
         recentReplayWorldMarkers.Clear();
         recentReplayMitigations.Clear();
+        recentReplayDebuffs.Clear();
+        activeReplayDebuffs.Clear();
         replayWorldMarkersCapturedForPull = false;
         activeDmuP2PathOfLightTowersByIndex.Clear();
         activeDmuP5ArenaHoleIndices.Clear();

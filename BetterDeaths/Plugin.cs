@@ -85,8 +85,6 @@ public sealed partial class Plugin : IDalamudPlugin
     private const string RecordedPullIndexRollingBackupSearchPattern = "recorded-pulls.index.backup.*.json";
     private const string AutoActionDisplayName = "Auto";
     private const ushort ChatGreenColorKey = 45;
-    private const int BetterDeathsLeadUpSeconds = 10;
-    private const int BetterDeathsLeadUpCaptureSeconds = BetterDeathsLeadUpSeconds + 10;
     private const int DeathReplayLeadUpSeconds = 30;
     private const int FullReplayMaxRetentionSeconds = 30 * 60;
     private const float EnvironmentalDeathMinimumConfidence = 0.35f;
@@ -215,9 +213,9 @@ public sealed partial class Plugin : IDalamudPlugin
     private const float DmuP2PathOfLightTowerMaxMatchSeconds = 14.0f;
     private const float DmuP2PathOfLightTowerResolveMatchDistance = 7.0f;
     private const uint DmuP4RealityTellStatusId = 2056;
-    private const int HpHistoryRetentionSeconds = BetterDeathsLeadUpCaptureSeconds + 5;
-    private const int SourceMitigationHistoryRetentionSeconds = BetterDeathsLeadUpCaptureSeconds + 5;
-    private const int CombatLogEventRetentionSeconds = BetterDeathsLeadUpCaptureSeconds + 5;
+    private const int HpHistoryRetentionSeconds = LeadUpTimingPolicy.LiveRetentionSeconds;
+    private const int SourceMitigationHistoryRetentionSeconds = LeadUpTimingPolicy.LiveRetentionSeconds;
+    private const int CombatLogEventRetentionSeconds = LeadUpTimingPolicy.LiveRetentionSeconds;
     private const int RawActionEffectRetentionSeconds = 5;
     private const int RawCombatLogRetentionSeconds = 10;
     private const int MaxRawActionEffectPackets = 256;
@@ -237,8 +235,8 @@ public sealed partial class Plugin : IDalamudPlugin
     private const int MaxReplayEnemyActors = 12;
     private const int MaxActionEffectTargets = 32;
     private const int MaxEffectResultEntries = 4;
-    private const int MaxRecentEventsPerMember = 160;
-    private const int MaxCombatLogEventsPerMember = 80;
+    private const int MaxRecentEventsPerMember = 560;
+    private const int MaxCombatLogEventsPerMember = 280;
     private const int MaxRecentReplayMarkersPerActor = 64;
     private const int MaxRecentReplayMechanicsPerSource = 96;
     private const int ReplayWorldMarkerCount = 8;
@@ -349,6 +347,8 @@ public sealed partial class Plugin : IDalamudPlugin
     private readonly Dictionary<string, List<ReplayMechanicSnapshot>> recentReplayMechanicsBySource = new(StringComparer.Ordinal);
     private readonly List<ReplayWorldMarkerSnapshot> recentReplayWorldMarkers = [];
     private readonly List<ReplayMitigationSnapshot> recentReplayMitigations = [];
+    private readonly List<ReplayDebuffSnapshot> recentReplayDebuffs = [];
+    private readonly Dictionary<ReplayDebuffTrackingKey, TrackedReplayDebuff> activeReplayDebuffs = [];
     private readonly Dictionary<(string MemberKey, uint ActionSequence), PendingEffectResult> pendingEffectResultsByMemberSequence = [];
     private readonly Dictionary<uint, List<SourceMitigationSnapshot>> recentSourceMitigationHistoryBySource = [];
     private readonly Dictionary<string, Dictionary<string, TrackedPossibleMitigationUse>> possibleMitigationUsesByMember = new(StringComparer.Ordinal);
@@ -364,6 +364,7 @@ public sealed partial class Plugin : IDalamudPlugin
     private readonly Dictionary<uint, uint> actionIconCache = new();
     private readonly Dictionary<uint, string> statusNameCache = new();
     private readonly Dictionary<uint, uint> statusIconCache = new();
+    private readonly Dictionary<uint, bool> replayDebuffStatusCache = new();
     private readonly Dictionary<uint, string> classJobNameCache = new();
     private readonly Dictionary<uint, string> territoryNameCache = new();
     private readonly Dictionary<uint, ReplayActionSheetMetadata?> replayActionSheetMetadataCache = new();

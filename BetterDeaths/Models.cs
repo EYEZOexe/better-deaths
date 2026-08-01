@@ -174,6 +174,17 @@ public sealed record ReplayMitigationSnapshot(
     float DurationSeconds,
     IReadOnlyList<StatusSnapshot> Statuses);
 
+public sealed record ReplayDebuffSnapshot(
+    DateTime SeenAtUtc,
+    float PullElapsedSeconds,
+    string MemberKey,
+    string MemberName,
+    int PartyIndex,
+    uint ClassJobId,
+    string ClassJobName,
+    StatusSnapshot Status,
+    bool Active);
+
 public enum EnvironmentalDeathKind
 {
     PossibleEnvironmental,
@@ -364,6 +375,10 @@ public sealed record PullDeathSnapshot(
     public IReadOnlyList<ReplayWorldMarkerSnapshot> ReplayWorldMarkers { get; init; } = [];
 
     public IReadOnlyList<ReplayMitigationSnapshot> ReplayMitigations { get; init; } = [];
+
+    public IReadOnlyList<ReplayDebuffSnapshot> ReplayDebuffs { get; init; } = [];
+
+    public bool ReplayDebuffsCaptured { get; init; }
 }
 
 public sealed record RecordedPullSummary(

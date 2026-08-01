@@ -2947,6 +2947,7 @@ public sealed partial class Plugin
 
     private void TrackRecentReplayPositions(IReadOnlyList<PartyMemberSnapshot> members, DateTime now)
     {
+        TrackRecentReplayDebuffs(members, now);
         TrackRecentReplayWorldMarkers(now);
         ExtendReplayDmuP5ArenaHoles(now);
 
@@ -3808,6 +3809,27 @@ public sealed partial class Plugin
     private IReadOnlyList<ReplayMitigationSnapshot> GetCurrentPullReplayMitigations(DateTime endAtUtc)
     {
         return GetRecentReplayMitigations(GetCurrentPullReplayStartAtUtc(endAtUtc), endAtUtc);
+    }
+
+    private IReadOnlyList<ReplayDebuffSnapshot> GetRecentReplayDebuffs(DateTime startAtUtc, DateTime endAtUtc)
+    {
+        if (recentReplayDebuffs.Count == 0 || endAtUtc < startAtUtc)
+        {
+            return [];
+        }
+
+        return recentReplayDebuffs
+            .Where(snapshot => snapshot.SeenAtUtc >= startAtUtc && snapshot.SeenAtUtc <= endAtUtc)
+            .OrderBy(snapshot => snapshot.SeenAtUtc)
+            .ThenBy(snapshot => snapshot.PartyIndex)
+            .ThenBy(snapshot => snapshot.MemberName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(snapshot => snapshot.Status.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private IReadOnlyList<ReplayDebuffSnapshot> GetCurrentPullReplayDebuffs(DateTime endAtUtc)
+    {
+        return GetRecentReplayDebuffs(GetCurrentPullReplayStartAtUtc(endAtUtc), endAtUtc);
     }
 
     private DateTime GetCurrentPullReplayStartAtUtc(DateTime now)

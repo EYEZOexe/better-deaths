@@ -10,7 +10,7 @@ It helps you review:
 - fatal events, captured hit details, and overkill context
 - HP plus shields before the fatal event
 - active player mitigations, shields, debuffs, and target mitigation
-- 10-second HP history with source, event, and status snapshots
+- configurable 10-second, 30-second, or 1-minute HP history with source, event, and status snapshots
 - What-if mitigation checks using available party tools
 - Death Replay, IN BETA, with captured positions, markers, mechanics, and replay controls
 - current pull review, widget display, themes, name redaction, and saved pull history
@@ -25,7 +25,7 @@ It also includes:
 - HP plus shields before the fatal event, including shield and HP movement in the lead-up
 - mitigation review with active effects, expired context, and calculated mitigation total
 - What-if mitigation review for checking how selected available mits would have changed the hit
-- 10-second lead-up history with captured events, heals, hits, sources, and status timers
+- configurable 10-second, 30-second, or 1-minute lead-up history with captured events, heals, hits, sources, and status timers
 - Death Replay, IN BETA, for reviewing captured movement and mechanics around a selected death
 - current pull review and an optional widget with normal and concise display modes
 - multiple themes, widget opacity controls, optional scrollbars, and name redaction
@@ -54,9 +54,9 @@ Name Redaction helps with screenshots and shared display, but local saved pull f
 
 ![Better Deaths mitigation context](assets/readme/mitigation-context.png)
 
-### 10 Second Lead-Up
+### Configurable Lead-Up
 
-![Better Deaths 10 second lead-up history](assets/readme/lead-up-history.png)
+![Better Deaths configurable lead-up history](assets/readme/lead-up-history.png)
 
 ### Death Replay (IN BETA)
 

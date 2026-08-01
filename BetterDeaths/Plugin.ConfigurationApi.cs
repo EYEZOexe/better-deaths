@@ -82,6 +82,12 @@ public sealed partial class Plugin
         SaveConfiguration();
     }
 
+    public void SetGoofyMode(bool enabled)
+    {
+        Configuration.GoofyMode = enabled;
+        SaveConfiguration();
+    }
+
     public void SetTheme(BetterDeathsTheme theme)
     {
         if (!Enum.IsDefined(theme) || Configuration.Theme == theme)
@@ -279,6 +285,18 @@ public sealed partial class Plugin
         SaveConfiguration();
     }
 
+    public void SetLeadUpHistorySeconds(int seconds)
+    {
+        Configuration.LeadUpHistorySeconds = LeadUpTimingPolicy.NormalizeDisplaySeconds(seconds);
+        SaveConfiguration();
+    }
+
+    public void SetShowLeadUpTimelineMitigationTimers(bool show)
+    {
+        Configuration.ShowLeadUpTimelineMitigationTimers = show;
+        SaveConfiguration();
+    }
+
     public void SetShowReplayTrails(bool show)
     {
         if (Configuration.ShowReplayTrails == show)
@@ -320,6 +338,18 @@ public sealed partial class Plugin
         }
 
         Configuration.ShowReplayPlayerHp = show;
+        SaveConfiguration();
+    }
+
+    public void SetReplayActiveEffectsMode(ReplayActiveEffectsMode mode)
+    {
+        mode = Enum.IsDefined(mode) ? mode : ReplayActiveEffectsMode.Mitigations;
+        if (Configuration.ReplayActiveEffectsDisplayMode == mode)
+        {
+            return;
+        }
+
+        Configuration.ReplayActiveEffectsDisplayMode = mode;
         SaveConfiguration();
     }
 
@@ -552,9 +582,32 @@ public sealed partial class Plugin
             changed = true;
         }
 
+        var leadUpHistorySeconds = LeadUpTimingPolicy.NormalizeDisplaySeconds(Configuration.LeadUpHistorySeconds);
+        if (Configuration.LeadUpHistorySeconds != leadUpHistorySeconds)
+        {
+            Configuration.LeadUpHistorySeconds = leadUpHistorySeconds;
+            changed = true;
+        }
+
         if (!Enum.IsDefined(Configuration.ClockDisplayMode))
         {
             Configuration.ClockDisplayMode = ClockDisplayMode.TwentyFourHour;
+            changed = true;
+        }
+
+        if (!Enum.IsDefined(Configuration.ReplayActiveEffectsDisplayMode))
+        {
+            Configuration.ReplayActiveEffectsDisplayMode = ReplayActiveEffectsMode.Mitigations;
+            changed = true;
+        }
+
+        var replayActiveEffectsSplitRatio = Math.Clamp(Configuration.ReplayActiveEffectsSplitRatio, 0.2f, 0.8f);
+        if (!float.IsFinite(Configuration.ReplayActiveEffectsSplitRatio) ||
+            MathF.Abs(Configuration.ReplayActiveEffectsSplitRatio - replayActiveEffectsSplitRatio) > 0.001f)
+        {
+            Configuration.ReplayActiveEffectsSplitRatio = float.IsFinite(replayActiveEffectsSplitRatio)
+                ? replayActiveEffectsSplitRatio
+                : 0.5f;
             changed = true;
         }
 

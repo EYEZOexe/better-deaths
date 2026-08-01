@@ -149,6 +149,20 @@ public sealed partial class Plugin
         QueueChat(Configuration.DeathChatChannel, message);
     }
 
+    public void PostLigmaEchoMessage(string message, int? soundEffect)
+    {
+        var cleanedMessage = SanitizeChatText(message);
+        if (string.IsNullOrWhiteSpace(cleanedMessage))
+        {
+            return;
+        }
+
+        var soundSuffix = soundEffect is >= 1 and <= 16
+            ? $" <se.{soundEffect.Value}>"
+            : string.Empty;
+        ExecuteChatCommand($"/echo {cleanedMessage}{soundSuffix}");
+    }
+
     public static string GetChatChannelLabel(DeathChatChannel channel)
     {
         return GetChatChannelOption(channel).Label;
@@ -1258,7 +1272,7 @@ public sealed partial class Plugin
         nextQueuedChatMessageAtUtc = now.AddMilliseconds(QueuedChatDelayMs);
     }
 
-    private static unsafe void SendChat(DeathChatChannel channel, string message)
+    private static void SendChat(DeathChatChannel channel, string message)
     {
         if (channel == DeathChatChannel.SystemMessage)
         {
@@ -1266,6 +1280,11 @@ public sealed partial class Plugin
             return;
         }
 
+        ExecuteChatCommand($"{GetChatChannelOption(channel).Command} {SanitizeChatText(message)}");
+    }
+
+    private static unsafe void ExecuteChatCommand(string commandText)
+    {
         try
         {
             var uiModule = UIModule.Instance();
@@ -1277,7 +1296,7 @@ public sealed partial class Plugin
                 return;
             }
 
-            using var command = new Utf8String($"{GetChatChannelOption(channel).Command} {SanitizeChatText(message)}");
+            using var command = new Utf8String(commandText);
             shellModule->ExecuteCommandInner(&command, uiModule);
         }
         catch (Exception ex)

@@ -165,6 +165,34 @@ public sealed partial class Plugin
         return iconId;
     }
 
+    private bool IsReplayPlayerDebuffStatus(uint statusId)
+    {
+        if (replayDebuffStatusCache.TryGetValue(statusId, out var cached))
+        {
+            return cached;
+        }
+
+        var isDebuff = false;
+        try
+        {
+            var status = DataManager.GetExcelSheet<Status>()?.GetRowOrDefault(statusId);
+            if (status is not { } statusRow)
+            {
+                return false;
+            }
+
+            isDebuff = statusRow.StatusCategory == 2;
+        }
+        catch (Exception ex)
+        {
+            Log.Debug(ex, "Could not load status category for {StatusId}.", statusId);
+            return false;
+        }
+
+        replayDebuffStatusCache[statusId] = isDebuff;
+        return isDebuff;
+    }
+
     private string GetClassJobName(uint classJobId)
     {
         if (classJobNameCache.TryGetValue(classJobId, out var cachedName))

@@ -3,6 +3,93 @@ namespace BetterDeaths;
 public sealed class DeathDisplaySelectionTests
 {
     [Fact]
+    public void GetLeadUpEventsUsesThirtySecondBoundary()
+    {
+        var deathAtUtc = new DateTime(2026, 7, 31, 12, 0, 0, DateTimeKind.Utc);
+        var resultTouchesWindow = CreateDamageEvent(deathAtUtc.AddSeconds(-31), 1_000, 1) with
+        {
+            ResultSeenAtUtc = deathAtUtc.AddSeconds(-29.9),
+        };
+        var atCutoff = CreateDamageEvent(deathAtUtc.AddSeconds(-30), 2_000, 2);
+        var outsideWindow = CreateDamageEvent(deathAtUtc.AddMilliseconds(-30_001), 3_000, 3);
+        var afterDeath = CreateDamageEvent(deathAtUtc.AddMilliseconds(1), 4_000, 4);
+        var death = CreateDeath(
+            deathAtUtc,
+            [resultTouchesWindow, outsideWindow, atCutoff, afterDeath],
+            []);
+
+        var events = DeathDisplaySelector.GetLeadUpEvents(death);
+
+        Assert.Equal(
+            [resultTouchesWindow.EventIdentity, atCutoff.EventIdentity],
+            events.Select(combatEvent => combatEvent.EventIdentity));
+    }
+
+    [Theory]
+    [InlineData(10)]
+    [InlineData(30)]
+    [InlineData(60)]
+    public void GetLeadUpEventsHonorsSelectedDuration(int displaySeconds)
+    {
+        var deathAtUtc = new DateTime(2026, 7, 31, 12, 0, 0, DateTimeKind.Utc);
+        var atCutoff = CreateDamageEvent(deathAtUtc.AddSeconds(-displaySeconds), 2_000, 1);
+        var outsideWindow = CreateDamageEvent(deathAtUtc.AddMilliseconds((-displaySeconds * 1_000) - 1), 3_000, 2);
+        var death = CreateDeath(deathAtUtc, [outsideWindow, atCutoff], []);
+
+        var events = DeathDisplaySelector.GetLeadUpEvents(death, displaySeconds);
+
+        Assert.Equal([atCutoff.EventIdentity], events.Select(combatEvent => combatEvent.EventIdentity));
+    }
+
+    [Fact]
+    public void SelectUsesHpSnapshotAtThirtySecondBoundary()
+    {
+        var deathAtUtc = new DateTime(2026, 7, 31, 12, 0, 0, DateTimeKind.Utc);
+        var outsideWindow = new HpHistorySnapshot(
+            deathAtUtc.AddMilliseconds(-30_001),
+            69.999f,
+            200_000,
+            0,
+            226_488,
+            []);
+        var atCutoff = new HpHistorySnapshot(
+            deathAtUtc.AddSeconds(-30),
+            70.0f,
+            150_000,
+            0,
+            226_488,
+            []);
+
+        var selection = DeathDisplaySelector.Select(CreateDeath(deathAtUtc, [], [outsideWindow, atCutoff]));
+        var outsideOnlySelection = DeathDisplaySelector.Select(CreateDeath(deathAtUtc, [], [outsideWindow]));
+
+        Assert.Equal(atCutoff, selection.Snapshot);
+        Assert.Null(outsideOnlySelection.Snapshot);
+    }
+
+    [Fact]
+    public void LeadUpTimingPolicyPreservesCaptureAndAttributionBuffers()
+    {
+        Assert.Equal(10, LeadUpTimingPolicy.ShortDisplaySeconds);
+        Assert.Equal(30, LeadUpTimingPolicy.DefaultDisplaySeconds);
+        Assert.Equal(60, LeadUpTimingPolicy.MaximumDisplaySeconds);
+        Assert.Equal(70, LeadUpTimingPolicy.CaptureSeconds);
+        Assert.Equal(75, LeadUpTimingPolicy.LiveRetentionSeconds);
+        Assert.Equal(10, LeadUpTimingPolicy.LateFatalCauseLookbackSeconds);
+    }
+
+    [Theory]
+    [InlineData(10, 10)]
+    [InlineData(30, 30)]
+    [InlineData(60, 60)]
+    [InlineData(0, 30)]
+    [InlineData(45, 30)]
+    public void LeadUpTimingPolicyNormalizesSavedDurations(int requestedSeconds, int expectedSeconds)
+    {
+        Assert.Equal(expectedSeconds, LeadUpTimingPolicy.NormalizeDisplaySeconds(requestedSeconds));
+    }
+
+    [Fact]
     public void SelectIncludesEntireAtomicMultiHitBurst()
     {
         var burstAtUtc = new DateTime(2026, 7, 31, 2, 53, 12, DateTimeKind.Utc);
@@ -91,6 +178,28 @@ public sealed class DeathDisplaySelectionTests
             EventOrdinal = ordinal,
             HpSource = CombatEventHpSource.DirectCombatEventSnapshot,
         };
+    }
+
+    private static PartyDeathRecord CreateDeath(
+        DateTime seenAtUtc,
+        IReadOnlyList<CombatEventRecord> recentEvents,
+        IReadOnlyList<HpHistorySnapshot> hpHistory)
+    {
+        return new PartyDeathRecord(
+            seenAtUtc,
+            100.0f,
+            "nai-la",
+            "Nai La",
+            6,
+            23,
+            "BRD",
+            0,
+            0,
+            226_488,
+            null,
+            recentEvents,
+            hpHistory,
+            []);
     }
 
     private static CombatLogEventRecord CreateLogEvent(DateTime seenAtUtc, uint amount)

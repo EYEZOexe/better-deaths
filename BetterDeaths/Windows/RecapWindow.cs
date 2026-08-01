@@ -18,6 +18,7 @@ public sealed class RecapWindow : Window, IDisposable
 {
     private readonly Plugin plugin;
     private readonly Configuration configuration;
+    private readonly LigmaButtonSequence ligmaButtonSequence = new();
     private IReadOnlyList<PartyDeathRecord>? exampleDeaths;
     private DeathSelectionTarget? pendingDeathSelection;
     private uint recordedPullDutyFilter = AllRecordedPullDuties;
@@ -30,6 +31,7 @@ public sealed class RecapWindow : Window, IDisposable
     private bool replayCanvasResizeDragging;
     private string? replayMitigationOverlayDraggingId;
     private string? replayMitigationOverlayResizeDraggingId;
+    private string? replayActiveEffectsSplitterDraggingId;
     private ReplayMitigationOverlayResizeMode replayMitigationOverlayResizeMode;
     private ReplayOverlayDockSide replayMitigationOverlayResizeDockSide = ReplayOverlayDockSide.Right;
     private Vector2 replayMitigationOverlayDragOffset;
@@ -120,13 +122,13 @@ public sealed class RecapWindow : Window, IDisposable
     private const string LikelyAutoAttackTooltip = "Possible auto attack. Better Deaths could not resolve a named action here; named spells and abilities usually show their action name.";
     private const string AutoActionDisplayName = "Auto";
     private const uint AllRecordedPullDuties = uint.MaxValue;
-    private const string CurrentChangelogVersion = "0.1.0.276";
+    private const string CurrentChangelogVersion = "0.1.0.277";
     private const string FeedbackDiscordUrl = "https://discord.com/invite/Zzrcc8kmvy";
     private const string FeedbackConfirmPopupId = "Open Punish Discord?##BetterDeathsFeedbackConfirm";
     private const string KofiUrl = "https://ko-fi.com/nainaiowo";
     private const string KofiConfirmPopupId = "Open Ko-fi?##BetterDeathsKofiConfirm";
     private const string ReplayBetaBadgeText = "beta";
-    private const float LeadUpHistorySeconds = 10.0f;
+    private const double GoofyCreditRotationSeconds = 5.0;
     private const float DeathReplayLeadUpSeconds = 30.0f;
     private const float DeathReplayMaxPostDeathSeconds = 10.0f;
     private const float ReplayMarkerBadgeStackWindowSeconds = 1.25f;
@@ -164,6 +166,18 @@ public sealed class RecapWindow : Window, IDisposable
     private const float ReplayMitigationOverlayResizeCornerSize = 20.0f;
     private const float ReplayMitigationOverlayRowGap = 5.0f;
     private const float ReplayMitigationOverlayIconSize = 20.0f;
+    private const float ReplayDebuffOverlayIconSize = 24.0f;
+    private const float ReplayActiveEffectsSubheaderHeight = 20.0f;
+    private const float ReplayActiveEffectsSplitterHeight = 7.0f;
+    private const float ReplayActiveEffectsModeButtonHeight = 18.0f;
+    private const float ReplayActiveEffectsCompactModeButtonWidth = 24.0f;
+    private const float ReplayActiveEffectsModeButtonGap = 3.0f;
+    private const float ReplayActiveEffectsSplitMinPanelHeight =
+        ReplayMitigationOverlayHeaderHeight +
+        (ReplayMitigationOverlayPadding * 2.0f) +
+        ReplayMitigationOverlayResizeCornerSize +
+        (ReplayActiveEffectsSubheaderHeight * 2.0f) +
+        ReplayActiveEffectsSplitterHeight;
     private const float ReplayStatusPanelGap = 8.0f;
     private const float ReplayCombinedStatusPanelMinHeight = 104.0f;
     private const float ReplayPartyHpRowHeight = 30.0f;
@@ -355,6 +369,8 @@ public sealed class RecapWindow : Window, IDisposable
     private sealed record ReplayMitigationExternalPanelTransitionState(
         IReadOnlyList<ReplayPositionSnapshot> PartyHpEntries,
         IReadOnlyList<ReplayMitigationOverlayEntry> MitigationEntries,
+        IReadOnlyList<ReplayDebuffActiveState> DebuffEntries,
+        bool ShowActiveEffectsPanel,
         ReplayExternalStatusPanelLayout Layout,
         float Visibility);
 
@@ -362,6 +378,8 @@ public sealed class RecapWindow : Window, IDisposable
         bool Visible,
         IReadOnlyList<ReplayPositionSnapshot> PartyHpEntries,
         IReadOnlyList<ReplayMitigationOverlayEntry> MitigationEntries,
+        IReadOnlyList<ReplayDebuffActiveState> DebuffEntries,
+        bool ShowActiveEffectsPanel,
         ReplayExternalStatusPanelLayout Layout,
         float Alpha,
         float SlideOffsetX);
@@ -481,6 +499,14 @@ public sealed class RecapWindow : Window, IDisposable
     {
         None,
         Corner,
+    }
+
+    private enum ModernCreditVariant
+    {
+        Standard,
+        Extended,
+        YourMom,
+        Deez,
     }
 
     private sealed record DmuP4AssignmentSummaryStatus(
@@ -910,29 +936,49 @@ public sealed class RecapWindow : Window, IDisposable
         DrawModernWorkspace(Vector2.Zero);
     }
 
-    private static void DrawModernTopHeader()
+    private void DrawModernTopHeader()
     {
         var start = ImGui.GetCursorPos();
         ImGui.TextColored(ModernAccentColor, "Better Deaths");
         ImGui.SameLine();
         ImGui.TextColored(ModernMutedTextColor, "Raid death review");
 
-        const string prefix = "Powered by ";
-        const string nai = "Nai";
-        const string middle = " and ";
-        const string you = "You";
-        var creditWidth = ImGui.CalcTextSize(prefix).X +
-            ImGui.CalcTextSize(nai).X +
-            ImGui.CalcTextSize(middle).X +
-            ImGui.CalcTextSize(you).X;
+        var creditVariant = GetModernCreditVariant();
+        var creditWidth = ImGui.CalcTextSize($"Powered by {GetModernCreditSubject(creditVariant)}").X;
         var creditX = MathF.Max(
             start.X,
             ImGui.GetWindowContentRegionMax().X - ModernShellPadding - creditWidth);
         if (creditX > ImGui.GetCursorPosX() + (ImGui.GetStyle().ItemSpacing.X * 2.0f))
         {
             ImGui.SameLine(creditX);
-            DrawModernCreditLine();
+            DrawModernCreditLine(creditVariant);
         }
+    }
+
+    private ModernCreditVariant GetModernCreditVariant()
+    {
+        if (!configuration.GoofyMode)
+        {
+            return ModernCreditVariant.Standard;
+        }
+
+        return ((int)(ImGui.GetTime() / GoofyCreditRotationSeconds) % 3) switch
+        {
+            1 => ModernCreditVariant.YourMom,
+            2 => ModernCreditVariant.Deez,
+            _ => ModernCreditVariant.Extended,
+        };
+    }
+
+    private static string GetModernCreditSubject(ModernCreditVariant variant)
+    {
+        return variant switch
+        {
+            ModernCreditVariant.Extended => "Nai and You, Y.O.U.",
+            ModernCreditVariant.YourMom => "Your Mom",
+            ModernCreditVariant.Deez => "Deez",
+            _ => "Nai and You",
+        };
     }
 
     private void DrawModernTopNavigation(IReadOnlyList<MainNavigationItem> navigationItems)
@@ -1077,15 +1123,34 @@ public sealed class RecapWindow : Window, IDisposable
         ImGui.PopStyleColor();
     }
 
-    private static void DrawModernCreditLine()
+    private static void DrawModernCreditLine(ModernCreditVariant variant)
     {
         ImGui.TextColored(ModernMutedTextColor, "Powered by ");
         ImGui.SameLine(0.0f, 0.0f);
+        if (variant == ModernCreditVariant.YourMom)
+        {
+            ImGui.TextColored(ModernAccentColor, "Your Mom");
+            return;
+        }
+
+        if (variant == ModernCreditVariant.Deez)
+        {
+            ImGui.TextColored(ModernAccentColor, "Deez");
+            return;
+        }
+
         ImGui.TextColored(ModernAccentColor, "Nai");
         ImGui.SameLine(0.0f, 0.0f);
         ImGui.TextColored(ModernMutedTextColor, " and ");
         ImGui.SameLine(0.0f, 0.0f);
         ImGui.TextColored(ModernAccentColor, "You");
+        if (variant == ModernCreditVariant.Extended)
+        {
+            ImGui.SameLine(0.0f, 0.0f);
+            ImGui.TextColored(ModernMutedTextColor, ", ");
+            ImGui.SameLine(0.0f, 0.0f);
+            ImGui.TextColored(ModernAccentColor, "Y.O.U.");
+        }
     }
 
     private void PushWindowStyle()
@@ -1130,6 +1195,7 @@ public sealed class RecapWindow : Window, IDisposable
             new("Review", MainPage.Review),
             new("Replay", MainPage.Replay, BadgeText: ReplayBetaBadgeText),
             new("Customize", MainPage.Customize, HasUnseenNewThemeBadges()),
+            new("Options", MainPage.Options),
             new("Data", MainPage.Data),
             new("Updates", MainPage.Updates, ShouldHighlightChangelogTab()),
         };
@@ -1194,6 +1260,9 @@ public sealed class RecapWindow : Window, IDisposable
             case MainPage.Customize:
                 DrawCustomizePage();
                 break;
+            case MainPage.Options:
+                DrawOptionsPage();
+                break;
             case MainPage.Data:
                 DrawReviewPanel("##DataModern", Vector2.Zero, DrawDataPage);
                 break;
@@ -1216,25 +1285,30 @@ public sealed class RecapWindow : Window, IDisposable
 
     private void DrawCustomizePage()
     {
+        DrawReviewPanel("##CustomizeAppearance", Vector2.Zero, DrawCustomizeTab);
+    }
+
+    private void DrawOptionsPage()
+    {
         var available = ImGui.GetContentRegionAvail();
         var spacing = ImGui.GetStyle().ItemSpacing.X;
         if (available.X >= 980.0f)
         {
             var leftWidth = MathF.Max(420.0f, (available.X - spacing) * 0.48f);
             DrawReviewPanel(
-                "##CustomizeSettings",
+                "##OptionsSettings",
                 new Vector2(leftWidth, available.Y),
-                DrawSettingsTab);
+                DrawOptionsTab);
             ImGui.SameLine();
             DrawReviewPanel(
-                "##CustomizeWidget",
+                "##OptionsWidget",
                 Vector2.Zero,
                 DrawWidgetTab);
             return;
         }
 
-        DrawReviewPanel("##CustomizeSettingsStacked", new Vector2(0.0f, MathF.Min(360.0f, MathF.Max(240.0f, available.Y * 0.48f))), DrawSettingsTab);
-        DrawReviewPanel("##CustomizeWidgetStacked", Vector2.Zero, DrawWidgetTab);
+        DrawReviewPanel("##OptionsSettingsStacked", new Vector2(0.0f, MathF.Min(360.0f, MathF.Max(240.0f, available.Y * 0.48f))), DrawOptionsTab);
+        DrawReviewPanel("##OptionsWidgetStacked", Vector2.Zero, DrawWidgetTab);
     }
 
     private void DrawUpdatesPage()
@@ -1635,6 +1709,7 @@ public sealed class RecapWindow : Window, IDisposable
         var rawMechanics = pull.ReplayMechanics;
         var worldMarkers = pull.ReplayWorldMarkers;
         var mitigations = pull.ReplayMitigations;
+        var debuffs = pull.ReplayDebuffs;
         var replayModule = ReplayEncounterModules.Get(pull.TerritoryId);
         if (positions.Count == 0 && markers.Count == 0 && rawMechanics.Count == 0 && worldMarkers.Count == 0)
         {
@@ -1705,6 +1780,8 @@ public sealed class RecapWindow : Window, IDisposable
             worldMarkers,
             replayFrame.WorldMarkerStates,
             mitigations,
+            debuffs,
+            pull.ReplayDebuffsCaptured,
             scrubSeconds,
             selectedAtUtc,
             idSuffix,
@@ -3652,7 +3729,6 @@ public sealed class RecapWindow : Window, IDisposable
             return;
         }
 
-        DrawTimelineLeadUpControls($"{idPrefix}{pull.Key}");
         DrawSelectableDeathTimeline(pull, idPrefix, selection, allowLeadUpScrollHandoff);
         DrawTimelineKofiLink(idPrefix);
         DrawKofiConfirmationPopup();
@@ -3814,19 +3890,6 @@ public sealed class RecapWindow : Window, IDisposable
 
         collapsedSelectedTimelineLeadUpRowId = null;
         leadUpExpanded = true;
-    }
-
-    private void DrawTimelineLeadUpControls(string idSuffix)
-    {
-        var availableWidth = MathF.Max(1.0f, GetRightPaddedTableSize(LeadUpTableRightPadding).X);
-        var toggleWidth = GetThemedSwitchWidth("Timers");
-        if (availableWidth > toggleWidth)
-        {
-            ImGui.SetCursorPosX(ImGui.GetCursorPosX() + MathF.Max(0.0f, availableWidth - toggleWidth));
-        }
-
-        DrawLeadUpTimelineTimerToggle($"DeathTimeline{idSuffix}");
-        ImGui.Spacing();
     }
 
     private void DrawSelectableDeathTimelineHeader(string id)
@@ -4074,18 +4137,13 @@ public sealed class RecapWindow : Window, IDisposable
 
         if (hovered)
         {
-            SetThemedTooltip("Drag to resize the 10s lead-up.");
+            SetThemedTooltip($"Drag to resize the {FormatLeadUpDuration(GetLeadUpDisplaySeconds())} lead-up.");
         }
     }
 
     private static bool IsUsableTimelineLeadUpDropdownHeight(float height)
     {
         return !float.IsNaN(height) && !float.IsInfinity(height) && height > 0.0f;
-    }
-
-    private static float GetThemedSwitchWidth(string label)
-    {
-        return 18.0f + ImGui.GetStyle().ItemInnerSpacing.X + ImGui.CalcTextSize(label).X;
     }
 
     private void DrawSelectedDeathPanel(ReviewPull pull, PartyDeathRecord? death, string idPrefix)
@@ -4328,23 +4386,6 @@ public sealed class RecapWindow : Window, IDisposable
         ImGui.SameLine(0.0f, 4.0f);
     }
 
-    private static float GetTextSelectorWidth(params string[] labels)
-    {
-        var width = 0.0f;
-        foreach (var label in labels)
-        {
-            width += ImGui.CalcTextSize(label).X;
-        }
-
-        if (labels.Length > 1)
-        {
-            width += ImGui.CalcTextSize("|").X * (labels.Length - 1);
-            width += 8.0f * (labels.Length - 1);
-        }
-
-        return width;
-    }
-
     private static Vector4 GetTextSelectorColor(bool selected, bool hovered)
     {
         var color = selected
@@ -4374,6 +4415,31 @@ public sealed class RecapWindow : Window, IDisposable
         ImGui.PushStyleColor(ImGuiCol.Text, GetButtonTextColor(ModernNavButtonSelectedColor, selected: true));
         var clicked = ImGui.Button($"{label}##{id}", new Vector2(buttonWidth, buttonHeight));
         ImGui.PopStyleColor(4);
+        return clicked;
+    }
+
+    private static bool DrawThemedToggleButton(string label, string id, bool selected, float width = 0.0f)
+    {
+        var buttonWidth = width <= 0.0f
+            ? GetThemedActionButtonWidth(label)
+            : MathF.Max(0.0f, width);
+        var buttonColor = selected ? ModernNavButtonSelectedColor : Vector4.Zero;
+        var hoveredColor = selected
+            ? ModernNavButtonSelectedHoveredColor
+            : ModernNavButtonHoveredColor;
+        var textColor = selected
+            ? GetButtonTextColor(ModernNavButtonSelectedColor, selected: true)
+            : ModernTextColor;
+
+        ImGui.PushStyleColor(ImGuiCol.Button, buttonColor);
+        ImGui.PushStyleColor(ImGuiCol.ButtonHovered, hoveredColor);
+        ImGui.PushStyleColor(ImGuiCol.ButtonActive, ModernNavButtonActiveColor);
+        ImGui.PushStyleColor(ImGuiCol.Text, textColor);
+        ImGui.PushStyleColor(ImGuiCol.Border, ModernPanelBorderColor);
+        ImGui.PushStyleVar(ImGuiStyleVar.FrameBorderSize, 1.0f);
+        var clicked = ImGui.Button($"{label}##{id}", new Vector2(buttonWidth, ImGui.GetFrameHeight()));
+        ImGui.PopStyleVar();
+        ImGui.PopStyleColor(5);
         return clicked;
     }
 
@@ -4526,34 +4592,9 @@ public sealed class RecapWindow : Window, IDisposable
     {
         var startCursor = ImGui.GetCursorPos();
         var availableWidth = ImGui.GetContentRegionAvail().X;
-        var style = ImGui.GetStyle();
 
         ImGui.TextColored(LeadUpGoldColor, title);
         var afterTitleCursor = ImGui.GetCursorPos();
-        var titleWidth = ImGui.CalcTextSize(title).X;
-        var displayModeToggleWidth = GetReviewDisplayModeToggleWidth();
-        var orderToggleWidth = GetLeadUpTimelineOrderToggleWidth();
-        var controlWidth = MathF.Max(displayModeToggleWidth, orderToggleWidth);
-        var helpMarkerWidth = 24.0f;
-        var toggleX = startCursor.X + MathF.Max(
-            0.0f,
-            availableWidth - SectionHelpMarkerRightInset - helpMarkerWidth - style.ItemSpacing.X - controlWidth);
-        var subtitleWidth = string.IsNullOrWhiteSpace(subtitle)
-            ? 0.0f
-            : ImGui.CalcTextSize(subtitle).X;
-        var hasSubtitleRowSpace = subtitleWidth <= MathF.Max(0.0f, toggleX - startCursor.X - style.ItemSpacing.X);
-        var toggleDrawn = false;
-        if (toggleX >= startCursor.X + titleWidth + style.ItemSpacing.X &&
-            hasSubtitleRowSpace)
-        {
-            var restoreCursor = ImGui.GetCursorPos();
-            ImGui.SetCursorPos(new Vector2(toggleX, startCursor.Y - 2.0f));
-            DrawReviewDisplayModeToggle(idSuffix);
-            ImGui.SetCursorPos(new Vector2(toggleX, afterTitleCursor.Y));
-            DrawLeadUpTimelineOrderToggle(idSuffix);
-            ImGui.SetCursorPos(restoreCursor);
-            toggleDrawn = true;
-        }
 
         DrawRightAlignedQuestionTooltipMarker(
             $"ReviewLegendHelp{idSuffix}",
@@ -4565,16 +4606,6 @@ public sealed class RecapWindow : Window, IDisposable
         if (!string.IsNullOrWhiteSpace(subtitle))
         {
             ImGui.TextDisabled(subtitle);
-        }
-        else if (toggleDrawn)
-        {
-            ImGui.Dummy(new Vector2(0.0f, ImGui.GetTextLineHeight()));
-        }
-
-        if (!toggleDrawn)
-        {
-            DrawReviewDisplayModeToggle(idSuffix);
-            DrawLeadUpTimelineOrderToggle(idSuffix);
         }
     }
 
@@ -4600,11 +4631,6 @@ public sealed class RecapWindow : Window, IDisposable
                 ? "Shows a cleaner review view with less table detail."
                 : "Shows the full review details.");
         }
-    }
-
-    private static float GetReviewDisplayModeToggleWidth()
-    {
-        return GetTextSelectorWidth("Focused", "Detailed");
     }
 
     private static string GetReviewDisplayModeLabel(ReviewDisplayMode mode)
@@ -4635,14 +4661,9 @@ public sealed class RecapWindow : Window, IDisposable
         if (ImGui.IsItemHovered())
         {
             SetThemedTooltip(order == LeadUpTimelineOrder.Newest
-                ? "Shows the closest events to death first."
-                : "Shows the start of the 10-second lead-up first.");
+                ? "Shows the death first."
+                : "Shows all of the lead-up first.");
         }
-    }
-
-    private static float GetLeadUpTimelineOrderToggleWidth()
-    {
-        return GetTextSelectorWidth("Newest", "Oldest");
     }
 
     private static string GetLeadUpTimelineOrderLabel(LeadUpTimelineOrder order)
@@ -4652,6 +4673,53 @@ public sealed class RecapWindow : Window, IDisposable
             LeadUpTimelineOrder.Newest => "Newest",
             _ => "Oldest",
         };
+    }
+
+    private int GetLeadUpDisplaySeconds()
+    {
+        return LeadUpTimingPolicy.NormalizeDisplaySeconds(configuration.LeadUpHistorySeconds);
+    }
+
+    private void DrawLeadUpDurationToggle(string idSuffix)
+    {
+        DrawLeadUpDurationButton(LeadUpTimingPolicy.ShortDisplaySeconds, "10s", idSuffix);
+        DrawTextSelectorSeparator();
+        DrawLeadUpDurationButton(LeadUpTimingPolicy.DefaultDisplaySeconds, "30s", idSuffix);
+        DrawTextSelectorSeparator();
+        DrawLeadUpDurationButton(LeadUpTimingPolicy.MaximumDisplaySeconds, "1 minute", idSuffix);
+    }
+
+    private void DrawLeadUpDurationButton(int seconds, string label, string idSuffix)
+    {
+        var selected = GetLeadUpDisplaySeconds() == seconds;
+        if (DrawTextSelectorOption(label, $"LeadUpDuration{seconds}{idSuffix}", selected) && !selected)
+        {
+            plugin.SetLeadUpHistorySeconds(seconds);
+        }
+    }
+
+    private static string FormatLeadUpDuration(int seconds)
+    {
+        var normalizedSeconds = LeadUpTimingPolicy.NormalizeDisplaySeconds(seconds);
+        return normalizedSeconds == LeadUpTimingPolicy.MaximumDisplaySeconds
+            ? "1-minute"
+            : $"{normalizedSeconds}-second";
+    }
+
+    private static string FormatLeadUpDurationCompact(int seconds)
+    {
+        var normalizedSeconds = LeadUpTimingPolicy.NormalizeDisplaySeconds(seconds);
+        return normalizedSeconds == LeadUpTimingPolicy.MaximumDisplaySeconds
+            ? "1m"
+            : $"{normalizedSeconds}s";
+    }
+
+    private static string FormatLeadUpDurationSpan(int seconds)
+    {
+        var normalizedSeconds = LeadUpTimingPolicy.NormalizeDisplaySeconds(seconds);
+        return normalizedSeconds == LeadUpTimingPolicy.MaximumDisplaySeconds
+            ? "minute"
+            : $"{normalizedSeconds} seconds";
     }
 
     private static void DrawRightAlignedQuestionTooltipMarker(
@@ -5573,11 +5641,12 @@ public sealed class RecapWindow : Window, IDisposable
         return $"{causeEvents.Count} fatal events";
     }
 
-    private static string FormatTimelineCauseLine(CombatEventRecord combatEvent)
+    private string FormatTimelineCauseLine(CombatEventRecord combatEvent)
     {
+        var actionName = FormatFatalActionNameForDisplay(combatEvent);
         return EventHasSignedAmount(combatEvent)
-            ? $"{FormatActionNameForDisplay(combatEvent)}: {FormatSignedEventAmount(combatEvent)}"
-            : FormatActionNameForDisplay(combatEvent);
+            ? $"{actionName}: {FormatSignedEventAmount(combatEvent)}"
+            : actionName;
     }
 
     private void DrawWidgetCauseSummary(
@@ -5632,8 +5701,8 @@ public sealed class RecapWindow : Window, IDisposable
 
         var cause = causeEvents[0];
         return cause.Kind == DeathEventKind.Status
-            ? $"{FormatActionNameForDisplay(cause)} from {FormatKnownPlayerName(cause.SourceName)}"
-            : $"{FormatSignedEventAmount(cause)} {FormatActionNameForDisplay(cause)}";
+            ? $"{FormatFatalActionNameForDisplay(cause)} from {FormatKnownPlayerName(cause.SourceName)}"
+            : $"{FormatSignedEventAmount(cause)} {FormatFatalActionNameForDisplay(cause)}";
     }
 
     private static string FormatConciseWidgetCauseSummary(PartyDeathRecord death, IReadOnlyList<CombatEventRecord> causeEvents)
@@ -6068,7 +6137,7 @@ public sealed class RecapWindow : Window, IDisposable
     {
         var selection = DeathDisplaySelector.Select(death);
         var causeEvents = GetTimelineCauseEvents(selection);
-        var leadUpEvents = GetLeadUpEvents(death);
+        var leadUpEvents = GetLeadUpEvents(death, GetLeadUpDisplaySeconds());
         var timelineRows = GetLeadUpTimelineRows(death, GetLeadUpDisplayAnchorSeenAtUtc(death), leadUpEvents);
         var summaryRow = GetLeadUpSummaryRow(death, selection, leadUpEvents, timelineRows);
         var summaryMitigationDebuffStatuses = summaryRow is not null
@@ -6097,6 +6166,11 @@ public sealed class RecapWindow : Window, IDisposable
         var death = resolved.Death;
         ImGui.TextUnformatted("Player death information");
         using var sectionIndent = new ImGuiIndentScope(SectionBodyIndent);
+        if (configuration.GoofyMode)
+        {
+            DrawMutedWrappedText(GoofyDeathText.GetPostmortemLine(death.SeenAtUtc.Ticks, death.MemberKey));
+        }
+
         var causeEvents = resolved.CauseEvents;
         var summaryRow = resolved.SummaryRow;
         if (summaryRow is not null)
@@ -6107,6 +6181,11 @@ public sealed class RecapWindow : Window, IDisposable
         {
             var cause = causeEvents[^1];
             var hpDisplay = GetEventHpDisplay(death, cause);
+            if (configuration.GoofyMode)
+            {
+                DrawGoofyDeathOutcome(death, causeEvents);
+            }
+
             ImGui.BulletText(cause.Kind == DeathEventKind.Status
                 ? "HP + shields before fatal KO"
                 : "HP + shields before fatal hit");
@@ -6856,6 +6935,11 @@ public sealed class RecapWindow : Window, IDisposable
         ImGui.TableNextRow();
         ImGui.TableNextColumn();
         var hpSnapshot = summary.HpSnapshot;
+        if (configuration.GoofyMode)
+        {
+            DrawGoofyDeathOutcome(death, summary.Events);
+        }
+
         DrawHpShieldBar(
             hpSnapshot.CurrentHp,
             hpSnapshot.ShieldHp,
@@ -6873,6 +6957,21 @@ public sealed class RecapWindow : Window, IDisposable
         DrawLeadUpSummaryMitigationDebuffCell(summary);
 
         ImGui.EndTable();
+    }
+
+    private static void DrawGoofyDeathOutcome(
+        PartyDeathRecord death,
+        IReadOnlyList<CombatEventRecord> events)
+    {
+        var cause = events
+            .Where(combatEvent => combatEvent.Kind == DeathEventKind.Damage && combatEvent.Amount > 0)
+            .OrderBy(combatEvent => combatEvent.SeenAtUtc)
+            .ThenBy(combatEvent => combatEvent.EventOrdinal)
+            .LastOrDefault() ?? events.LastOrDefault();
+        var slangTerm = cause is not null
+            ? GoofyDeathText.GetSlangTerm(cause.ActionId, cause.ActionName)
+            : GoofyDeathText.GetSlangTerm(0, $"{death.MemberKey}:{death.SeenAtUtc.Ticks}");
+        DrawCenteredOrWrappedText($"Haha you died of {slangTerm}", OverkillColor);
     }
 
     private void DrawJobCell(PartyDeathRecord death)
@@ -7787,7 +7886,7 @@ public sealed class RecapWindow : Window, IDisposable
     private void DrawBetterDeathsInformation(ResolvedDeathDisplay resolved, string idSuffix)
     {
         ImGui.PushStyleColor(ImGuiCol.Text, LeadUpGoldColor);
-        var isOpen = ImGui.CollapsingHeader($"Better Deaths information - {LeadUpHistorySeconds:0}s lead-up###BetterDeathsInfo{idSuffix}");
+        var isOpen = ImGui.CollapsingHeader($"Better Deaths information - {FormatLeadUpDurationCompact(GetLeadUpDisplaySeconds())} lead-up###BetterDeathsInfo{idSuffix}");
         ImGui.PopStyleColor();
         if (!isOpen)
         {
@@ -9709,6 +9808,8 @@ public sealed class RecapWindow : Window, IDisposable
         IReadOnlyList<ReplayWorldMarkerSnapshot> allWorldMarkers,
         IReadOnlyList<ReplayWorldMarkerSnapshot> worldMarkerStates,
         IReadOnlyList<ReplayMitigationSnapshot> mitigations,
+        IReadOnlyList<ReplayDebuffSnapshot> debuffs,
+        bool debuffHistoryCaptured,
         float scrubSeconds,
         DateTime selectedAtUtc,
         string idSuffix,
@@ -9721,12 +9822,14 @@ public sealed class RecapWindow : Window, IDisposable
         var canvasSize = new Vector2(canvasSide, canvasSide);
         var partyHpEntries = BuildReplayPartyHpEntries(actorStates);
         var mitigationOverlayEntries = BuildReplayMitigationOverlayEntries(mitigations, scrubSeconds);
-        var hasReplayStatusEntries = partyHpEntries.Count > 0 || mitigationOverlayEntries.Count > 0;
+        var debuffOverlayEntries = ReplayDebuffTimeline.GetActiveStates(debuffs, scrubSeconds);
+        var showActiveEffectsPanel = mitigations.Count > 0 || debuffs.Count > 0;
+        var hasReplayStatusEntries = partyHpEntries.Count > 0 || showActiveEffectsPanel;
         var canUseExternalMitigationPanel = TryGetReplayExternalStatusPanelLayout(
             availableWidth,
             canvasSide,
             partyHpEntries,
-            mitigationOverlayEntries,
+            showActiveEffectsPanel,
             out var targetExternalStatusPanelLayout);
         var externalMitigationPanel = UpdateReplayMitigationExternalPanelDisplay(
             idSuffix,
@@ -9734,6 +9837,8 @@ public sealed class RecapWindow : Window, IDisposable
             canUseExternalMitigationPanel,
             partyHpEntries,
             mitigationOverlayEntries,
+            debuffOverlayEntries,
+            showActiveEffectsPanel,
             targetExternalStatusPanelLayout);
         var useExternalMitigationPanel = externalMitigationPanel.Visible;
         if (!useExternalMitigationPanel)
@@ -9782,7 +9887,7 @@ public sealed class RecapWindow : Window, IDisposable
             : SubmitReplayMitigationOverlayInput(
                 idSuffix,
                 partyHpEntries,
-                mitigationOverlayEntries,
+                showActiveEffectsPanel,
                 canvasStart,
                 canvasSize);
         var excludedCanvasInputRects = new List<(Vector2 Start, Vector2 Size)> { zoomOverlayRect };
@@ -9825,7 +9930,14 @@ public sealed class RecapWindow : Window, IDisposable
             DrawCenteredCanvasText(drawList, canvasStart, canvasSize, "Replay positions could not be mapped.");
             if (!useExternalMitigationPanel)
             {
-                DrawReplayMitigationOverlay(idSuffix, partyHpEntries, mitigationOverlayEntries, mitigationOverlayState);
+                DrawReplayMitigationOverlay(
+                    idSuffix,
+                    partyHpEntries,
+                    mitigationOverlayEntries,
+                    debuffOverlayEntries,
+                    showActiveEffectsPanel,
+                    debuffHistoryCaptured,
+                    mitigationOverlayState);
             }
 
             DrawReplayCanvasResizeHandleVisuals(drawList, canvasStart, canvasSize, resizeState);
@@ -9836,7 +9948,11 @@ public sealed class RecapWindow : Window, IDisposable
                 DrawReplayExternalStatusPanels(
                     externalMitigationPanel.PartyHpEntries,
                     externalMitigationPanel.MitigationEntries,
+                    externalMitigationPanel.DebuffEntries,
+                    externalMitigationPanel.ShowActiveEffectsPanel,
+                    debuffHistoryCaptured,
                     externalStatusPanelState,
+                    idSuffix,
                     externalMitigationPanel.Alpha);
             }
 
@@ -9887,7 +10003,14 @@ public sealed class RecapWindow : Window, IDisposable
         DrawDeathReplayZoomOverlay(idSuffix, canvasStart, canvasSize);
         if (!useExternalMitigationPanel)
         {
-            DrawReplayMitigationOverlay(idSuffix, partyHpEntries, mitigationOverlayEntries, mitigationOverlayState);
+            DrawReplayMitigationOverlay(
+                idSuffix,
+                partyHpEntries,
+                mitigationOverlayEntries,
+                debuffOverlayEntries,
+                showActiveEffectsPanel,
+                debuffHistoryCaptured,
+                mitigationOverlayState);
         }
 
         DrawReplayCanvasResizeHandleVisuals(drawList, canvasStart, canvasSize, resizeState);
@@ -9900,7 +10023,11 @@ public sealed class RecapWindow : Window, IDisposable
             DrawReplayExternalStatusPanels(
                 externalMitigationPanel.PartyHpEntries,
                 externalMitigationPanel.MitigationEntries,
+                externalMitigationPanel.DebuffEntries,
+                externalMitigationPanel.ShowActiveEffectsPanel,
+                debuffHistoryCaptured,
                 externalStatusPanelState,
+                idSuffix,
                 externalMitigationPanel.Alpha);
         }
 
@@ -9981,6 +10108,8 @@ public sealed class RecapWindow : Window, IDisposable
         bool canDrawExternalPanel,
         IReadOnlyList<ReplayPositionSnapshot> targetPartyHpEntries,
         IReadOnlyList<ReplayMitigationOverlayEntry> targetMitigationEntries,
+        IReadOnlyList<ReplayDebuffActiveState> targetDebuffEntries,
+        bool targetShowActiveEffectsPanel,
         ReplayExternalStatusPanelLayout targetLayout)
     {
         var hasState = replayMitigationExternalPanelTransitionByDeathId.TryGetValue(idSuffix, out var state);
@@ -10012,13 +10141,21 @@ public sealed class RecapWindow : Window, IDisposable
             : hasState
                 ? state!.MitigationEntries
                 : [];
+        var debuffEntries = targetVisible
+            ? targetDebuffEntries
+            : hasState
+                ? state!.DebuffEntries
+                : [];
+        var showActiveEffectsPanel = targetVisible
+            ? targetShowActiveEffectsPanel
+            : hasState && state!.ShowActiveEffectsPanel;
         var layout = targetVisible
             ? targetLayout
             : hasState
                 ? state!.Layout
                 : targetLayout;
 
-        if ((partyHpEntries.Count == 0 && mitigationEntries.Count == 0) ||
+        if ((partyHpEntries.Count == 0 && !showActiveEffectsPanel) ||
             layout.GroupSize.X <= 1.0f ||
             layout.GroupSize.Y <= 1.0f ||
             nextVisibility <= 0.01f)
@@ -10030,6 +10167,8 @@ public sealed class RecapWindow : Window, IDisposable
         replayMitigationExternalPanelTransitionByDeathId[idSuffix] = new ReplayMitigationExternalPanelTransitionState(
             partyHpEntries,
             mitigationEntries,
+            debuffEntries,
+            showActiveEffectsPanel,
             layout,
             nextVisibility);
 
@@ -10038,6 +10177,8 @@ public sealed class RecapWindow : Window, IDisposable
             true,
             partyHpEntries,
             mitigationEntries,
+            debuffEntries,
+            showActiveEffectsPanel,
             layout,
             alpha,
             (1.0f - alpha) * ReplayMitigationExternalPanelSlideOffset);
@@ -10053,12 +10194,12 @@ public sealed class RecapWindow : Window, IDisposable
         float availableWidth,
         float canvasSide,
         IReadOnlyList<ReplayPositionSnapshot> partyHpEntries,
-        IReadOnlyList<ReplayMitigationOverlayEntry> mitigationEntries,
+        bool showActiveEffectsPanel,
         out ReplayExternalStatusPanelLayout layout)
     {
         layout = default;
         var hasPartyHp = partyHpEntries.Count > 0;
-        var hasMitigation = mitigationEntries.Count > 0;
+        var hasMitigation = showActiveEffectsPanel;
         if (!hasPartyHp && !hasMitigation)
         {
             return false;
@@ -10112,12 +10253,18 @@ public sealed class RecapWindow : Window, IDisposable
                     configuration.ReplayMitigationOverlayHeight <= 0.0f
                         ? ReplayMitigationOverlayDefaultHeight
                         : configuration.ReplayMitigationOverlayHeight,
-                    ReplayMitigationOverlayMinHeight,
+                    GetReplayActiveEffectsMinPanelHeight(),
                     maxHeight));
         }
 
         layout = new ReplayExternalStatusPanelLayout(partyHpSize, mitigationSize);
-        if (layout.GroupSize.Y > canvasSide)
+        var requiredStackedHeight = ReplayStatusPanelPolicy.GetStackedHeight(
+            hasPartyHp,
+            partyHpSize.Y,
+            hasMitigation,
+            mitigationSize.Y,
+            ReplayStatusPanelGap);
+        if (requiredStackedHeight > canvasSide)
         {
             layout = default;
             return false;
@@ -10135,7 +10282,7 @@ public sealed class RecapWindow : Window, IDisposable
         }
 
         return actorStates
-            .Where(actor => actor.ActorKind == ReplayActorKind.Player && actor.PartyIndex >= 0)
+            .Where(actor => actor.ActorKind == ReplayActorKind.Player && ReplayStatusPanelPolicy.IsLocalPartyIndex(actor.PartyIndex))
             .OrderBy(actor => actor.PartyIndex)
             .ThenBy(actor => actor.ActorName, StringComparer.OrdinalIgnoreCase)
             .ToList();
@@ -10189,7 +10336,7 @@ public sealed class RecapWindow : Window, IDisposable
                 ? canvasSide - ReplayStatusPanelGap - partyHpState.Size.Y
                 : canvasSide;
             mitigationState = SubmitReplayExternalPanelResizeInput(
-                $"{idSuffix}:ActiveMitsExternal",
+                $"{idSuffix}:ActiveEffectsExternal",
                 mitigationStart,
                 layout.MitigationSize,
                 maxWidth,
@@ -10234,14 +10381,17 @@ public sealed class RecapWindow : Window, IDisposable
         if (string.Equals(replayMitigationOverlayResizeDraggingId, resizeId, StringComparison.Ordinal))
         {
             maxWidth = MathF.Max(ReplayMitigationOverlayWidthMin, maxWidth);
-            maxHeight = MathF.Max(ReplayMitigationOverlayMinHeight, maxHeight);
+            var minHeight = isPartyHpPanel
+                ? ReplayMitigationOverlayMinHeight
+                : GetReplayActiveEffectsMinPanelHeight();
+            maxHeight = MathF.Max(minHeight, maxHeight);
             var mouseDelta = ImGui.GetIO().MouseDelta;
             panelSize = new Vector2(
                 Math.Clamp(
                     panelSize.X + mouseDelta.X,
                     ReplayMitigationOverlayWidthMin,
                     maxWidth),
-                Math.Clamp(panelSize.Y + mouseDelta.Y, ReplayMitigationOverlayMinHeight, maxHeight));
+                Math.Clamp(panelSize.Y + mouseDelta.Y, minHeight, maxHeight));
             if (isPartyHpPanel)
             {
                 configuration.ReplayPartyHpPanelWidth = panelSize.X;
@@ -10329,11 +10479,11 @@ public sealed class RecapWindow : Window, IDisposable
     private ReplayMitigationOverlayInputState SubmitReplayMitigationOverlayInput(
         string idSuffix,
         IReadOnlyList<ReplayPositionSnapshot> partyHpEntries,
-        IReadOnlyList<ReplayMitigationOverlayEntry> mitigationEntries,
+        bool showActiveEffectsPanel,
         Vector2 canvasStart,
         Vector2 canvasSize)
     {
-        if (partyHpEntries.Count == 0 && mitigationEntries.Count == 0)
+        if (partyHpEntries.Count == 0 && !showActiveEffectsPanel)
         {
             if ((string.Equals(replayMitigationOverlayDraggingId, idSuffix, StringComparison.Ordinal) ||
                     string.Equals(replayMitigationOverlayResizeDraggingId, idSuffix, StringComparison.Ordinal)) &&
@@ -10348,13 +10498,23 @@ public sealed class RecapWindow : Window, IDisposable
         }
 
         var cursorBefore = ImGui.GetCursorScreenPos();
-        var overlaySize = GetReplayMitigationOverlaySize(canvasSize, partyHpEntries, mitigationEntries);
+        var overlaySize = GetReplayMitigationOverlaySize(
+            canvasSize,
+            partyHpEntries,
+            showActiveEffectsPanel);
         var overlayStart = GetReplayMitigationOverlayStart(idSuffix, canvasStart, canvasSize, overlaySize);
         var hovered = IsMouseInsideRect(overlayStart, overlaySize);
         var active = false;
 
         ImGui.SetCursorScreenPos(overlayStart);
-        ImGui.InvisibleButton($"##ReplayMitigationOverlayDrag{idSuffix}", new Vector2(overlaySize.X, ReplayMitigationOverlayHeaderHeight));
+        var headerDragWidth = partyHpEntries.Count == 0 && showActiveEffectsPanel
+            ? MathF.Max(
+                24.0f,
+                overlaySize.X - GetReplayActiveEffectsModeSelectorWidth(overlaySize.X) - ReplayMitigationOverlayPadding)
+            : overlaySize.X;
+        ImGui.InvisibleButton(
+            $"##ReplayMitigationOverlayDrag{idSuffix}",
+            new Vector2(headerDragWidth, ReplayMitigationOverlayHeaderHeight));
         var headerHovered = ImGui.IsItemHovered();
         var headerActive = ImGui.IsItemActive();
         hovered |= headerHovered;
@@ -10399,7 +10559,7 @@ public sealed class RecapWindow : Window, IDisposable
                 canvasStart,
                 canvasSize,
                 overlaySize,
-                GetReplayMitigationOverlayMinHeight(partyHpEntries, mitigationEntries));
+                GetReplayMitigationOverlayMinHeight(partyHpEntries, showActiveEffectsPanel));
             overlayStart = resized.Start;
             overlaySize = resized.Size;
         }
@@ -10528,7 +10688,7 @@ public sealed class RecapWindow : Window, IDisposable
     private Vector2 GetReplayMitigationOverlaySize(
         Vector2 canvasSize,
         IReadOnlyList<ReplayPositionSnapshot> partyHpEntries,
-        IReadOnlyList<ReplayMitigationOverlayEntry> mitigationEntries)
+        bool showActiveEffectsPanel)
     {
         var minWidth = GetReplayMitigationOverlayMinWidth(canvasSize);
         var maxWidth = GetReplayMitigationOverlayMaxWidth(canvasSize);
@@ -10546,7 +10706,7 @@ public sealed class RecapWindow : Window, IDisposable
         var targetHeight = MathF.Abs(configuredHeight - ReplayMitigationOverlayDefaultHeight) <= 0.5f
             ? MathF.Max(configuredHeight, GetReplayPartyHpPanelPreferredHeight(partyHpEntries))
             : configuredHeight;
-        var minHeight = GetReplayMitigationOverlayMinHeight(partyHpEntries, mitigationEntries);
+        var minHeight = GetReplayMitigationOverlayMinHeight(partyHpEntries, showActiveEffectsPanel);
         var height = Math.Clamp(
             targetHeight,
             minHeight,
@@ -10554,12 +10714,29 @@ public sealed class RecapWindow : Window, IDisposable
         return new Vector2(width, height);
     }
 
-    private static float GetReplayMitigationOverlayMinHeight(
+    private float GetReplayMitigationOverlayMinHeight(
         IReadOnlyList<ReplayPositionSnapshot> partyHpEntries,
-        IReadOnlyList<ReplayMitigationOverlayEntry> mitigationEntries)
+        bool showActiveEffectsPanel)
     {
-        return partyHpEntries.Count > 0 && mitigationEntries.Count > 0
-            ? ReplayCombinedStatusPanelMinHeight
+        if (partyHpEntries.Count > 0 && showActiveEffectsPanel)
+        {
+            return GetReplayActiveEffectsMode() == ReplayActiveEffectsMode.Split
+                ? ReplayMitigationOverlayHeaderHeight +
+                    (ReplayMitigationOverlayPadding * 2.0f) +
+                    ReplayStatusPanelGap +
+                    ReplayActiveEffectsSplitMinPanelHeight
+                : ReplayCombinedStatusPanelMinHeight;
+        }
+
+        return showActiveEffectsPanel
+            ? GetReplayActiveEffectsMinPanelHeight()
+            : ReplayMitigationOverlayMinHeight;
+    }
+
+    private float GetReplayActiveEffectsMinPanelHeight()
+    {
+        return GetReplayActiveEffectsMode() == ReplayActiveEffectsMode.Split
+            ? ReplayActiveEffectsSplitMinPanelHeight
             : ReplayMitigationOverlayMinHeight;
     }
 
@@ -10673,9 +10850,12 @@ public sealed class RecapWindow : Window, IDisposable
         string idSuffix,
         IReadOnlyList<ReplayPositionSnapshot> partyHpEntries,
         IReadOnlyList<ReplayMitigationOverlayEntry> mitigationEntries,
+        IReadOnlyList<ReplayDebuffActiveState> debuffEntries,
+        bool showActiveEffectsPanel,
+        bool debuffHistoryCaptured,
         ReplayMitigationOverlayInputState state)
     {
-        if (!state.Visible || (partyHpEntries.Count == 0 && mitigationEntries.Count == 0))
+        if (!state.Visible || (partyHpEntries.Count == 0 && !showActiveEffectsPanel))
         {
             return;
         }
@@ -10690,11 +10870,15 @@ public sealed class RecapWindow : Window, IDisposable
         DrawReplayCombinedStatusPanelContents(
             partyHpEntries,
             mitigationEntries,
+            debuffEntries,
+            showActiveEffectsPanel,
+            debuffHistoryCaptured,
             start,
             state.Size,
             state.Active,
             showGrip: true,
-            reserveResizeGrip: true);
+            reserveResizeGrip: true,
+            idSuffix);
         DrawReplayMitigationOverlayResizeGrip(
             drawList,
             start,
@@ -10708,7 +10892,11 @@ public sealed class RecapWindow : Window, IDisposable
     private void DrawReplayExternalStatusPanels(
         IReadOnlyList<ReplayPositionSnapshot> partyHpEntries,
         IReadOnlyList<ReplayMitigationOverlayEntry> mitigationEntries,
+        IReadOnlyList<ReplayDebuffActiveState> debuffEntries,
+        bool showActiveEffectsPanel,
+        bool debuffHistoryCaptured,
         ReplayExternalStatusPanelInputState state,
+        string idSuffix,
         float alpha = 1.0f)
     {
         alpha = Math.Clamp(alpha, 0.0f, 1.0f);
@@ -10722,9 +10910,15 @@ public sealed class RecapWindow : Window, IDisposable
             DrawReplayPartyHpExternalPanel(partyHpEntries, state.PartyHp, alpha);
         }
 
-        if (state.Mitigation.Visible && mitigationEntries.Count > 0)
+        if (state.Mitigation.Visible && showActiveEffectsPanel)
         {
-            DrawReplayMitigationExternalPanel(mitigationEntries, state.Mitigation, alpha);
+            DrawReplayActiveEffectsExternalPanel(
+                mitigationEntries,
+                debuffEntries,
+                debuffHistoryCaptured,
+                state.Mitigation,
+                idSuffix,
+                alpha);
         }
     }
 
@@ -10762,9 +10956,12 @@ public sealed class RecapWindow : Window, IDisposable
         ImGui.SetCursorScreenPos(cursorBefore);
     }
 
-    private void DrawReplayMitigationExternalPanel(
+    private void DrawReplayActiveEffectsExternalPanel(
         IReadOnlyList<ReplayMitigationOverlayEntry> mitigationEntries,
+        IReadOnlyList<ReplayDebuffActiveState> debuffEntries,
+        bool debuffHistoryCaptured,
         ReplayMitigationOverlayInputState state,
+        string idSuffix,
         float alpha)
     {
         var cursorBefore = ImGui.GetCursorScreenPos();
@@ -10772,19 +10969,16 @@ public sealed class RecapWindow : Window, IDisposable
         DrawReplayStatusPanelFrame(drawList, state.Start, state.Size, state.Hovered, state.Active, alpha);
 
         ImGui.PushClipRect(state.Start, state.Start + state.Size, true);
-        DrawReplayMitigationOverlayHeader(
-            drawList,
+        DrawReplayActiveEffectsPanelContents(
+            mitigationEntries,
+            debuffEntries,
+            debuffHistoryCaptured,
             state.Start,
             state.Size,
-            "Active Mits",
             state.Active,
             showGrip: false,
-            alpha);
-        DrawReplayMitigationOverlayRows(
-            mitigationEntries,
-            state.Start,
-            state.Size,
             reserveResizeGrip: true,
+            idSuffix,
             alpha);
         DrawReplayMitigationOverlayResizeGrip(
             drawList,
@@ -10799,21 +10993,26 @@ public sealed class RecapWindow : Window, IDisposable
     private void DrawReplayCombinedStatusPanelContents(
         IReadOnlyList<ReplayPositionSnapshot> partyHpEntries,
         IReadOnlyList<ReplayMitigationOverlayEntry> mitigationEntries,
+        IReadOnlyList<ReplayDebuffActiveState> debuffEntries,
+        bool showActiveEffectsPanel,
+        bool debuffHistoryCaptured,
         Vector2 start,
         Vector2 size,
         bool active,
         bool showGrip,
-        bool reserveResizeGrip)
+        bool reserveResizeGrip,
+        string idSuffix)
     {
         var drawList = ImGui.GetWindowDrawList();
         var hasPartyHp = partyHpEntries.Count > 0;
-        var hasMitigation = mitigationEntries.Count > 0;
+        var hasMitigation = showActiveEffectsPanel;
         if (hasPartyHp && hasMitigation)
         {
             var sectionHeights = GetReplayBalancedStatusSectionHeights(
                 size.Y,
                 partyHpEntries,
                 mitigationEntries,
+                debuffEntries,
                 reserveResizeGrip);
             var partyHpSize = new Vector2(size.X, sectionHeights.PartyHp);
             var mitigationStart = start + new Vector2(0.0f, sectionHeights.PartyHp + ReplayStatusPanelGap);
@@ -10833,19 +11032,16 @@ public sealed class RecapWindow : Window, IDisposable
                 partyHpSize,
                 reserveResizeGrip: false,
                 1.0f);
-            DrawReplayMitigationOverlayHeader(
-                drawList,
+            DrawReplayActiveEffectsPanelContents(
+                mitigationEntries,
+                debuffEntries,
+                debuffHistoryCaptured,
                 mitigationStart,
                 mitigationSize,
-                "Active Mits",
                 active,
                 showGrip: false,
-                1.0f);
-            DrawReplayMitigationOverlayRows(
-                mitigationEntries,
-                mitigationStart,
-                mitigationSize,
                 reserveResizeGrip,
+                idSuffix,
                 1.0f);
             return;
         }
@@ -10871,27 +11067,25 @@ public sealed class RecapWindow : Window, IDisposable
 
         if (hasMitigation)
         {
-            DrawReplayMitigationOverlayHeader(
-                drawList,
+            DrawReplayActiveEffectsPanelContents(
+                mitigationEntries,
+                debuffEntries,
+                debuffHistoryCaptured,
                 start,
                 size,
-                "Active Mits",
                 active,
                 showGrip,
-                1.0f);
-            DrawReplayMitigationOverlayRows(
-                mitigationEntries,
-                start,
-                size,
                 reserveResizeGrip,
+                idSuffix,
                 1.0f);
         }
     }
 
-    private static (float PartyHp, float Mitigation) GetReplayBalancedStatusSectionHeights(
+    private (float PartyHp, float Mitigation) GetReplayBalancedStatusSectionHeights(
         float totalHeight,
         IReadOnlyList<ReplayPositionSnapshot> partyHpEntries,
         IReadOnlyList<ReplayMitigationOverlayEntry> mitigationEntries,
+        IReadOnlyList<ReplayDebuffActiveState> debuffEntries,
         bool reserveResizeGrip)
     {
         var availableHeight = MathF.Max(0.0f, totalHeight - ReplayStatusPanelGap);
@@ -10900,6 +11094,12 @@ public sealed class RecapWindow : Window, IDisposable
             ReplayMitigationOverlayHeaderHeight +
             (ReplayMitigationOverlayPadding * 2.0f) +
             (reserveResizeGrip ? ReplayMitigationOverlayResizeCornerSize : 0.0f);
+        if (GetReplayActiveEffectsMode() == ReplayActiveEffectsMode.Split)
+        {
+            mitigationBaseHeight +=
+                (ReplayActiveEffectsSubheaderHeight * 2.0f) +
+                ReplayActiveEffectsSplitterHeight;
+        }
         var baseHeight = partyBaseHeight + mitigationBaseHeight;
         if (availableHeight <= baseHeight)
         {
@@ -10912,14 +11112,15 @@ public sealed class RecapWindow : Window, IDisposable
         var mitigationRowsHeight = 0.0f;
         var partyRows = 0;
         var mitigationRows = 0;
-        while (partyRows < partyHpEntries.Count || mitigationRows < mitigationEntries.Count)
+        var activeEffectRowCosts = GetReplayActiveEffectRowCosts(mitigationEntries, debuffEntries);
+        while (partyRows < partyHpEntries.Count || mitigationRows < activeEffectRowCosts.Count)
         {
             var preferParty = partyRows < partyHpEntries.Count &&
-                (mitigationRows >= mitigationEntries.Count || partyRows <= mitigationRows);
+                (mitigationRows >= activeEffectRowCosts.Count || partyRows <= mitigationRows);
             if (TryAllocateReplayStatusRow(
                     preferParty,
                     partyHpEntries.Count,
-                    mitigationEntries,
+                    activeEffectRowCosts,
                     ref partyRows,
                     ref mitigationRows,
                     ref partyRowsHeight,
@@ -10932,7 +11133,7 @@ public sealed class RecapWindow : Window, IDisposable
             if (!TryAllocateReplayStatusRow(
                     !preferParty,
                     partyHpEntries.Count,
-                    mitigationEntries,
+                    activeEffectRowCosts,
                     ref partyRows,
                     ref mitigationRows,
                     ref partyRowsHeight,
@@ -10952,7 +11153,7 @@ public sealed class RecapWindow : Window, IDisposable
     private static bool TryAllocateReplayStatusRow(
         bool partyRow,
         int partyEntryCount,
-        IReadOnlyList<ReplayMitigationOverlayEntry> mitigationEntries,
+        IReadOnlyList<float> activeEffectRowCosts,
         ref int partyRows,
         ref int mitigationRows,
         ref float partyRowsHeight,
@@ -10979,12 +11180,12 @@ public sealed class RecapWindow : Window, IDisposable
             return true;
         }
 
-        if (mitigationRows >= mitigationEntries.Count)
+        if (mitigationRows >= activeEffectRowCosts.Count)
         {
             return false;
         }
 
-        var mitigationRowCost = GetReplayMitigationOverlayRowHeight(mitigationEntries[mitigationRows]) +
+        var mitigationRowCost = activeEffectRowCosts[mitigationRows] +
             (mitigationRows > 0 ? ReplayMitigationOverlayRowGap : 0.0f);
         if (mitigationRowCost > remainingHeight)
         {
@@ -10995,6 +11196,27 @@ public sealed class RecapWindow : Window, IDisposable
         mitigationRowsHeight += mitigationRowCost;
         remainingHeight -= mitigationRowCost;
         return true;
+    }
+
+    private IReadOnlyList<float> GetReplayActiveEffectRowCosts(
+        IReadOnlyList<ReplayMitigationOverlayEntry> mitigationEntries,
+        IReadOnlyList<ReplayDebuffActiveState> debuffEntries)
+    {
+        return GetReplayActiveEffectsMode() switch
+        {
+            ReplayActiveEffectsMode.Mitigations => mitigationEntries
+                .Select(GetReplayMitigationOverlayRowHeight)
+                .ToList(),
+            ReplayActiveEffectsMode.Debuffs => debuffEntries
+                .Select(_ => MathF.Max(24.0f, ReplayDebuffOverlayIconSize))
+                .ToList(),
+            ReplayActiveEffectsMode.Split =>
+            [
+                .. mitigationEntries.Select(GetReplayMitigationOverlayRowHeight),
+                .. debuffEntries.Select(_ => MathF.Max(24.0f, ReplayDebuffOverlayIconSize)),
+            ],
+            _ => [],
+        };
     }
 
     private static void DrawReplayStatusPanelFrame(
@@ -11191,6 +11413,454 @@ public sealed class RecapWindow : Window, IDisposable
             start + new Vector2(size.X - ReplayMitigationOverlayPadding, ReplayMitigationOverlayHeaderHeight),
             ImGui.GetColorU32(ModernPanelBorderColor with { W = 0.55f * alpha }),
             1.0f);
+    }
+
+    private void DrawReplayActiveEffectsPanelContents(
+        IReadOnlyList<ReplayMitigationOverlayEntry> mitigationEntries,
+        IReadOnlyList<ReplayDebuffActiveState> debuffEntries,
+        bool debuffHistoryCaptured,
+        Vector2 start,
+        Vector2 size,
+        bool active,
+        bool showGrip,
+        bool reserveResizeGrip,
+        string idSuffix,
+        float alpha = 1.0f)
+    {
+        var drawList = ImGui.GetWindowDrawList();
+        DrawReplayActiveEffectsHeader(drawList, start, size, active, showGrip, idSuffix, alpha);
+
+        var contentStart = new Vector2(
+            start.X + ReplayMitigationOverlayPadding,
+            start.Y + ReplayMitigationOverlayHeaderHeight + ReplayMitigationOverlayPadding);
+        var bottomReservedHeight = reserveResizeGrip ? ReplayMitigationOverlayResizeCornerSize : 0.0f;
+        var contentEnd = new Vector2(
+            start.X + size.X - ReplayMitigationOverlayPadding,
+            start.Y + size.Y - bottomReservedHeight - ReplayMitigationOverlayPadding);
+        if (contentEnd.Y <= contentStart.Y)
+        {
+            return;
+        }
+
+        switch (GetReplayActiveEffectsMode())
+        {
+            case ReplayActiveEffectsMode.Debuffs:
+                DrawReplayDebuffRowsInBounds(
+                    debuffEntries,
+                    contentStart,
+                    contentEnd,
+                    alpha,
+                    debuffHistoryCaptured ? "No debuffs active" : "No debuff data for this pull");
+                break;
+            case ReplayActiveEffectsMode.Split:
+                DrawReplayActiveEffectsSplitContents(
+                    mitigationEntries,
+                    debuffEntries,
+                    debuffHistoryCaptured,
+                    contentStart,
+                    contentEnd,
+                    idSuffix,
+                    alpha);
+                break;
+            default:
+                DrawReplayMitigationRowsInBounds(mitigationEntries, contentStart, contentEnd, alpha, "No mitigations active");
+                break;
+        }
+    }
+
+    private void DrawReplayActiveEffectsHeader(
+        ImDrawListPtr drawList,
+        Vector2 start,
+        Vector2 size,
+        bool active,
+        bool showGrip,
+        string idSuffix,
+        float alpha)
+    {
+        alpha = Math.Clamp(alpha, 0.0f, 1.0f);
+        var titlePos = start + new Vector2(ReplayMitigationOverlayPadding, 4.0f);
+        drawList.AddText(
+            titlePos,
+            ImGui.GetColorU32(ScaleAlpha(active ? LeadUpGoldColor : ModernTextColor, alpha)),
+            "Active Effects");
+
+        var selectorWidth = GetReplayActiveEffectsModeSelectorWidth(size.X);
+        var selectorStart = new Vector2(
+            start.X + size.X - ReplayMitigationOverlayPadding - selectorWidth,
+            start.Y + 2.0f);
+        DrawReplayActiveEffectsModeSelector(selectorStart, size.X, idSuffix, alpha);
+
+        if (showGrip)
+        {
+            var gripColor = ScaleAlpha(active ? LeadUpGoldColor : ModernMutedTextColor, alpha);
+            var gripCenterY = start.Y + (ReplayMitigationOverlayHeaderHeight * 0.5f);
+            var gripRight = selectorStart.X - 7.0f;
+            for (var i = 0; i < 3; i++)
+            {
+                drawList.AddCircleFilled(
+                    new Vector2(gripRight - (i * 6.0f), gripCenterY),
+                    1.5f,
+                    ImGui.GetColorU32(gripColor),
+                    8);
+            }
+        }
+
+        drawList.AddLine(
+            start + new Vector2(ReplayMitigationOverlayPadding, ReplayMitigationOverlayHeaderHeight),
+            start + new Vector2(size.X - ReplayMitigationOverlayPadding, ReplayMitigationOverlayHeaderHeight),
+            ImGui.GetColorU32(ModernPanelBorderColor with { W = 0.55f * alpha }),
+            1.0f);
+    }
+
+    private void DrawReplayActiveEffectsModeSelector(
+        Vector2 start,
+        float panelWidth,
+        string idSuffix,
+        float alpha)
+    {
+        var compact = panelWidth < 330.0f;
+        var modes = new[]
+        {
+            (ReplayActiveEffectsMode.Mitigations, "Mits", FontAwesomeIcon.Shield, "Show active mitigations"),
+            (ReplayActiveEffectsMode.Debuffs, "Debuffs", FontAwesomeIcon.Virus, "Show active player debuffs"),
+            (ReplayActiveEffectsMode.Split, "Split", FontAwesomeIcon.Columns, "Split mitigations and debuffs"),
+        };
+        var widths = compact
+            ? new[]
+            {
+                ReplayActiveEffectsCompactModeButtonWidth,
+                ReplayActiveEffectsCompactModeButtonWidth,
+                ReplayActiveEffectsCompactModeButtonWidth,
+            }
+            : new[] { 40.0f, 62.0f, 42.0f };
+        var selectedMode = GetReplayActiveEffectsMode();
+        var cursorBefore = ImGui.GetCursorScreenPos();
+
+        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, Vector2.Zero);
+        DrawButtons();
+        ImGui.PopStyleVar();
+        ImGui.SetCursorScreenPos(cursorBefore);
+
+        void DrawButtons()
+        {
+            var x = start.X;
+            for (var index = 0; index < modes.Length; index++)
+            {
+                var mode = modes[index];
+                var selected = selectedMode == mode.Item1;
+                var label = compact ? mode.Item3.ToIconString() : mode.Item2;
+                ImGui.SetCursorScreenPos(new Vector2(x, start.Y));
+                ImGui.PushStyleColor(
+                    ImGuiCol.Button,
+                    ScaleAlpha(selected ? ModernNavButtonSelectedColor : Vector4.Zero, alpha));
+                ImGui.PushStyleColor(
+                    ImGuiCol.ButtonHovered,
+                    ScaleAlpha(selected ? ModernNavButtonSelectedHoveredColor : ModernButtonHoveredColor, alpha));
+                ImGui.PushStyleColor(ImGuiCol.ButtonActive, ScaleAlpha(ModernNavButtonActiveColor, alpha));
+                ImGui.PushStyleColor(
+                    ImGuiCol.Text,
+                    ScaleAlpha(selected ? ModernSelectedButtonTextColor : ModernMutedTextColor, alpha));
+                var clicked = false;
+                if (compact)
+                {
+                    using var iconFont = Plugin.PluginInterface.UiBuilder.IconFontFixedWidthHandle.Push();
+                    clicked = ImGui.Button(
+                        $"{label}##ReplayActiveEffectsMode{idSuffix}{mode.Item1}",
+                        new Vector2(widths[index], ReplayActiveEffectsModeButtonHeight));
+                }
+                else
+                {
+                    clicked = ImGui.Button(
+                        $"{label}##ReplayActiveEffectsMode{idSuffix}{mode.Item1}",
+                        new Vector2(widths[index], ReplayActiveEffectsModeButtonHeight));
+                }
+
+                ImGui.PopStyleColor(4);
+                if (clicked)
+                {
+                    plugin.SetReplayActiveEffectsMode(mode.Item1);
+                }
+
+                if (ImGui.IsItemHovered())
+                {
+                    SetThemedTooltip(mode.Item4);
+                }
+
+                x += widths[index] + ReplayActiveEffectsModeButtonGap;
+            }
+        }
+    }
+
+    private static float GetReplayActiveEffectsModeSelectorWidth(float panelWidth)
+    {
+        return panelWidth < 330.0f
+            ? (ReplayActiveEffectsCompactModeButtonWidth * 3.0f) + (ReplayActiveEffectsModeButtonGap * 2.0f)
+            : 144.0f + (ReplayActiveEffectsModeButtonGap * 2.0f);
+    }
+
+    private ReplayActiveEffectsMode GetReplayActiveEffectsMode()
+    {
+        return Enum.IsDefined(configuration.ReplayActiveEffectsDisplayMode)
+            ? configuration.ReplayActiveEffectsDisplayMode
+            : ReplayActiveEffectsMode.Mitigations;
+    }
+
+    private void DrawReplayActiveEffectsSplitContents(
+        IReadOnlyList<ReplayMitigationOverlayEntry> mitigationEntries,
+        IReadOnlyList<ReplayDebuffActiveState> debuffEntries,
+        bool debuffHistoryCaptured,
+        Vector2 contentStart,
+        Vector2 contentEnd,
+        string idSuffix,
+        float alpha)
+    {
+        var availableHeight = contentEnd.Y - contentStart.Y;
+        var sectionHeight = MathF.Max(0.0f, availableHeight - ReplayActiveEffectsSplitterHeight);
+        var minSectionHeight = MathF.Min(
+            ReplayActiveEffectsSubheaderHeight + 8.0f,
+            sectionHeight * 0.5f);
+        var mitigationHeight = Math.Clamp(
+            sectionHeight * Math.Clamp(configuration.ReplayActiveEffectsSplitRatio, 0.2f, 0.8f),
+            minSectionHeight,
+            MathF.Max(minSectionHeight, sectionHeight - minSectionHeight));
+        var mitigationEndY = contentStart.Y + mitigationHeight;
+        var splitterStart = new Vector2(contentStart.X, mitigationEndY);
+        var debuffStartY = mitigationEndY + ReplayActiveEffectsSplitterHeight;
+
+        SubmitReplayActiveEffectsSplitter(
+            idSuffix,
+            splitterStart,
+            contentEnd.X - contentStart.X,
+            contentStart.Y,
+            contentEnd.Y);
+        DrawReplayActiveEffectsSubheader(
+            "Active Mits",
+            mitigationEntries.Count,
+            contentStart,
+            contentEnd.X,
+            alpha);
+        DrawReplayMitigationRowsInBounds(
+            mitigationEntries,
+            contentStart + new Vector2(0.0f, ReplayActiveEffectsSubheaderHeight),
+            new Vector2(contentEnd.X, mitigationEndY),
+            alpha,
+            "None active");
+
+        var drawList = ImGui.GetWindowDrawList();
+        var splitterY = splitterStart.Y + (ReplayActiveEffectsSplitterHeight * 0.5f);
+        drawList.AddLine(
+            new Vector2(contentStart.X, splitterY),
+            new Vector2(contentEnd.X, splitterY),
+            ImGui.GetColorU32(ScaleAlpha(ModernDividerColor, alpha)),
+            string.Equals(replayActiveEffectsSplitterDraggingId, idSuffix, StringComparison.Ordinal) ? 2.0f : 1.0f);
+
+        var debuffStart = new Vector2(contentStart.X, debuffStartY);
+        DrawReplayActiveEffectsSubheader(
+            "Player Debuffs",
+            debuffEntries.Count,
+            debuffStart,
+            contentEnd.X,
+            alpha);
+        DrawReplayDebuffRowsInBounds(
+            debuffEntries,
+            debuffStart + new Vector2(0.0f, ReplayActiveEffectsSubheaderHeight),
+            contentEnd,
+            alpha,
+            debuffHistoryCaptured ? "None active" : "No data for this pull");
+    }
+
+    private void SubmitReplayActiveEffectsSplitter(
+        string idSuffix,
+        Vector2 start,
+        float width,
+        float contentTop,
+        float contentBottom)
+    {
+        var cursorBefore = ImGui.GetCursorScreenPos();
+        ImGui.SetCursorScreenPos(start);
+        ImGui.InvisibleButton(
+            $"##ReplayActiveEffectsSplitter{idSuffix}",
+            new Vector2(MathF.Max(1.0f, width), ReplayActiveEffectsSplitterHeight));
+        var hovered = ImGui.IsItemHovered();
+        var active = ImGui.IsItemActive();
+        if (hovered || active)
+        {
+            ImGui.SetMouseCursor(ImGuiMouseCursor.ResizeNs);
+        }
+
+        if (ImGui.IsItemActivated())
+        {
+            replayActiveEffectsSplitterDraggingId = idSuffix;
+        }
+
+        if (active && string.Equals(replayActiveEffectsSplitterDraggingId, idSuffix, StringComparison.Ordinal))
+        {
+            var usableHeight = MathF.Max(1.0f, contentBottom - contentTop - ReplayActiveEffectsSplitterHeight);
+            configuration.ReplayActiveEffectsSplitRatio = Math.Clamp(
+                (ImGui.GetIO().MousePos.Y - contentTop) / usableHeight,
+                0.2f,
+                0.8f);
+        }
+
+        if (string.Equals(replayActiveEffectsSplitterDraggingId, idSuffix, StringComparison.Ordinal) &&
+            !ImGui.IsMouseDown(ImGuiMouseButton.Left))
+        {
+            replayActiveEffectsSplitterDraggingId = null;
+            plugin.SaveConfiguration();
+        }
+
+        ImGui.SetCursorScreenPos(cursorBefore);
+    }
+
+    private static void DrawReplayActiveEffectsSubheader(
+        string title,
+        int count,
+        Vector2 start,
+        float right,
+        float alpha)
+    {
+        var drawList = ImGui.GetWindowDrawList();
+        var countText = count.ToString(CultureInfo.InvariantCulture);
+        var countSize = ImGui.CalcTextSize(countText);
+        drawList.AddText(
+            start,
+            ImGui.GetColorU32(ScaleAlpha(ModernMutedTextColor, alpha)),
+            title);
+        drawList.AddText(
+            new Vector2(right - countSize.X, start.Y),
+            ImGui.GetColorU32(ScaleAlpha(ModernMutedTextColor, alpha)),
+            countText);
+    }
+
+    private void DrawReplayMitigationRowsInBounds(
+        IReadOnlyList<ReplayMitigationOverlayEntry> entries,
+        Vector2 start,
+        Vector2 end,
+        float alpha,
+        string emptyText)
+    {
+        var drawList = ImGui.GetWindowDrawList();
+        var rowY = start.Y;
+        var hiddenCount = 0;
+        for (var index = 0; index < entries.Count; index++)
+        {
+            var rowHeight = GetReplayMitigationOverlayRowHeight(entries[index]);
+            if (rowY + rowHeight > end.Y)
+            {
+                hiddenCount = entries.Count - index;
+                break;
+            }
+
+            DrawReplayMitigationOverlayRow(
+                drawList,
+                entries[index],
+                start.X,
+                rowY,
+                end.X - start.X,
+                alpha);
+            rowY += rowHeight + ReplayMitigationOverlayRowGap;
+        }
+
+        DrawReplayStatusRowsRemainder(drawList, entries.Count, hiddenCount, rowY, start, end, emptyText, alpha);
+    }
+
+    private void DrawReplayDebuffRowsInBounds(
+        IReadOnlyList<ReplayDebuffActiveState> entries,
+        Vector2 start,
+        Vector2 end,
+        float alpha,
+        string emptyText)
+    {
+        var drawList = ImGui.GetWindowDrawList();
+        var rowY = start.Y;
+        var rowHeight = MathF.Max(24.0f, ReplayDebuffOverlayIconSize);
+        var hiddenCount = 0;
+        for (var index = 0; index < entries.Count; index++)
+        {
+            if (rowY + rowHeight > end.Y)
+            {
+                hiddenCount = entries.Count - index;
+                break;
+            }
+
+            DrawReplayDebuffRow(
+                drawList,
+                entries[index],
+                start.X,
+                rowY,
+                end.X - start.X,
+                alpha);
+            rowY += rowHeight + ReplayMitigationOverlayRowGap;
+        }
+
+        DrawReplayStatusRowsRemainder(drawList, entries.Count, hiddenCount, rowY, start, end, emptyText, alpha);
+    }
+
+    private static void DrawReplayStatusRowsRemainder(
+        ImDrawListPtr drawList,
+        int entryCount,
+        int hiddenCount,
+        float rowY,
+        Vector2 start,
+        Vector2 end,
+        string emptyText,
+        float alpha)
+    {
+        var text = hiddenCount > 0
+            ? $"+{hiddenCount} more"
+            : entryCount == 0
+                ? emptyText
+                : string.Empty;
+        if (string.IsNullOrEmpty(text) || rowY + ImGui.GetTextLineHeight() > end.Y + 1.0f)
+        {
+            return;
+        }
+
+        drawList.AddText(
+            new Vector2(start.X, rowY),
+            ImGui.GetColorU32(ScaleAlpha(ModernMutedTextColor, alpha)),
+            text);
+    }
+
+    private void DrawReplayDebuffRow(
+        ImDrawListPtr drawList,
+        ReplayDebuffActiveState entry,
+        float x,
+        float y,
+        float width,
+        float alpha)
+    {
+        var snapshot = entry.Snapshot;
+        var status = snapshot.Status;
+        var iconSize = ReplayDebuffOverlayIconSize;
+        var textX = x + iconSize + 7.0f;
+        var timerText = entry.RemainingSeconds is { } remainingSeconds
+            ? $"{FormatStatusDurationNumber(remainingSeconds, true)}s"
+            : string.Empty;
+        var timerSize = ImGui.CalcTextSize(timerText);
+        var timerReserve = string.IsNullOrEmpty(timerText) ? 0.0f : timerSize.X + 8.0f;
+        var labelMaxWidth = MathF.Max(24.0f, width - iconSize - 7.0f - timerReserve);
+        var playerName = configuration.RedactPlayerNames
+            ? $"Party {snapshot.PartyIndex + 1}"
+            : FormatKnownPlayerName(snapshot.MemberName);
+        var stackText = status.StackCount > 1 ? $" x{status.StackCount}" : string.Empty;
+        var mainText = ClipTextToWidth($"{playerName} > {status.Name}{stackText}", labelMaxWidth);
+
+        ImGui.SetCursorScreenPos(new Vector2(x, y));
+        ImGui.PushStyleVar(ImGuiStyleVar.Alpha, alpha);
+        DrawGameIcon(status.IconId, iconSize, status.Name);
+        ImGui.PopStyleVar();
+        drawList.AddText(
+            new Vector2(textX, y + 3.0f),
+            ImGui.GetColorU32(ScaleAlpha(ModernTextColor, alpha)),
+            mainText);
+        if (!string.IsNullOrEmpty(timerText))
+        {
+            drawList.AddText(
+                new Vector2(x + width - timerSize.X, y + 3.0f),
+                ImGui.GetColorU32(ScaleAlpha(LeadUpGoldColor, alpha)),
+                timerText);
+        }
     }
 
     private void DrawReplayMitigationOverlayRows(
@@ -13189,9 +13859,10 @@ public sealed class RecapWindow : Window, IDisposable
         float rightPadding = LeadUpTableRightPadding)
     {
         var death = resolved.Death;
+        var leadUpDisplaySeconds = GetLeadUpDisplaySeconds();
         if (showLabel)
         {
-            DrawLeadUpLabel("10 second HP history");
+            DrawLeadUpLabel($"{FormatLeadUpDuration(leadUpDisplaySeconds)} HP history");
         }
 
         var displayAnchorSeenAtUtc = GetLeadUpDisplayAnchorSeenAtUtc(death);
@@ -13199,7 +13870,7 @@ public sealed class RecapWindow : Window, IDisposable
 
         if (rows.Count == 0)
         {
-            DrawMutedWrappedText("No HP samples or combat events captured in the last 10 seconds before KO.");
+            DrawMutedWrappedText($"No HP samples or combat events captured in the {FormatLeadUpDurationSpan(leadUpDisplaySeconds)} before KO.");
             return;
         }
 
@@ -13351,7 +14022,7 @@ public sealed class RecapWindow : Window, IDisposable
         PartyDeathRecord death,
         DateTime displayAnchorSeenAtUtc)
     {
-        return GetLeadUpTimelineRows(death, displayAnchorSeenAtUtc, GetLeadUpEvents(death));
+        return GetLeadUpTimelineRows(death, displayAnchorSeenAtUtc, GetLeadUpEvents(death, GetLeadUpDisplaySeconds()));
     }
 
     private IReadOnlyList<LeadUpTimelineRow> GetLeadUpTimelineRows(
@@ -13359,7 +14030,7 @@ public sealed class RecapWindow : Window, IDisposable
         DateTime displayAnchorSeenAtUtc,
         IReadOnlyList<CombatEventRecord> leadUpEvents)
     {
-        var cutoff = displayAnchorSeenAtUtc - TimeSpan.FromSeconds(LeadUpHistorySeconds);
+        var cutoff = displayAnchorSeenAtUtc - TimeSpan.FromSeconds(GetLeadUpDisplaySeconds());
         var history = death.HpHistory
             .Where(snapshot => snapshot.SeenAtUtc >= cutoff && snapshot.SeenAtUtc <= displayAnchorSeenAtUtc)
             .Where(snapshot => snapshot.CurrentHp > 0 || snapshot.ShieldHp > 0)
@@ -13832,7 +14503,7 @@ public sealed class RecapWindow : Window, IDisposable
 
     private IReadOnlyList<HpHistoryDisplayRow> GetLeadUpHpHistoryRows(PartyDeathRecord death, DateTime anchorSeenAtUtc)
     {
-        return GetLeadUpHpHistoryRows(death, anchorSeenAtUtc, GetLeadUpEvents(death));
+        return GetLeadUpHpHistoryRows(death, anchorSeenAtUtc, GetLeadUpEvents(death, GetLeadUpDisplaySeconds()));
     }
 
     private IReadOnlyList<HpHistoryDisplayRow> GetLeadUpHpHistoryRows(
@@ -13840,7 +14511,7 @@ public sealed class RecapWindow : Window, IDisposable
         DateTime anchorSeenAtUtc,
         IReadOnlyList<CombatEventRecord> leadUpEvents)
     {
-        var cutoff = anchorSeenAtUtc - TimeSpan.FromSeconds(LeadUpHistorySeconds);
+        var cutoff = anchorSeenAtUtc - TimeSpan.FromSeconds(GetLeadUpDisplaySeconds());
         var history = death.HpHistory
             .Where(snapshot => snapshot.SeenAtUtc >= cutoff && snapshot.SeenAtUtc <= anchorSeenAtUtc)
             .Where(snapshot => snapshot.CurrentHp > 0 || snapshot.ShieldHp > 0)
@@ -14668,64 +15339,14 @@ public sealed class RecapWindow : Window, IDisposable
         ImGui.PopStyleColor();
     }
 
-    private void DrawLeadUpTimelineTimerToggle(string idSuffix)
-    {
-        var showTimers = configuration.ShowLeadUpTimelineMitigationTimers;
-        if (DrawThemedSwitch("Timers", $"LeadUpTimelineMitigationTimers{idSuffix}", ref showTimers))
-        {
-            configuration.ShowLeadUpTimelineMitigationTimers = showTimers;
-            plugin.SaveConfiguration();
-        }
-    }
-
-    private static bool DrawThemedSwitch(string label, string id, ref bool value)
-    {
-        var style = ImGui.GetStyle();
-        var textSize = ImGui.CalcTextSize(label);
-        var switchSize = new Vector2(18.0f, 28.0f);
-        var labelOffsetY = MathF.Max(0.0f, (switchSize.Y - textSize.Y) * 0.5f);
-        var cursor = ImGui.GetCursorScreenPos();
-
-        var switchPosition = cursor;
-        var clicked = ImGui.InvisibleButton($"##{id}", switchSize);
-        if (clicked)
-        {
-            value = !value;
-        }
-
-        var hovered = ImGui.IsItemHovered();
-        var end = switchPosition + switchSize;
-        var rounding = switchSize.X * 0.5f;
-        var fill = value
-            ? ModernAccentSoftColor with { W = ActiveThemeUsesLightPanels() ? 0.96f : 0.92f }
-            : GetCheckboxFrameColor();
-        var border = hovered
-            ? ModernAccentColor
-            : GetCheckboxBorderColor();
-        var knobColor = value
-            ? ModernAccentColor
-            : BlendColors(ModernMutedTextColor, ModernPanelColor, ActiveThemeUsesLightPanels() ? 0.18f : 0.10f) with { W = 1.0f };
-        var knobRadius = 5.6f;
-        var knobCenterY = value
-            ? switchPosition.Y + 7.5f
-            : end.Y - 7.5f;
-        var knobCenter = new Vector2(switchPosition.X + (switchSize.X * 0.5f), knobCenterY);
-        var drawList = ImGui.GetWindowDrawList();
-
-        drawList.AddRectFilled(switchPosition, end, ImGui.GetColorU32(fill), rounding);
-        drawList.AddRect(switchPosition, end, ImGui.GetColorU32(border), rounding, ImDrawFlags.None, 1.0f);
-        drawList.AddCircleFilled(knobCenter, knobRadius, ImGui.GetColorU32(knobColor), 18);
-
-        ImGui.SameLine(0.0f, style.ItemInnerSpacing.X);
-        ImGui.SetCursorScreenPos(new Vector2(ImGui.GetCursorScreenPos().X, cursor.Y + labelOffsetY));
-        ImGui.TextUnformatted(label);
-
-        return clicked;
-    }
-
     private static IReadOnlyList<CombatEventRecord> GetLeadUpEvents(PartyDeathRecord death)
     {
         return DeduplicateLeadUpDisplayEvents(DeathDisplaySelector.GetLeadUpEvents(death));
+    }
+
+    private static IReadOnlyList<CombatEventRecord> GetLeadUpEvents(PartyDeathRecord death, int displaySeconds)
+    {
+        return DeduplicateLeadUpDisplayEvents(DeathDisplaySelector.GetLeadUpEvents(death, displaySeconds));
     }
 
     private static IReadOnlyList<CombatEventRecord> DeduplicateLeadUpDisplayEvents(IReadOnlyList<CombatEventRecord> events)
@@ -15042,12 +15663,13 @@ public sealed class RecapWindow : Window, IDisposable
 
     private string FormatFatalEventLine(CombatEventRecord combatEvent)
     {
+        var actionName = FormatFatalActionNameForDisplay(combatEvent);
         if (combatEvent.Kind == DeathEventKind.Status)
         {
-            return $"{FormatKnownPlayerName(combatEvent.SourceName)}: {FormatActionNameForDisplay(combatEvent)} | Flags: {FormatEventFlags(combatEvent)}";
+            return $"{FormatKnownPlayerName(combatEvent.SourceName)}: {actionName} | Flags: {FormatEventFlags(combatEvent)}";
         }
 
-        return $"{FormatKnownPlayerName(combatEvent.SourceName)}: {FormatActionNameForDisplay(combatEvent)} | Amount: {FormatSignedEventAmount(combatEvent)} | Flags: {FormatEventFlags(combatEvent)}";
+        return $"{FormatKnownPlayerName(combatEvent.SourceName)}: {actionName} | Amount: {FormatSignedEventAmount(combatEvent)} | Flags: {FormatEventFlags(combatEvent)}";
     }
 
     private void DrawCombatEventLine(
@@ -15071,7 +15693,11 @@ public sealed class RecapWindow : Window, IDisposable
 
     private void DrawCenteredWrappedCombatEventLine(CombatEventRecord combatEvent)
     {
-        var actionText = FormatActionNameForDisplay(combatEvent);
+        var actionText = configuration.GoofyMode
+            ? GoofyDeathText.FormatLeadUpEventName(
+                combatEvent.ActionId,
+                FormatActionNameForDisplay(combatEvent))
+            : FormatActionNameForDisplay(combatEvent);
         var amountText = FormatSignedEventAmountSuffix(combatEvent);
         var text = $"{actionText}{amountText}";
         var iconId = GetDamageTypeIconId(combatEvent);
@@ -15148,7 +15774,7 @@ public sealed class RecapWindow : Window, IDisposable
         bool includeFlags)
     {
         var sourceText = $"{FormatKnownPlayerName(combatEvent.SourceName)}:";
-        var actionText = FormatActionNameForDisplay(combatEvent);
+        var actionText = FormatFatalActionNameForDisplay(combatEvent);
         var amountText = FormatSignedEventAmountSuffix(combatEvent);
         var flagsText = includeFlags ? $" | Flags: {FormatEventFlags(combatEvent)}" : string.Empty;
         var textAfterIcon = $"{actionText}{amountText}{flagsText}";
@@ -15799,9 +16425,9 @@ public sealed class RecapWindow : Window, IDisposable
             : statusTooltip;
     }
 
-    private void DrawSettingsTab()
+    private void DrawOptionsTab()
     {
-        DrawModernSectionTitle("Settings", "Window, capture, privacy, and appearance controls.");
+        DrawModernSectionTitle("Options", "General behavior, capture, privacy, and local death controls.");
         DrawSubtleSeparator();
         ImGui.Spacing();
 
@@ -15817,7 +16443,19 @@ public sealed class RecapWindow : Window, IDisposable
         DrawSettingsGroupHeader("Capture", "Who gets recorded and how timestamps display.");
         DrawCaptureSettingsGroup();
 
-        DrawSettingsGroupHeader("Appearance", "Window, icon, and theme styling.");
+        DrawReviewPaneBottomPadding();
+    }
+
+    private void DrawCustomizeTab()
+    {
+        DrawModernSectionTitle("Customize", "Review layout, themes, and visual styling.");
+        DrawSubtleSeparator();
+        ImGui.Spacing();
+
+        DrawSettingsGroupHeader("Review Layout", "Review detail, timeline order, and lead-up presentation.", first: true);
+        DrawReviewLayoutSettingsGroup();
+
+        DrawSettingsGroupHeader("Appearance", "Window, icon, color, and theme styling.");
         DrawAppearanceSettingsGroup();
 
         DrawReviewPaneBottomPadding();
@@ -15844,6 +16482,50 @@ public sealed class RecapWindow : Window, IDisposable
         }
 
         ImGui.TextDisabled(subtitle);
+    }
+
+    private void DrawReviewLayoutSettingsGroup()
+    {
+        ImGui.TextColored(LeadUpGoldColor, "Information");
+        DrawReviewDisplayModeToggle("CustomizeReviewLayout");
+        DrawMutedWrappedText("This changes the information on the Review section.");
+        DrawUnderlinedSettingDescription("Focused", "has less detail but provides just enough information.");
+        DrawUnderlinedSettingDescription("Detailed", "provides more information for data nerds.");
+
+        ImGui.Spacing();
+        ImGui.TextColored(LeadUpGoldColor, "Timeline order");
+        DrawLeadUpTimelineOrderToggle("CustomizeReviewLayout");
+        DrawMutedWrappedText("This is the order the lead-up timeline displays. Newest shows the death first. Oldest provides all of the lead-up first.");
+
+        ImGui.Spacing();
+        ImGui.TextColored(LeadUpGoldColor, "Lead-up duration");
+        DrawLeadUpDurationToggle("CustomizeReviewLayout");
+        DrawMutedWrappedText("Choose how much captured history the lead-up timeline displays. Older pulls may contain less history than the selected duration.");
+
+        ImGui.Spacing();
+        var showTimers = configuration.ShowLeadUpTimelineMitigationTimers;
+        if (DrawThemedCheckbox("Timers", ref showTimers))
+        {
+            plugin.SetShowLeadUpTimelineMitigationTimers(showTimers);
+        }
+
+        DrawMutedWrappedText("This provides buff/debuff timers on the lead-up timeline.");
+    }
+
+    private static void DrawUnderlinedSettingDescription(string term, string description)
+    {
+        ImGui.TextColored(ModernTextColor, term);
+        var itemMin = ImGui.GetItemRectMin();
+        var itemMax = ImGui.GetItemRectMax();
+        ImGui.GetWindowDrawList().AddLine(
+            new Vector2(itemMin.X, itemMax.Y),
+            new Vector2(itemMax.X, itemMax.Y),
+            ImGui.GetColorU32(ModernTextColor),
+            1.0f);
+        ImGui.SameLine();
+        ImGui.PushStyleColor(ImGuiCol.Text, ModernMutedTextColor);
+        ImGui.TextWrapped(description);
+        ImGui.PopStyleColor();
     }
 
     private void DrawGeneralSettingsGroup()
@@ -16083,6 +16765,8 @@ public sealed class RecapWindow : Window, IDisposable
 
     private void DrawAppearanceSettingsGroup()
     {
+        DrawFunModeControls();
+
         var mainWindowBackgroundOpacity = GetMainWindowBackgroundOpacity();
         if (ImGui.SliderFloat(
             "Better Deaths window opacity",
@@ -16102,10 +16786,45 @@ public sealed class RecapWindow : Window, IDisposable
             plugin.SetIconSize(iconSize);
         }
 
-        DrawSettingsTooltip("Controls non-widget action and status icons in death timelines, details, examples, and Better Deaths lead-up tables. Use the Widget tab for Current Pull widget icons.");
+        DrawSettingsTooltip("Controls non-widget action and status icons in death timelines, details, examples, and Better Deaths lead-up tables. Use Current Pull Widget in Options for widget icons.");
 
         DrawPullGroupColorSetting();
         DrawThemeSetting();
+    }
+
+    private void DrawFunModeControls()
+    {
+        var funModeEnabled = configuration.GoofyMode;
+        var funModeWidth = GetThemedActionButtonWidth("Fun Mode");
+        if (DrawThemedToggleButton("Fun Mode", "ToggleFunMode", funModeEnabled, funModeWidth))
+        {
+            funModeEnabled = !funModeEnabled;
+            plugin.SetGoofyMode(funModeEnabled);
+        }
+
+        var funModeHovered = ImGui.IsItemHovered();
+        if (funModeEnabled)
+        {
+            var ligmaWidth = GetThemedActionButtonWidth("Ligma");
+            if (ImGui.GetContentRegionAvail().X >= ligmaWidth + ImGui.GetStyle().ItemSpacing.X)
+            {
+                ImGui.SameLine();
+            }
+
+            if (DrawThemedActionButton("Ligma", "LigmaChatSequence", ligmaWidth))
+            {
+                var click = ligmaButtonSequence.Click(DateTime.UtcNow, Random.Shared);
+                var soundEffect = click.ShouldPlaySound
+                    ? LigmaButtonSequence.SelectSoundEffect(Random.Shared)
+                    : (int?)null;
+                plugin.PostLigmaEchoMessage(click.Message, soundEffect);
+            }
+        }
+
+        if (funModeHovered)
+        {
+            SetThemedTooltip("Uses intentionally unserious wording in local death reviews. Combat data and calculations are unchanged.");
+        }
     }
 
     private void DrawPullGroupColorSetting()
@@ -18347,6 +19066,7 @@ public sealed class RecapWindow : Window, IDisposable
         Replay,
         Example,
         Customize,
+        Options,
         Data,
         Feedback,
         Updates,
@@ -18389,7 +19109,7 @@ public sealed class RecapWindow : Window, IDisposable
         DrawWrappedBullet("Current Pull and the optional widget show live death order while combat is happening.");
         DrawWrappedBullet("Timeline-first recap shows who died, when they died, and the fatal events before opening player details.");
         DrawWrappedBullet("Summary details tie the fatal event to source, action, amount, damage type, HP plus shields, overkill context, and enemy HP at death.");
-        DrawWrappedBullet("10-second lead-up shows HP and shield movement, sources, heals, hits, status timers, and captured events before KO.");
+        DrawWrappedBullet("A configurable 10-second, 30-second, or 1-minute lead-up shows HP and shield movement, sources, heals, hits, status timers, and captured events before KO.");
         DrawWrappedBullet("Mitigation review groups player mitigation, shields, debuffs, target mitigation, expired context, and calculated mitigation total.");
         DrawWrappedBullet("What-if mitigation lets you select available tools and see how the damage result would have changed.");
         DrawWrappedBullet("Themes, widget opacity controls, optional scrollbars, and name redaction help shape the review view around how you share and play.");
@@ -18630,6 +19350,17 @@ public sealed class RecapWindow : Window, IDisposable
 
     private static void DrawChangelogTab()
     {
+        ImGui.TextUnformatted("v0.1.0.277");
+        ImGui.TextDisabled("Testing update.");
+        DrawHighlightedChangelogBullet("Added active player debuffs with timers to Death Replay and new Active Effects display modes.");
+        DrawHighlightedChangelogBullet("Added configurable 10-second, 30-second, and 1-minute Review lead-ups.");
+        DrawHighlightedChangelogBullet("Moved Review layout controls into Customize and separated general settings into Options.");
+        DrawWrappedBullet("Added optional Fun Mode wording and the Ligma echo-chat button.");
+        DrawWrappedBullet("Improved automatic arena framing for unsupported replays.");
+        DrawWrappedBullet("Darkened timeline HP loss so damage is easier to distinguish from remaining HP.");
+
+        ImGui.Separator();
+
         ImGui.TextUnformatted("v0.1.0.276");
         ImGui.TextDisabled("Stable update.");
         DrawHighlightedChangelogBullet("Fixed Death Replay arenas changing size while moving through the timeline.");
@@ -20206,7 +20937,7 @@ public sealed class RecapWindow : Window, IDisposable
     {
         var sampleTimes = new[]
         {
-            MathF.Max(0.0f, deathElapsed - LeadUpHistorySeconds),
+            MathF.Max(0.0f, deathElapsed - LeadUpTimingPolicy.MaximumDisplaySeconds),
             MathF.Max(0.0f, deathElapsed - 2.0f),
             MathF.Max(0.0f, deathElapsed - 1.0f),
         };
@@ -20238,7 +20969,7 @@ public sealed class RecapWindow : Window, IDisposable
     {
         var sampleTimes = new[]
         {
-            MathF.Max(0.0f, deathElapsed - LeadUpHistorySeconds),
+            MathF.Max(0.0f, deathElapsed - LeadUpTimingPolicy.MaximumDisplaySeconds),
             MathF.Max(0.0f, likelyCause.PullElapsedSeconds - 2.0f),
             MathF.Max(0.0f, likelyCause.PullElapsedSeconds - 1.0f),
             likelyCause.PullElapsedSeconds,
@@ -20695,6 +21426,13 @@ public sealed class RecapWindow : Window, IDisposable
         return IsLikelyAutoAttack(combatEvent)
             ? AutoActionDisplayName
             : FormatActionNameForDisplay(combatEvent.ActionName);
+    }
+
+    private string FormatFatalActionNameForDisplay(CombatEventRecord combatEvent)
+    {
+        return configuration.GoofyMode && combatEvent.Kind == DeathEventKind.Damage
+            ? GoofyDeathText.FormatFatalEventName(FormatActionNameForDisplay(combatEvent))
+            : FormatActionNameForDisplay(combatEvent);
     }
 
     private static string FormatActionNameForDisplay(string actionName)
@@ -21317,9 +22055,9 @@ public sealed class RecapWindow : Window, IDisposable
     private static Vector4 GetHpDamageLossBarColor()
     {
         var lossColor = ActiveThemeUsesLightPanels()
-            ? new Vector4(0.04f, 0.16f, 0.08f, 0.64f)
-            : new Vector4(0.01f, 0.08f, 0.04f, 0.72f);
-        return BlendColors(HpBarColor, lossColor, ActiveThemeUsesLightPanels() ? 0.76f : 0.70f) with { W = lossColor.W };
+            ? new Vector4(0.025f, 0.12f, 0.055f, 0.88f)
+            : new Vector4(0.008f, 0.055f, 0.025f, 0.92f);
+        return BlendColors(HpBarColor, lossColor, ActiveThemeUsesLightPanels() ? 0.86f : 0.84f) with { W = lossColor.W };
     }
 
     private static Vector4 GetShieldDamageLossBarColor()
