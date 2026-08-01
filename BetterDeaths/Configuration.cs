@@ -288,8 +288,6 @@ public sealed class Configuration : IPluginConfiguration
 {
     public int Version { get; set; } = 4;
 
-    public bool ShowWindow { get; set; } = true;
-
     public bool ApplyWideDefaultWindowSizeOnNextOpen { get; set; }
 
     public float MainWindowBackgroundOpacity { get; set; } = 0.85f;

@@ -45,12 +45,6 @@ namespace BetterDeaths;
 
 public sealed partial class Plugin
 {
-    public void SetShowWindowByDefault(bool open)
-    {
-        Configuration.ShowWindow = open;
-        SaveConfiguration();
-    }
-
     public void SetShowCurrentPullWidget(bool open)
     {
         Configuration.ShowCurrentPullWidget = open;

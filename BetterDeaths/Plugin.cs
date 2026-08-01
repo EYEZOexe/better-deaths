@@ -554,7 +554,7 @@ public sealed partial class Plugin : IDalamudPlugin
 
         recapWindow = new RecapWindow(this)
         {
-            IsOpen = Configuration.ShowWindow,
+            IsOpen = false,
         };
         windowSystem.AddWindow(recapWindow);
 
