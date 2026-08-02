@@ -123,10 +123,12 @@ public sealed class RecapWindow : Window, IDisposable
     private const string LikelyAutoAttackTooltip = "Possible auto attack. Better Deaths could not resolve a named action here; named spells and abilities usually show their action name.";
     private const string AutoActionDisplayName = "Auto";
     private const uint AllRecordedPullDuties = uint.MaxValue;
-    private const string CurrentChangelogVersion = "0.1.0.279";
+    private const string CurrentChangelogVersion = "0.1.0.280";
     private const string FeedbackDiscordUrl = "https://discord.com/invite/Zzrcc8kmvy";
     private const string FeedbackConfirmPopupId = "Open Punish Discord?##BetterDeathsFeedbackConfirm";
     private const string KofiUrl = "https://ko-fi.com/nainaiowo";
+    private const uint CustomizeIconPreviewActionId = 7531;
+    private const float CustomizeIconPreviewSlotSize = 48.0f;
     private const string KofiConfirmPopupId = "Open Ko-fi?##BetterDeathsKofiConfirm";
     private const string ReplayBetaBadgeText = "beta";
     private const double GoofyCreditRotationSeconds = 5.0;
@@ -16966,7 +16968,7 @@ public sealed class RecapWindow : Window, IDisposable
         if (ImGui.BeginTable("##CustomizeAppearanceControls", columnCount, ImGuiTableFlags.SizingStretchSame))
         {
             ImGui.TableNextColumn();
-            DrawMainWindowOpacityControl();
+            DrawMainWindowOpacityControl(columnCount == 2);
             ImGui.TableNextColumn();
             DrawMainIconSizeControl();
             ImGui.EndTable();
@@ -16980,12 +16982,24 @@ public sealed class RecapWindow : Window, IDisposable
         DrawThemeSetting();
     }
 
-    private void DrawMainWindowOpacityControl()
+    private void DrawMainWindowOpacityControl(bool alignWithIconPreview)
     {
-        DrawCompactSettingLabel(
-            "Window opacity",
-            "CustomizeWindowOpacityHelp",
-            "Controls the main Better Deaths window background opacity. Lower values reveal more of the game behind the review window.");
+        if (alignWithIconPreview)
+        {
+            DrawCompactSettingLabelInFixedHeight(
+                "Window opacity",
+                "CustomizeWindowOpacityHelp",
+                "Controls the main Better Deaths window background opacity. Lower values reveal more of the game behind the review window.",
+                CustomizeIconPreviewSlotSize);
+        }
+        else
+        {
+            DrawCompactSettingLabel(
+                "Window opacity",
+                "CustomizeWindowOpacityHelp",
+                "Controls the main Better Deaths window background opacity. Lower values reveal more of the game behind the review window.");
+        }
+
         var mainWindowBackgroundOpacity = GetMainWindowBackgroundOpacity();
         ImGui.SetNextItemWidth(-1.0f);
         if (ImGui.SliderFloat(
@@ -17001,15 +17015,76 @@ public sealed class RecapWindow : Window, IDisposable
 
     private void DrawMainIconSizeControl()
     {
+        var iconSize = Math.Clamp(MathF.Max(configuration.ActionIconSize, configuration.StatusIconSize), 12.0f, 48.0f);
+        var headerStartY = ImGui.GetCursorPosY();
+        var labelHeight = ImGui.GetFrameHeight();
+        ImGui.SetCursorPosY(headerStartY + MathF.Max(0.0f, (CustomizeIconPreviewSlotSize - labelHeight) * 0.5f));
         DrawCompactSettingLabel(
             "Icon size",
             "CustomizeIconSizeHelp",
             "Controls action and status icons in Review. Current Pull Widget icon sizing remains in Options.");
-        var iconSize = MathF.Max(configuration.ActionIconSize, configuration.StatusIconSize);
+        ImGui.SameLine(0.0f, ImGui.GetStyle().ItemSpacing.X);
+        ImGui.SetCursorPosY(headerStartY);
+        DrawCustomizeIconSizePreview(iconSize);
+        ImGui.SetCursorPosY(MathF.Max(
+            ImGui.GetCursorPosY(),
+            headerStartY + CustomizeIconPreviewSlotSize + ImGui.GetStyle().ItemSpacing.Y));
+
         ImGui.SetNextItemWidth(-1.0f);
         if (ImGui.SliderFloat("##CustomizeIconSize", ref iconSize, 12.0f, 48.0f, "%.0f px"))
         {
             plugin.SetIconSize(iconSize);
+        }
+    }
+
+    private static void DrawCompactSettingLabelInFixedHeight(
+        string label,
+        string helpId,
+        string tooltip,
+        float height)
+    {
+        var startY = ImGui.GetCursorPosY();
+        ImGui.SetCursorPosY(startY + MathF.Max(0.0f, (height - ImGui.GetFrameHeight()) * 0.5f));
+        DrawCompactSettingLabel(label, helpId, tooltip);
+        ImGui.SetCursorPosY(startY + height + ImGui.GetStyle().ItemSpacing.Y);
+    }
+
+    private static void DrawCustomizeIconSizePreview(float iconSize)
+    {
+        var clampedSize = Math.Clamp(iconSize, 12.0f, CustomizeIconPreviewSlotSize);
+        var slotStart = ImGui.GetCursorScreenPos();
+        var slotSize = new Vector2(CustomizeIconPreviewSlotSize);
+        ImGui.Dummy(slotSize);
+
+        var previewStart = slotStart + new Vector2((CustomizeIconPreviewSlotSize - clampedSize) * 0.5f);
+        var previewEnd = previewStart + new Vector2(clampedSize);
+        var iconDrawn = false;
+        try
+        {
+            var iconId = GetActionIconId(CustomizeIconPreviewActionId);
+            var texture = Plugin.TextureProvider.GetFromGameIcon(new GameIconLookup(iconId));
+            var wrap = texture.GetWrapOrDefault();
+            if (iconId != 0 && wrap is not null)
+            {
+                ImGui.GetWindowDrawList().AddImage(wrap.Handle, previewStart, previewEnd);
+                iconDrawn = true;
+            }
+        }
+        catch
+        {
+            // Keep the preview slot stable if game data or the texture is temporarily unavailable.
+        }
+
+        if (!iconDrawn)
+        {
+            var drawList = ImGui.GetWindowDrawList();
+            drawList.AddRectFilled(previewStart, previewEnd, ImGui.GetColorU32(BarBackgroundColor), 3.0f);
+            drawList.AddRect(previewStart, previewEnd, ImGui.GetColorU32(BarBorderColor), 3.0f);
+        }
+
+        if (ImGui.IsItemHovered())
+        {
+            SetThemedTooltip($"{clampedSize:0} px");
         }
     }
 
@@ -19634,10 +19709,23 @@ public sealed class RecapWindow : Window, IDisposable
 
     private static void DrawChangelogTab()
     {
+        ImGui.TextUnformatted("v0.1.0.280");
+        ImGui.TextDisabled("Stable update.");
+        DrawHighlightedChangelogBullet("Added active player debuffs with timers to Death Replay and Mitigations, Debuffs, and Split Active Effects modes.");
+        DrawHighlightedChangelogBullet("Added 10-second, 30-second, and 1-minute Review timelines plus Heals and Timers controls.");
+        DrawHighlightedChangelogBullet("Improved timeline HP bars so killing hits show post-hit HP while preserving a clear HP-loss trail.");
+        DrawWrappedBullet("Made HP numbers and text colors consistent across timeline rows.");
+        DrawWrappedBullet("Redesigned Customize with compact theme controls, previews, and Dark/Light filtering.");
+        DrawWrappedBullet("Reorganized general settings into Options and moved Review layout controls into Customize.");
+        DrawWrappedBullet("Moved Fun Mode into the header and added the optional Ligma chat button.");
+        DrawWrappedBullet("Improved automatic arena framing for unsupported replays.");
+        DrawWrappedBullet("Better Deaths now starts closed and no longer has a startup-open option.");
+
+        ImGui.Separator();
+
         ImGui.TextUnformatted("v0.1.0.279");
         ImGui.TextDisabled("Testing update.");
         DrawHighlightedChangelogBullet("Added a Heals switch beside Timers in Review to show or hide healing event rows without changing death calculations.");
-        DrawWrappedBullet("Existing theme selections are refreshed once and now use a stable saved identity so future theme additions cannot change the selected theme.");
 
         ImGui.Separator();
 
