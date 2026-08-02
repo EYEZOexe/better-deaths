@@ -298,6 +298,10 @@ public sealed class Configuration : IPluginConfiguration
 
     public BetterDeathsTheme Theme { get; set; } = BetterDeathsTheme.Classic;
 
+    public int ThemeIdentityVersion { get; set; }
+
+    public string ThemeKey { get; set; } = string.Empty;
+
     public CustomThemeConfiguration CustomTheme { get; set; } = new();
 
     public bool HasChangedTheme { get; set; }
@@ -364,6 +368,8 @@ public sealed class Configuration : IPluginConfiguration
     public float DeathTimelineLeadUpHeight { get; set; }
 
     public bool ShowLeadUpTimelineMitigationTimers { get; set; } = true;
+
+    public bool ShowLeadUpTimelineHealingEvents { get; set; } = true;
 
     public bool ShowReplayTrails { get; set; } = true;
 

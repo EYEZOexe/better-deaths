@@ -5,7 +5,7 @@
   "DownloadCount": 4872,
   "Punchline": "A clearer party death review.",
   "Description": "Records party deaths with pull grouping, fatal events, active statuses, and recent action timelines.",
-  "Changelog": "Redesigned Customize with compact Review controls, a selected-theme preview, Dark/Light filtering, fixed-width theme tiles, and collapsed advanced colors. Moved Fun Mode to the header and Timers back to Review. Better Deaths now starts closed. Fixed killing-hit HP labels to show post-hit HP and made HP bar labels consistent.",
+  "Changelog": "Added a Heals switch beside Timers in Review so healing rows can be shown or hidden without changing death calculations. Existing theme selections are refreshed once and now use a stable saved identity to prevent theme additions from changing the selected theme.",
   "RepoUrl": "https://github.com/Nainaiowo/better-deaths",
   "IconUrl": "https://raw.githubusercontent.com/Nainaiowo/better-deaths/main/assets/icon.png",
   "ApplicableVersion": "any",

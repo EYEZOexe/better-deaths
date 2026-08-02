@@ -123,7 +123,7 @@ public sealed class RecapWindow : Window, IDisposable
     private const string LikelyAutoAttackTooltip = "Possible auto attack. Better Deaths could not resolve a named action here; named spells and abilities usually show their action name.";
     private const string AutoActionDisplayName = "Auto";
     private const uint AllRecordedPullDuties = uint.MaxValue;
-    private const string CurrentChangelogVersion = "0.1.0.278";
+    private const string CurrentChangelogVersion = "0.1.0.279";
     private const string FeedbackDiscordUrl = "https://discord.com/invite/Zzrcc8kmvy";
     private const string FeedbackConfirmPopupId = "Open Punish Discord?##BetterDeathsFeedbackConfirm";
     private const string KofiUrl = "https://ko-fi.com/nainaiowo";
@@ -752,6 +752,7 @@ public sealed class RecapWindow : Window, IDisposable
     {
         this.plugin = plugin;
         configuration = plugin.Configuration;
+        activeTheme = BetterDeathsThemeCatalog.GetTheme(configuration);
         showDebugTab = configuration.ShowDebugTab;
         showLightThemePicker = IsLightPanelTheme(BetterDeathsThemeCatalog.GetTheme(configuration.Theme));
 
@@ -3920,13 +3921,17 @@ public sealed class RecapWindow : Window, IDisposable
     private void DrawTimelineLeadUpControls(string idSuffix)
     {
         var availableWidth = MathF.Max(1.0f, GetRightPaddedTableSize(LeadUpTableRightPadding).X);
-        var showTimers = configuration.ShowLeadUpTimelineMitigationTimers;
-        var toggleWidth = GetThemedSwitchWidth("Timers");
-        if (availableWidth > toggleWidth)
+        var spacing = ImGui.GetStyle().ItemSpacing.X;
+        var timersWidth = GetThemedSwitchWidth("Timers");
+        var healsWidth = GetThemedSwitchWidth("Heals");
+        var inlineWidth = timersWidth + spacing + healsWidth;
+        var drawInline = availableWidth >= inlineWidth;
+        if (drawInline)
         {
-            ImGui.SetCursorPosX(ImGui.GetCursorPosX() + MathF.Max(0.0f, availableWidth - toggleWidth));
+            ImGui.SetCursorPosX(ImGui.GetCursorPosX() + MathF.Max(0.0f, availableWidth - inlineWidth));
         }
 
+        var showTimers = configuration.ShowLeadUpTimelineMitigationTimers;
         if (DrawThemedSwitch("Timers", $"LeadUpTimelineMitigationTimers{idSuffix}", ref showTimers))
         {
             plugin.SetShowLeadUpTimelineMitigationTimers(showTimers);
@@ -3935,6 +3940,26 @@ public sealed class RecapWindow : Window, IDisposable
         if (ImGui.IsItemHovered())
         {
             SetThemedTooltip("Show buff and debuff timers in the lead-up timeline.");
+        }
+
+        if (drawInline)
+        {
+            ImGui.SameLine(0.0f, spacing);
+        }
+        else if (availableWidth > healsWidth)
+        {
+            ImGui.SetCursorPosX(ImGui.GetCursorPosX() + MathF.Max(0.0f, availableWidth - healsWidth));
+        }
+
+        var showHeals = configuration.ShowLeadUpTimelineHealingEvents;
+        if (DrawThemedSwitch("Heals", $"LeadUpTimelineHealingEvents{idSuffix}", ref showHeals))
+        {
+            plugin.SetShowLeadUpTimelineHealingEvents(showHeals);
+        }
+
+        if (ImGui.IsItemHovered())
+        {
+            SetThemedTooltip("Show healing event rows in the lead-up timeline.");
         }
 
         ImGui.Spacing();
@@ -14079,9 +14104,12 @@ public sealed class RecapWindow : Window, IDisposable
 
     private IReadOnlyList<LeadUpTimelineRow> GetDisplayLeadUpTimelineRows(IReadOnlyList<LeadUpTimelineRow> rows)
     {
+        var eligibleRows = configuration.ShowLeadUpTimelineHealingEvents
+            ? rows
+            : rows.Where(row => LeadUpDisplayPolicy.ShouldShowEvent(row.Event?.Kind, false)).ToList();
         var displayRows = IsFocusedReviewMode()
-            ? GetFocusedLeadUpTimelineRows(rows)
-            : rows;
+            ? GetFocusedLeadUpTimelineRows(eligibleRows)
+            : eligibleRows;
         return configuration.LeadUpTimelineOrder == LeadUpTimelineOrder.Newest
             ? displayRows.OrderByDescending(row => row.SeenAtUtc).ToList()
             : displayRows;
@@ -19606,6 +19634,13 @@ public sealed class RecapWindow : Window, IDisposable
 
     private static void DrawChangelogTab()
     {
+        ImGui.TextUnformatted("v0.1.0.279");
+        ImGui.TextDisabled("Testing update.");
+        DrawHighlightedChangelogBullet("Added a Heals switch beside Timers in Review to show or hide healing event rows without changing death calculations.");
+        DrawWrappedBullet("Existing theme selections are refreshed once and now use a stable saved identity so future theme additions cannot change the selected theme.");
+
+        ImGui.Separator();
+
         ImGui.TextUnformatted("v0.1.0.278");
         ImGui.TextDisabled("Testing update.");
         DrawHighlightedChangelogBullet("Redesigned Customize with compact Review controls, a selected-theme preview, Dark/Light filtering, and evenly wrapped theme choices.");

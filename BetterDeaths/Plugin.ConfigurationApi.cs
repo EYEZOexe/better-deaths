@@ -84,12 +84,22 @@ public sealed partial class Plugin
 
     public void SetTheme(BetterDeathsTheme theme)
     {
-        if (!Enum.IsDefined(theme) || Configuration.Theme == theme)
+        if (!Enum.IsDefined(theme))
+        {
+            return;
+        }
+
+        var themeKey = ThemeIdentityPolicy.GetKey(theme);
+        if (Configuration.Theme == theme &&
+            Configuration.ThemeIdentityVersion == ThemeIdentityPolicy.CurrentVersion &&
+            string.Equals(Configuration.ThemeKey, themeKey, StringComparison.Ordinal))
         {
             return;
         }
 
         Configuration.Theme = theme;
+        Configuration.ThemeIdentityVersion = ThemeIdentityPolicy.CurrentVersion;
+        Configuration.ThemeKey = themeKey;
         Configuration.HasChangedTheme = true;
         SaveConfiguration();
     }
@@ -288,6 +298,12 @@ public sealed partial class Plugin
     public void SetShowLeadUpTimelineMitigationTimers(bool show)
     {
         Configuration.ShowLeadUpTimelineMitigationTimers = show;
+        SaveConfiguration();
+    }
+
+    public void SetShowLeadUpTimelineHealingEvents(bool show)
+    {
+        Configuration.ShowLeadUpTimelineHealingEvents = show;
         SaveConfiguration();
     }
 
@@ -608,6 +624,29 @@ public sealed partial class Plugin
         if (!Enum.IsDefined(Configuration.Theme))
         {
             Configuration.Theme = BetterDeathsTheme.Classic;
+            changed = true;
+        }
+
+        if (Configuration.ThemeIdentityVersion >= ThemeIdentityPolicy.CurrentVersion &&
+            ThemeIdentityPolicy.TryResolve<BetterDeathsTheme>(Configuration.ThemeKey, out var storedTheme))
+        {
+            if (Configuration.Theme != storedTheme)
+            {
+                Configuration.Theme = storedTheme;
+                changed = true;
+            }
+        }
+
+        var canonicalThemeKey = ThemeIdentityPolicy.GetKey(Configuration.Theme);
+        if (!string.Equals(Configuration.ThemeKey, canonicalThemeKey, StringComparison.Ordinal))
+        {
+            Configuration.ThemeKey = canonicalThemeKey;
+            changed = true;
+        }
+
+        if (Configuration.ThemeIdentityVersion != ThemeIdentityPolicy.CurrentVersion)
+        {
+            Configuration.ThemeIdentityVersion = ThemeIdentityPolicy.CurrentVersion;
             changed = true;
         }
 
