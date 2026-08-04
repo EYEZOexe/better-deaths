@@ -21,6 +21,7 @@
     <Compile Include="../../BetterDeaths/HpBarFormatting.cs" Link="HpBarFormatting.cs" />
     <Compile Include="../../BetterDeaths/LigmaButtonSequence.cs" Link="LigmaButtonSequence.cs" />
     <Compile Include="../../BetterDeaths/LeadUpDisplayPolicy.cs" Link="LeadUpDisplayPolicy.cs" />
+    <Compile Include="../../BetterDeaths/LeadUpHpTimelinePolicy.cs" Link="LeadUpHpTimelinePolicy.cs" />
     <Compile Include="../../BetterDeaths/LeadUpTimingPolicy.cs" Link="LeadUpTimingPolicy.cs" />
     <Compile Include="../../BetterDeaths/Models.cs" Link="Models.cs" />
     <Compile Include="../../BetterDeaths/RecordedPullLookup.cs" Link="RecordedPullLookup.cs" />

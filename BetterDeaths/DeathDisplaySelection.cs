@@ -114,6 +114,33 @@ public static class DeathDisplaySelector
         return DeduplicateStoredEvents(orderedEvents);
     }
 
+    public static IReadOnlyList<CombatEventRecord> GetLeadUpShieldCheckpoints(
+        PartyDeathRecord death,
+        int displaySeconds)
+    {
+        var anchorSeenAtUtc = GetLeadUpAnchorSeenAtUtc(death);
+        var cutoff = death.SeenAtUtc - TimeSpan.FromSeconds(LeadUpTimingPolicy.NormalizeDisplaySeconds(displaySeconds));
+        var events = death.RecentEvents.AsEnumerable();
+        if (death.FatalSequence is { Events.Count: > 0 } sequence)
+        {
+            events = events.Concat(sequence.Events);
+        }
+
+        if (death.LikelyCause is { } likelyCause)
+        {
+            events = events.Append(likelyCause);
+        }
+
+        var orderedEvents = events
+            .Where(combatEvent => EventTouchesLeadUpWindow(combatEvent, cutoff, anchorSeenAtUtc))
+            .Where(IsShieldCheckpoint)
+            .OrderBy(combatEvent => combatEvent.SeenAtUtc)
+            .ThenBy(combatEvent => combatEvent.EventOrdinal)
+            .ToList();
+
+        return DeduplicateStoredEvents(orderedEvents);
+    }
+
     public static bool IsLikelyDeathCauseEvent(CombatEventRecord combatEvent)
     {
         return combatEvent.Kind == DeathEventKind.Status ||
@@ -680,6 +707,18 @@ public static class DeathDisplaySelector
             DeathEventKind.Miss or DeathEventKind.Invulnerable or DeathEventKind.Status => true,
             _ => false,
         };
+    }
+
+    private static bool IsShieldCheckpoint(CombatEventRecord combatEvent)
+    {
+        return combatEvent.Kind == DeathEventKind.Damage &&
+            combatEvent.Amount == 0 &&
+            combatEvent.HpSource != CombatEventHpSource.NoPreHitSample &&
+            combatEvent.MaxHp > 0 &&
+            combatEvent.ResultSeenAtUtc is not null &&
+            combatEvent.ResultMaxHp == combatEvent.MaxHp &&
+            combatEvent.ResultCurrentHp == combatEvent.CurrentHp &&
+            combatEvent.ResultShieldHp != combatEvent.ShieldHp;
     }
 
     private static bool EventTouchesLeadUpWindow(

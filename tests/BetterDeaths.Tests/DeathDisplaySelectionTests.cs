@@ -42,6 +42,46 @@ public sealed class DeathDisplaySelectionTests
     }
 
     [Fact]
+    public void GetLeadUpShieldCheckpointsReturnsShieldOnlyLossesAndGains()
+    {
+        var deathAtUtc = new DateTime(2026, 8, 4, 10, 0, 0, DateTimeKind.Utc);
+        var shieldLoss = CreateDamageEvent(deathAtUtc.AddSeconds(-2), 0, 1) with
+        {
+            CurrentHp = 150_537,
+            ShieldHp = 72_476,
+            ResultSeenAtUtc = deathAtUtc.AddSeconds(-1.3),
+            ResultCurrentHp = 150_537,
+            ResultShieldHp = 0,
+            ResultMaxHp = 226_488,
+        };
+        var hpChange = shieldLoss with
+        {
+            EventIdentity = "hp-change",
+            EventOrdinal = 2,
+            ResultCurrentHp = 140_000,
+        };
+        var shieldGain = shieldLoss with
+        {
+            EventIdentity = "shield-gain",
+            EventOrdinal = 3,
+            ResultShieldHp = 80_000,
+        };
+        var visibleDamage = CreateDamageEvent(deathAtUtc.AddSeconds(-1), 20_000, 4);
+        var death = CreateDeath(
+            deathAtUtc,
+            [shieldLoss, hpChange, shieldGain, visibleDamage],
+            []);
+
+        var checkpoints = DeathDisplaySelector.GetLeadUpShieldCheckpoints(death, 30);
+
+        Assert.Equal(
+            [shieldLoss.EventIdentity, shieldGain.EventIdentity],
+            checkpoints.Select(combatEvent => combatEvent.EventIdentity));
+        Assert.DoesNotContain(shieldLoss, DeathDisplaySelector.GetLeadUpEvents(death, 30));
+        Assert.DoesNotContain(shieldGain, DeathDisplaySelector.GetLeadUpEvents(death, 30));
+    }
+
+    [Fact]
     public void SelectUsesHpSnapshotAtThirtySecondBoundary()
     {
         var deathAtUtc = new DateTime(2026, 7, 31, 12, 0, 0, DateTimeKind.Utc);
@@ -145,6 +185,69 @@ public sealed class DeathDisplaySelectionTests
         Assert.Equal(230_018UL, fatalGroup.Amount);
         Assert.Equal(226_488u, selection.Snapshot?.CurrentHp);
         Assert.Equal(3_530UL, fatalGroup.Amount - selection.Snapshot!.CurrentHp);
+    }
+
+    [Fact]
+    public void SelectIncludesMultiSourceAtomicDamageWave()
+    {
+        var burstAtUtc = new DateTime(2026, 8, 4, 10, 0, 9, DateTimeKind.Utc);
+        var damageAmounts = new uint[] { 30_724, 33_146, 33_270, 33_441, 31_856 };
+        var recentEvents = damageAmounts
+            .Select((amount, index) => CreateDamageEvent(
+                burstAtUtc.AddMilliseconds(index * 7),
+                amount,
+                (uint)(index + 1)) with
+            {
+                SourceEntityId = (uint)(0x4000_0100 + index),
+                ActionSequence = (uint)(8_869 + index),
+                CurrentHp = 150_537,
+                ShieldHp = 72_476,
+                ResultSeenAtUtc = index == damageAmounts.Length - 1
+                    ? burstAtUtc.AddSeconds(1)
+                    : null,
+                ResultCurrentHp = 0,
+                ResultShieldHp = 0,
+                ResultMaxHp = index == damageAmounts.Length - 1 ? 226_488u : 0,
+            })
+            .ToList();
+        var lastAlive = new HpHistorySnapshot(
+            burstAtUtc.AddMilliseconds(700),
+            519.7f,
+            150_537,
+            0,
+            226_488,
+            []);
+        var death = new PartyDeathRecord(
+            burstAtUtc.AddSeconds(1),
+            520.0f,
+            "nai-la",
+            "Nai La",
+            3,
+            23,
+            "BRD",
+            0,
+            0,
+            226_488,
+            recentEvents[^1],
+            recentEvents,
+            [lastAlive],
+            [])
+        {
+            FatalSequence = new FatalSequenceRecord(
+                burstAtUtc.AddMilliseconds(-750),
+                burstAtUtc.AddMilliseconds(1_500),
+                lastAlive,
+                recentEvents,
+                []),
+        };
+
+        var selection = DeathDisplaySelector.Select(death);
+        var fatalGroup = Assert.Single(selection.FatalEvents);
+
+        Assert.Equal(162_437UL, fatalGroup.Amount);
+        Assert.Equal(150_537u, selection.Snapshot?.CurrentHp);
+        Assert.Equal(72_476u, selection.Snapshot?.ShieldHp);
+        Assert.Equal(11_900UL, fatalGroup.Amount - selection.Snapshot!.CurrentHp);
     }
 
     private static CombatEventRecord CreateDamageEvent(DateTime seenAtUtc, uint amount, uint ordinal)

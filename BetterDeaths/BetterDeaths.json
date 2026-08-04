@@ -5,7 +5,7 @@
   "DownloadCount": 4872,
   "Punchline": "A clearer party death review.",
   "Description": "Records party deaths with pull grouping, fatal events, active statuses, and recent action timelines.",
-  "Changelog": "Added active player debuffs and new Active Effects modes to Death Replay. Added 10-second, 30-second, and 1-minute Review timelines plus Heals and Timers controls. Improved timeline HP bars, redesigned Customize, reorganized Options, moved Fun Mode into the header, improved unsupported replay framing, and made Better Deaths start closed.",
+  "Changelog": "Fixed Review timeline HP for rapid multi-hit attacks, delayed HP and shield updates, and stale snapshots. Hits with missing result data now show clear before-and-after HP bars, and healing rows only appear when their HP change can be confirmed.",
   "RepoUrl": "https://github.com/Nainaiowo/better-deaths",
   "IconUrl": "https://raw.githubusercontent.com/Nainaiowo/better-deaths/main/assets/icon.png",
   "ApplicableVersion": "any",
