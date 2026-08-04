@@ -123,7 +123,7 @@ public sealed class RecapWindow : Window, IDisposable
     private const string LikelyAutoAttackTooltip = "Possible auto attack. Better Deaths could not resolve a named action here; named spells and abilities usually show their action name.";
     private const string AutoActionDisplayName = "Auto";
     private const uint AllRecordedPullDuties = uint.MaxValue;
-    private const string CurrentChangelogVersion = "0.1.0.281";
+    private const string CurrentChangelogVersion = "0.1.0.282";
     private const string FeedbackDiscordUrl = "https://discord.com/invite/Zzrcc8kmvy";
     private const string FeedbackConfirmPopupId = "Open Punish Discord?##BetterDeathsFeedbackConfirm";
     private const string KofiUrl = "https://ko-fi.com/nainaiowo";
@@ -19601,6 +19601,16 @@ public sealed class RecapWindow : Window, IDisposable
 
     private static void DrawChangelogTab()
     {
+        ImGui.TextUnformatted("v0.1.0.282");
+        ImGui.TextDisabled("Stable update.");
+        DrawHighlightedChangelogBullet("Fixed Review timeline HP becoming misaligned during rapid multi-hit attacks.");
+        DrawHighlightedChangelogBullet("Fixed delayed snapshots causing old HP or shield values to reappear.");
+        DrawWrappedBullet("Improved shield tracking without adding misleading zero-damage rows.");
+        DrawWrappedBullet("Hits with missing result data now show clear before-and-after HP bars.");
+        DrawWrappedBullet("Healing rows now appear only when the HP increase can be confirmed.");
+
+        ImGui.Separator();
+
         ImGui.TextUnformatted("v0.1.0.281");
         ImGui.TextDisabled("Testing update.");
         DrawHighlightedChangelogBullet("Fixed rapid multi-hit attacks so their combined damage and resulting HP remain aligned with the death.");
