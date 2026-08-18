@@ -11,7 +11,7 @@ using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
 
-internal sealed class AnalyzerWindow : Window, IDisposable, IAnalyzerWorkspaceNavigation
+internal sealed class AnalyzerWindow : Window, IAnalyzerWorkspaceNavigation
 {
     private const int PullQueryLimit = 100;
     private const float PullBrowserMinWidth = 220.0f;
@@ -22,7 +22,6 @@ internal sealed class AnalyzerWindow : Window, IDisposable, IAnalyzerWorkspaceNa
     private readonly AnalyzerWorkspaceDataController dataController;
     private readonly AnalyzerWorkspaceSelection selection = new();
     private readonly IReadOnlyList<IAnalyzerWorkspacePanel> panels = AnalyzerWorkspacePanelCatalog.CreateDefault();
-    private readonly CancellationTokenSource lifetimeCts = new();
 
     private IReadOnlyList<PullSummary> pullSummaries = Array.Empty<PullSummary>();
     private AnalyzerWorkspaceLoadedPull? loadedPull;
@@ -44,17 +43,6 @@ internal sealed class AnalyzerWindow : Window, IDisposable, IAnalyzerWorkspaceNa
         dataController = AnalyzerWorkspaceDataController.CreateDefault(pullStore);
         Size = new Vector2(1200.0f, 700.0f);
         SizeCondition = ImGuiCond.FirstUseEver;
-    }
-
-    public void Dispose()
-    {
-        lifetimeCts.Cancel();
-        lock (stateLock)
-        {
-            activePullLoadCts?.Cancel();
-        }
-
-        lifetimeCts.Dispose();
     }
 
     public override void Draw()
@@ -92,7 +80,10 @@ internal sealed class AnalyzerWindow : Window, IDisposable, IAnalyzerWorkspaceNa
                 }
                 break;
             case AnalyzerWorkspaceNavigationTarget.LegacyReplay:
-                if (!recapWindow.FocusLatestReplay())
+                // The existing replay targeting API is private and death-centric. M4 keeps the
+                // bridge additive: open the latest legacy pull review and let the existing UI own
+                // replay navigation until that renderer is extracted behind a public bridge.
+                if (!recapWindow.FocusLatestPull())
                 {
                     recapWindow.IsOpen = true;
                 }
@@ -225,11 +216,11 @@ internal sealed class AnalyzerWindow : Window, IDisposable, IAnalyzerWorkspaceNa
             try
             {
                 var summaries = await dataController
-                    .QueryPullsAsync(PullQueryLimit, lifetimeCts.Token)
+                    .QueryPullsAsync(PullQueryLimit)
                     .ConfigureAwait(false);
                 lock (stateLock)
                 {
-                    if (generation != summaryLoadGeneration || lifetimeCts.IsCancellationRequested)
+                    if (generation != summaryLoadGeneration)
                     {
                         return;
                     }
@@ -237,9 +228,6 @@ internal sealed class AnalyzerWindow : Window, IDisposable, IAnalyzerWorkspaceNa
                     pullSummaries = summaries;
                     summariesLoading = false;
                 }
-            }
-            catch (OperationCanceledException) when (lifetimeCts.IsCancellationRequested)
-            {
             }
             catch (Exception exception)
             {
@@ -264,7 +252,7 @@ internal sealed class AnalyzerWindow : Window, IDisposable, IAnalyzerWorkspaceNa
         lock (stateLock)
         {
             activePullLoadCts?.Cancel();
-            requestCts = CancellationTokenSource.CreateLinkedTokenSource(lifetimeCts.Token);
+            requestCts = new CancellationTokenSource();
             activePullLoadCts = requestCts;
             generation = ++pullLoadGeneration;
             pullLoading = true;
