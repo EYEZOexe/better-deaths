@@ -20,7 +20,6 @@ using FFXIVClientStructs.FFXIV.Client.Game.Object;
 using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using FFXIVClientStructs.FFXIV.Client.System.String;
 using FFXIVClientStructs.FFXIV.Client.UI;
-using FFXIVClientStructs.FFXIV.Client.UI.Shell;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 using Lumina.Excel.Sheets;
 using System;
@@ -314,8 +313,7 @@ public sealed partial class Plugin
             ActorControlLoseEffectCategory or
             ActorControlUpdateEffectCategory or
             ActorControlTargetIconCategory or
-            ActorControlHotCategory or
-            ActorControlDotCategory;
+            ActorControlHotCategory or ActorControlDotCategory;
         var sourceEntityId = category is ActorControlHotCategory or ActorControlDotCategory
             ? NormalizeActorEntityId(param3)
             : 0;
@@ -732,6 +730,7 @@ public sealed partial class Plugin
         actionPackets.Sort(static (left, right) => left.Sequence.CompareTo(right.Sequence));
         foreach (var packet in actionPackets)
         {
+            CaptureFullPullActionEffects(packet);
             AddActionEffectReplayPoseSamples(packet);
             ResolveRawActionEffectPacket(packet);
         }
