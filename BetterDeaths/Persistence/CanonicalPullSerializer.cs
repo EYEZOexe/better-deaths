@@ -5,6 +5,14 @@ using System;
 using System.IO;
 using System.Text.Json;
 
+internal sealed class CanonicalPullCompatibilityException : InvalidDataException
+{
+    public CanonicalPullCompatibilityException(string message)
+        : base(message)
+    {
+    }
+}
+
 internal static class CanonicalPullSerializer
 {
     public const int CurrentFileSchemaVersion = 1;
@@ -47,7 +55,7 @@ internal static class CanonicalPullSerializer
 
         if (envelope.FileSchemaVersion != CurrentFileSchemaVersion)
         {
-            throw new InvalidDataException(
+            throw new CanonicalPullCompatibilityException(
                 $"Unsupported canonical pull file schema {envelope.FileSchemaVersion}; expected {CurrentFileSchemaVersion}.");
         }
 
@@ -64,7 +72,7 @@ internal static class CanonicalPullSerializer
     {
         if (pull.SchemaVersion.Value != CurrentPullSchemaVersion)
         {
-            throw new InvalidDataException(
+            throw new CanonicalPullCompatibilityException(
                 $"Unsupported canonical pull schema {pull.SchemaVersion.Value}; expected {CurrentPullSchemaVersion}.");
         }
     }
