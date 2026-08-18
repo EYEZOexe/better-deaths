@@ -20,7 +20,7 @@ Encounter knowledge/reference repository: `EYEZOexe/wtfdig`
 
 **Status:** `BLOCKED`
 
-**Blocker:** M0-A through M0-D are implemented, statically reviewed, and merged. The mandatory build/test/format gate is not yet verified: the repository contains a CI workflow, but no workflow runs or commit statuses are currently surfaced for the M0 PR/main commits through the available GitHub integration. The local execution environment also does not contain the .NET SDK/Dalamud toolchain. M1 remains unauthorized until executable validation evidence is available.
+**Blocker:** M0-A through M0-D are implemented, statically reviewed, and merged. The mandatory build/test/format gate is not yet verified. GitHub Actions has now been enabled on the fork and this validation branch/PR exists specifically to execute the repository CI against the complete combined M0 state. M1 remains unauthorized until that run is green.
 
 **Purpose**
 
@@ -47,7 +47,7 @@ Lock down the current Better Deaths behavior that later M1/M2 changes must prese
 - Legacy normalization/loading currently filters entries to positive death counts; zero-death pull support therefore requires an intentional later migration rather than only changing finalization.
 - Current saved-pull schema constants are history version 3 and split-index version 7.
 - `LeadUpTimingPolicy` currently defines 10/30/60 second display choices, 70 seconds capture history, 75 seconds live retention, and a 10 second late-fatal-cause lookback.
-- The repository CI workflow is configured for .NET 10 restore, formatting verification, tests, Dalamud download, and plugin build; executable run evidence for the M0 commits is currently unavailable through the integration.
+- The repository CI workflow is configured for .NET 10 restore, formatting verification, tests, Dalamud download, and plugin build.
 
 ## Work packages
 
@@ -131,7 +131,7 @@ Lock down the current Better Deaths behavior that later M1/M2 changes must prese
 
 **Remaining sign-off gate**
 
-Obtain executable evidence that the combined `main` state passes the repository's formatting, unit-test, and plugin-build workflow. Until that evidence exists, M0 is not `APPROVED` and M1 must not begin.
+Obtain executable evidence that the combined `main` state passes the repository's formatting, unit-test, and plugin-build workflow. GitHub Actions is now enabled and the `analyzer/m0-ci-validation` PR is the verification run. Until that evidence is green, M0 is not `APPROVED` and M1 must not begin.
 
 ## Baseline contracts M1/M2 must preserve or intentionally replace
 
@@ -182,7 +182,7 @@ Do not port these during M0. When M8 begins, record exact upstream path + commit
 | 2026-08-18 | M0-C PR #9 | Implementation + lead diff review | APPROVED | Replay persistence round-trip fixture; merged as `fe803523d0fd207b6508c4c7440449cc37ee6d33`. |
 | 2026-08-18 | M0-A PR #10 | Implementation + lead diff review | APPROVED | Minimal lifecycle policy seam/tests; unrelated import churn caught and removed; merged as `79709671cb260b394c5fad790e883f9cf3e2e61a`. |
 | 2026-08-18 | M0-B PR #11 | Implementation + lead diff review | APPROVED | Persistence contracts/docs with explicit direct-test limitation; merged as `22ead99dcd44f3dfa4a36fca1f32604c70e0abef`. |
-| 2026-08-18 | M0-E | Lead integrator | BLOCKED | Static integration review complete; executable CI/build/test evidence is unavailable, therefore M0 cannot be signed off yet. |
+| 2026-08-18 | M0-E | Lead integrator | BLOCKED | Static integration review complete; Actions now enabled; awaiting validation PR CI evidence. |
 
 ## Agent return format
 
