@@ -41,15 +41,14 @@ internal sealed class AnalyzerReplayPanel : IAnalyzerWorkspacePanel
         ImGui.Separator();
         ImGui.TextWrapped("This M4 shell shares pull/actor/time selection with Timeline and Deaths. The existing Better Deaths replay remains the detailed renderer until it is incrementally bridged into the analyzer workspace.");
 
-        if (ImGui.Button("Open legacy replay review"))
+        if (ImGui.Button("Open legacy pull review"))
         {
             context.Navigation?.Request(AnalyzerWorkspaceNavigationTarget.LegacyReplay);
         }
 
-        if (context.Navigation is null)
-        {
-            ImGui.TextDisabled("Legacy replay navigation will be connected by AnalyzerWindow in M4-C.");
-        }
+        ImGui.TextDisabled(context.Navigation is null
+            ? "Legacy review navigation will be connected by AnalyzerWindow in M4-C."
+            : "Use the existing Replay page from the legacy pull review; direct replay targeting remains intentionally private for now.");
     }
 
     private static string FormatRange(TimeRange range)
