@@ -26,14 +26,13 @@ internal sealed class AnalyzerDeathsPanel : IAnalyzerWorkspacePanel
         ImGui.TextDisabled("Causal death analysis remains a later M5 analyzer; this panel only navigates recorded evidence.");
         ImGui.Separator();
 
-        var deaths = pull.Events.OfType<DeathEvent>().ToArray();
-        if (deaths.Length == 0)
+        if (context.DeathEvents.Count == 0)
         {
             ImGui.TextDisabled("No canonical deaths were recorded for this pull.");
         }
         else
         {
-            foreach (var death in deaths)
+            foreach (var death in context.DeathEvents)
             {
                 var actorName = ResolveActorName(pull, death.TargetActorId);
                 var selected = Contains(context.Selection.SelectedTimeRange, death.PullTime);
