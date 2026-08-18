@@ -114,10 +114,8 @@ internal sealed class FileCanonicalPullStore : IPullStore, IDisposable
             DeleteIfExists(GetDetailPath(id) + TempSuffix);
 
             var summaries = (await LoadIndexWithRecoveryAsync(cancellationToken).ConfigureAwait(false)).ToList();
-            if (summaries.RemoveAll(summary => summary.Id == id) > 0)
-            {
-                await SaveIndexAsync(summaries, cancellationToken).ConfigureAwait(false);
-            }
+            summaries.RemoveAll(summary => summary.Id == id);
+            await SaveIndexAsync(summaries, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -175,9 +173,15 @@ internal sealed class FileCanonicalPullStore : IPullStore, IDisposable
         {
             var json = await File.ReadAllTextAsync(path, cancellationToken).ConfigureAwait(false);
             var envelope = JsonSerializer.Deserialize<CanonicalPullIndexEnvelope>(json);
-            if (envelope is null || envelope.SchemaVersion != CurrentIndexSchemaVersion || envelope.Pulls is null)
+            if (envelope is null || envelope.Pulls is null)
             {
                 return null;
+            }
+
+            if (envelope.SchemaVersion != CurrentIndexSchemaVersion)
+            {
+                throw new CanonicalPullCompatibilityException(
+                    $"Unsupported canonical pull index schema {envelope.SchemaVersion}; expected {CurrentIndexSchemaVersion}.");
             }
 
             return envelope.Pulls;
@@ -231,6 +235,10 @@ internal sealed class FileCanonicalPullStore : IPullStore, IDisposable
             return expectedId is null || pull.Id == expectedId.Value
                 ? pull
                 : null;
+        }
+        catch (CanonicalPullCompatibilityException)
+        {
+            throw;
         }
         catch (InvalidDataException)
         {
