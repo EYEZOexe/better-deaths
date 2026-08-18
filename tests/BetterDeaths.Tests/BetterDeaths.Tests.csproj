@@ -26,6 +26,7 @@
     <Compile Include="../../BetterDeaths/LeadUpHpTimelinePolicy.cs" Link="LeadUpHpTimelinePolicy.cs" />
     <Compile Include="../../BetterDeaths/LeadUpTimingPolicy.cs" Link="LeadUpTimingPolicy.cs" />
     <Compile Include="../../BetterDeaths/Models.cs" Link="Models.cs" />
+    <Compile Include="../../BetterDeaths/Persistence/**/*.cs" LinkBase="Persistence" />
     <Compile Include="../../BetterDeaths/PullLifecyclePolicy.cs" Link="PullLifecyclePolicy.cs" />
     <Compile Include="../../BetterDeaths/RecordedPullLookup.cs" Link="RecordedPullLookup.cs" />
     <Compile Include="../../BetterDeaths/ReplayBoundsInference.cs" Link="ReplayBoundsInference.cs" />
