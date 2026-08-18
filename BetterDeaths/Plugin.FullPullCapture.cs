@@ -5,6 +5,7 @@ using BetterDeaths.Domain;
 using BetterDeaths.Persistence;
 using Dalamud.Game.ClientState.Objects.SubKinds;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -15,6 +16,7 @@ public sealed partial class Plugin
     private const string CanonicalPullStorageDirectoryName = "analyzer-pulls";
 
     private readonly FullPullRecorder fullPullRecorder = new();
+    private readonly LiveSnapshotDeltaTracker fullPullSnapshotDeltaTracker = new();
     private readonly object canonicalPullSaveLock = new();
 
     private DalamudLiveEventNormalizer? fullPullNormalizer;
@@ -32,6 +34,7 @@ public sealed partial class Plugin
         var startedAt = ToDateTimeOffset(startedAtUtc);
         var territoryId = currentPullTerritoryId == 0 ? currentTerritoryId : currentPullTerritoryId;
         var territoryName = currentPullTerritoryId == 0 ? currentTerritoryName : currentPullTerritoryName;
+        fullPullSnapshotDeltaTracker.Reset();
         fullPullRecorder.Begin(new PullStartContext
         {
             PullId = pullId,
@@ -83,6 +86,7 @@ public sealed partial class Plugin
         }
 
         var source = CreateFullPullActorReference(packet.CasterEntityId, packet.CasterName, ActorKind.Enemy);
+        CaptureFullPullStatusSnapshot(packet.SeenAtUtc, source, packet.SourceSnapshot);
         var actionUseCaptured = false;
         foreach (var target in packet.Targets)
         {
@@ -91,6 +95,7 @@ public sealed partial class Plugin
                 targetEntityId,
                 targetEntityId == 0 ? null : GetEntityDisplayName(targetEntityId),
                 ActorKind.Enemy);
+            CaptureFullPullStatusSnapshot(packet.SeenAtUtc, targetActor, target.TargetSnapshot);
 
             foreach (var effect in target.Effects)
             {
@@ -157,6 +162,59 @@ public sealed partial class Plugin
                 Rotation = pose.Rotation,
                 Fidelity = CaptureFidelity.Sampled,
             });
+
+            var targetability = fullPullSnapshotDeltaTracker.ObserveTargetability(
+                ToDateTimeOffset(pose.SeenAtUtc),
+                actor,
+                pose.IsTargetable);
+            if (targetability is not null)
+            {
+                TryAppendFullPullFact(targetability);
+            }
+        }
+    }
+
+    private void CaptureFullPullStatusSnapshot(
+        DateTime seenAtUtc,
+        LiveActorReference? target,
+        RawCombatSnapshot? snapshot)
+    {
+        if (fullPullNormalizer is null || target is null || snapshot is null)
+        {
+            return;
+        }
+
+        var observedStatuses = new List<LiveObservedStatus>(snapshot.Statuses.Count);
+        foreach (var status in snapshot.Statuses)
+        {
+            if (status.StatusId == 0)
+            {
+                continue;
+            }
+
+            var source = status.SourceId == 0
+                ? null
+                : CreateFullPullActorReference(
+                    status.SourceId,
+                    GetEntityDisplayName(status.SourceId),
+                    ActorKind.Enemy);
+            observedStatuses.Add(new LiveObservedStatus
+            {
+                Source = source,
+                StatusId = status.StatusId,
+                Stacks = status.StackCount,
+                RemainingDuration = status.RemainingTime > 0.0f
+                    ? TimeSpan.FromSeconds(status.RemainingTime)
+                    : null,
+            });
+        }
+
+        foreach (var fact in fullPullSnapshotDeltaTracker.ObserveStatuses(
+                     ToDateTimeOffset(seenAtUtc),
+                     target,
+                     observedStatuses))
+        {
+            TryAppendFullPullFact(fact);
         }
     }
 
@@ -217,6 +275,7 @@ public sealed partial class Plugin
     {
         fullPullRecorder.Reset();
         fullPullNormalizer = null;
+        fullPullSnapshotDeltaTracker.Reset();
     }
 
     private void QueueCanonicalPullSave(RecordedPull pull)
@@ -356,6 +415,16 @@ public sealed partial class Plugin
     }
 
     private void TryAppendFullPullFact(LivePositionFact fact)
+    {
+        TryAppendFullPull(() => fullPullNormalizer?.Append(fact));
+    }
+
+    private void TryAppendFullPullFact(LiveStatusFact fact)
+    {
+        TryAppendFullPull(() => fullPullNormalizer?.Append(fact));
+    }
+
+    private void TryAppendFullPullFact(LiveTargetabilityFact fact)
     {
         TryAppendFullPull(() => fullPullNormalizer?.Append(fact));
     }
