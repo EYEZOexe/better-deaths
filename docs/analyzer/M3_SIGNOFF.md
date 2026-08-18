@@ -5,13 +5,15 @@ Governing design: Technical Design v0.2
 Parent issue: #32
 Integration issue: #36
 
-## Current decision
+## Decision
 
-M3 is **READY FOR REVIEW** pending the CI run for this corrected combined-state branch.
+M3 is **APPROVED**.
 
-The earlier M3 sign-off was merged prematurely while implementation PRs #38 and #39 were still open. That bookkeeping error was discovered before continuing M4-B. Issues #32 and #36 were reopened, the missing implementation work was independently reviewed, defects were fixed, both PRs were actually merged, and this file now records the real sequence and evidence.
+The corrected combined-state CI run `32175231795` passed restore, formatting, all automated tests, and plugin/package build with M3-A, M3-B, and M3-C simultaneously present.
 
-M4-A had already landed during the inconsistent ledger state. It is limited to pure shared workspace selection state and does not depend on unfinished analyzer behavior, so it remains. No M4-B or later implementation is authorized until this corrected M3 sign-off passes fresh combined-state CI.
+The earlier M3 sign-off was merged prematurely while implementation PRs #38 and #39 were still open. That bookkeeping error was discovered before continuing M4-B. Issues #32 and #36 were reopened, the missing implementation work was independently reviewed, defects were fixed, both PRs were actually merged, and this corrected sign-off revalidated the real combined repository state before authorizing further workspace work.
+
+M4-A had already landed during the inconsistent ledger state. It is limited to pure shared workspace selection state and does not depend on unfinished analyzer behavior, so it remains. M4-B may resume after this corrected sign-off change is merged.
 
 ## M3-A — Canonical indexes
 
@@ -44,7 +46,7 @@ Implemented:
 
 The initial PR mutated the global `AnalysisResultId` reservation set while validating a module. If a later result from that same module conflicted, the module failed but IDs from its earlier uncommitted results remained reserved, allowing a failed analyzer to poison independent analyzers executed later.
 
-The final implementation now validates the complete buffered module result set against committed global IDs first and only reserves those IDs after validation succeeds. Existing coverage proving that a failed module does not reserve otherwise-valid result IDs now matches the implementation contract.
+The final implementation validates the complete buffered module result set against committed global IDs first and only reserves those IDs after validation succeeds. Existing coverage proving that a failed module does not reserve otherwise-valid result IDs now matches the implementation contract.
 
 ## M3-C — First generic analyzer / golden fixture
 
@@ -63,7 +65,7 @@ Implemented:
 
 ### Lead-review defect caught and fixed
 
-The original golden fixture hard-coded two expected result GUIDs that did not match the actual `StableAnalysisResultIdentity` algorithm. The fixture now derives expected IDs through the same public analysis identity contract and independently verifies repeated runs produce identical structured serialization. This tests determinism without encoding incorrect hand-calculated constants.
+The original golden fixture hard-coded two expected result GUIDs that did not match the actual `StableAnalysisResultIdentity` algorithm. The fixture now derives expected IDs through the analysis identity contract and independently verifies repeated runs produce identical structured serialization. This tests determinism without encoding incorrect hand-calculated constants.
 
 ## Combined architecture review
 
@@ -77,9 +79,9 @@ The original golden fixture hard-coded two expected result GUIDs that did not ma
 - [x] The first generic analyzer emits structured evidence tied to stable canonical event/actor/time identities.
 - [x] Analyzer contracts/modules remain free of Dalamud services, ImGui, FFLogs DTO/client types, network clients, and persistence implementations.
 - [x] No M4 workspace rendering, M5 broad analysis, M6 FFLogs, M7 job analyzer, or M8 encounter/WTFDiG implementation leaked into M3.
-- [x] M3-A, M3-B, and M3-C are now actually merged on `main`.
-- [ ] This corrected combined-state branch must pass repository CI before final approval.
+- [x] M3-A, M3-B, and M3-C are actually merged on `main`.
+- [x] Corrected combined-state CI run `32175231795` passed restore, formatting, tests, and plugin/package build.
 
-## Final gate
+## M4 authorization
 
-The correction PR must pass restore, formatting, all automated tests, and plugin/package build with M3-A/B/C simultaneously present. Only then may this status become **APPROVED**, #32/#36 be reclosed, and M4-B resume.
+M3 is now truthfully complete. Once this correction PR is merged, issues #32/#36 may be reclosed and M4-B — focused analyzer workspace panel contracts/shells — is authorized.
