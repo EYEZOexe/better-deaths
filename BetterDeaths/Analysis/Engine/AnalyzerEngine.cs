@@ -100,16 +100,19 @@ internal sealed class AnalyzerEngine
                 await module.AnalyzeAsync(context, moduleSink, cancellationToken).ConfigureAwait(false);
                 cancellationToken.ThrowIfCancellationRequested();
 
-                foreach (var result in moduleSink.Results)
+                var committed = moduleSink.Results.ToArray();
+                var duplicateResult = committed.FirstOrDefault(result => resultIds.Contains(result.Id));
+                if (duplicateResult is not null)
                 {
-                    if (!resultIds.Add(result.Id))
-                    {
-                        throw new InvalidOperationException(
-                            $"Analysis result ID '{result.Id.Value}' was emitted more than once in one analysis run.");
-                    }
+                    throw new InvalidOperationException(
+                        $"Analysis result ID '{duplicateResult.Id.Value}' was emitted more than once in one analysis run.");
                 }
 
-                var committed = moduleSink.Results.ToArray();
+                foreach (var result in committed)
+                {
+                    resultIds.Add(result.Id);
+                }
+
                 resultsByAnalyzer[module.Id] = committed;
                 allResults.AddRange(committed);
                 successfulModules.Add(module.Id);
