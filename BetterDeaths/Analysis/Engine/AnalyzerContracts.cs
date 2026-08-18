@@ -37,6 +37,10 @@ internal sealed record AnalyzerContext
 
     public required ActorIndex Actors { get; init; }
 
+    public required TargetabilityIndex Targetability { get; init; }
+
+    public required StatusIntervalIndex Statuses { get; init; }
+
     public required AnalysisConfiguration Configuration { get; init; }
 
     public required IAnalysisDependencyResults DependencyResults { get; init; }

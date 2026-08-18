@@ -29,6 +29,8 @@ internal sealed class AnalyzerEngine
         var orderedModules = DependencyResolver.Resolve(registry.Modules);
         var eventIndex = new EventIndex(pull.Events);
         var actorIndex = new ActorIndex(pull.Actors);
+        var targetabilityIndex = new TargetabilityIndex(eventIndex, pull.Metadata.Duration);
+        var statusIntervalIndex = new StatusIntervalIndex(eventIndex, pull.Metadata.Duration);
         var resolvedConfiguration = configuration ?? AnalysisConfiguration.Default;
         var allResults = new List<AnalysisResult>();
         var failures = new List<AnalyzerModuleFailure>();
@@ -62,6 +64,8 @@ internal sealed class AnalyzerEngine
                 Pull = pull,
                 Events = eventIndex,
                 Actors = actorIndex,
+                Targetability = targetabilityIndex,
+                Statuses = statusIntervalIndex,
                 Configuration = resolvedConfiguration,
                 DependencyResults = dependencyResults,
             };
