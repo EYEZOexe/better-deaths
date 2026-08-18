@@ -5,9 +5,11 @@ Governing design: Technical Design v0.2
 Parent issue: #41
 Integration issue: #45
 
-## Status
+## Decision
 
-M4 is **READY FOR REVIEW** pending this combined-state sign-off branch CI.
+M4 is **APPROVED**.
+
+Combined-state CI run `32178240346` passed restore, formatting, all automated tests, and plugin/package build with M4-A, M4-B, and M4-C simultaneously present.
 
 M4 establishes the analyzer workspace shell and shared navigation state without pulling the broad M5 analysis suite, FFLogs, job analysis, or encounter/WTFDiG logic forward.
 
@@ -72,12 +74,12 @@ An early M4-C implementation attempted to call a direct legacy replay helper tha
 - [x] Renderers do not depend directly on `FileCanonicalPullStore`; UI uses the `IPullStore` boundary through the controller/composition root.
 - [x] M4 contains no broad M5 generic-analysis suite, FFLogs client/UI, job analyzer, or encounter/WTFDiG pack.
 - [x] M4-A/B/C are merged on `main`.
-- [ ] This M4-D combined-state branch must pass restore, format, tests, and plugin/package build before final approval.
+- [x] M4-D combined-state CI `32178240346` passed restore, formatting, tests, and plugin/package build.
 
 ## Runtime validation note
 
 GitHub Actions cannot launch FFXIV/Dalamud. In-game confirmation that the launcher opens the workspace, canonical pulls populate, panel switching renders correctly, and legacy review navigation behaves as expected remains a manual UI smoke item. This does not replace the automated architecture/build gate and is not claimed as executed evidence.
 
-## Exit gate
+## M5 authorization
 
-If this sign-off branch CI is green, M4 becomes **APPROVED**, issues #41/#45 may close, and M5 — Generic Hardcore Analysis — becomes authorized.
+M4 is complete. Once this sign-off PR is merged, issues #41/#45 may close and M5 — Generic Hardcore Analysis — is authorized.
