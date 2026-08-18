@@ -61,7 +61,7 @@ internal sealed class HealingActivityAnalyzer : IAnalyzerModule
             var actors = sourceActorId is { } source
                 ? targetActors.Prepend(source).Distinct().ToArray()
                 : targetActors;
-            var totalRawHealing = events.Aggregate<HealEvent, ulong>(0, (total, evt) => total + evt.Amount);
+            var totalRawHealing = events.Aggregate<HealEvent, decimal>(0m, (total, evt) => total + evt.Amount);
             var confidence = events.Min(evt => Math.Clamp(evt.Provenance.Confidence, 0.0f, 1.0f));
             var resultId = sourceActorId is { } knownSource
                 ? StableAnalysisResultIdentity.ForActorWindow(
@@ -105,7 +105,7 @@ internal sealed class HealingActivityAnalyzer : IAnalyzerModule
                 Metrics = new Dictionary<string, double>
                 {
                     ["healEventCount"] = events.Length,
-                    ["rawHealingAmount"] = totalRawHealing,
+                    ["rawHealingAmount"] = (double)totalRawHealing,
                     ["uniqueTargetCount"] = targetActors.Length,
                     ["distinctActionCount"] = events.Select(evt => evt.ActionId).Distinct().Count(),
                     ["effectiveHealingKnown"] = 0,
