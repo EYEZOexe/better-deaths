@@ -14,6 +14,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="../../BetterDeaths/Analysis/**/*.cs" LinkBase="Analysis" />
     <Compile Include="../../BetterDeaths/Capture/FullPull/**/*.cs" LinkBase="Capture/FullPull" />
     <Compile Include="../../BetterDeaths/CaptureTimingPolicy.cs" Link="CaptureTimingPolicy.cs" />
     <Compile Include="../../BetterDeaths/CustomizeLayoutPolicy.cs" Link="CustomizeLayoutPolicy.cs" />
