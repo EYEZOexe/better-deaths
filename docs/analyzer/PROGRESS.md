@@ -18,13 +18,13 @@ Encounter knowledge/reference repository: `EYEZOexe/wtfdig`
 
 ### M0 — Baseline and characterization
 
-**Status:** `BLOCKED`
+**Status:** `APPROVED`
 
-**Blocker:** M0-A through M0-D are implemented, statically reviewed, and merged. The mandatory build/test/format gate is not yet verified. GitHub Actions has now been enabled on the fork and this validation branch/PR exists specifically to execute the repository CI against the complete combined M0 state. M1 remains unauthorized until that run is green.
+M0-A through M0-D are implemented, reviewed, and merged. The combined M0 state was validated by GitHub Actions run `32142414713` (attempt 4 after the account billing lock was cleared): checkout, .NET setup, Dalamud download, restore, formatting verification, unit tests, and plugin build all completed successfully.
 
 **Purpose**
 
-Lock down the current Better Deaths behavior that later M1/M2 changes must preserve or intentionally replace. No new analyzer architecture belongs in M0.
+Lock down the current Better Deaths behavior that later M1/M2 changes must preserve or intentionally replace. M0 adds no new analyzer product behavior.
 
 **Required characterization surface**
 
@@ -33,21 +33,20 @@ Lock down the current Better Deaths behavior that later M1/M2 changes must prese
 - [x] Saved pull serialization/loading and current schema/version assumptions.
 - [x] Replay data survives saved-pull round trip.
 - [x] `LeadUpTimingPolicy` retention/display behavior.
-- [ ] Existing test suite verified green after the combined M0 changes.
-- [ ] Plugin build/format checks verified green after the combined M0 changes.
+- [x] Existing test suite verified green after the combined M0 changes.
+- [x] Plugin build/format checks verified green after the combined M0 changes.
 - [x] Concise implementation notes record the exact preserved/current behavior.
 
 **Observed baseline facts from repository inspection**
 
 - `ArchiveCurrentPullForReview` persists only when `currentDeaths.Count > 0`; a started pull without deaths is reset rather than archived.
-- `CaptureCurrentPullSnapshot` explicitly refuses capture if the snapshot was already captured or the current death list is empty.
-- Existing snapshots already contain substantial replay context: positions, markers, mechanics, world markers, mitigation, and debuffs.
-- The current root persisted detail type is `PullDeathSnapshot`, confirming the death-centric storage boundary M2 must eventually replace/add alongside.
-- Recorded pull storage already uses an index + detail-file model with backup/temp recovery and background saving, so M2 should build on this behavior rather than replacing persistence wholesale.
-- Legacy normalization/loading currently filters entries to positive death counts; zero-death pull support therefore requires an intentional later migration rather than only changing finalization.
+- `CaptureCurrentPullSnapshot` refuses capture if the snapshot was already captured or the current death list is empty.
+- Existing snapshots already contain replay context: positions, markers, mechanics, world markers, mitigation, and debuffs.
+- The current root persisted detail type is `PullDeathSnapshot`, confirming the death-centric storage boundary M2 must intentionally extend/replace additively.
+- Recorded pull storage uses an index + detail-file model with backup/temp recovery and background saving.
+- Legacy normalization/loading filters entries to positive death counts; zero-death pull support therefore requires an intentional later persistence change rather than only changing finalization.
 - Current saved-pull schema constants are history version 3 and split-index version 7.
-- `LeadUpTimingPolicy` currently defines 10/30/60 second display choices, 70 seconds capture history, 75 seconds live retention, and a 10 second late-fatal-cause lookback.
-- The repository CI workflow is configured for .NET 10 restore, formatting verification, tests, Dalamud download, and plugin build.
+- `LeadUpTimingPolicy` defines 10/30/60 second display choices, 70 seconds capture history, 75 seconds live retention, and a 10 second late-fatal-cause lookback.
 
 ## Work packages
 
@@ -64,7 +63,7 @@ Lock down the current Better Deaths behavior that later M1/M2 changes must prese
 - Added the minimal pure `PullLifecyclePolicy` seam for the existing archive/reset and single-snapshot guards.
 - Existing `Plugin.PullLifecycle.cs` routes the same current conditions through that seam; no zero-death persistence was introduced.
 - Tests characterize death-containing archive, zero-death reset, inactive no-op, and duplicate/empty snapshot guards.
-- Existing `CaptureTimingPolicyTests` continue to characterize post-combat grace/close behavior.
+- Existing `CaptureTimingPolicyTests` characterize post-combat grace/close behavior.
 - Initial diff review found unrelated import churn; it was corrected before merge.
 - No `RecordedPull`, `FullPullRecorder`, analyzer engine, FFLogs, or analyzer UI implementation was introduced.
 
@@ -82,7 +81,7 @@ Lock down the current Better Deaths behavior that later M1/M2 changes must prese
 - Added characterization coverage for death-only persistence and pull-number normalization assumptions.
 - Added source-contract assertions tying schema versions and current death filters to the actual runtime source.
 - Added `docs/analyzer/M0_PERSISTENCE_BASELINE.md` documenting schema versions, split index/detail storage, load/recovery order, background-save revision safety, compressed-detail migration, and M1/M2 compatibility constraints.
-- Limitation recorded: private persistence methods remain inside the Dalamud-coupled plugin partial and are not directly invoked by the lightweight test assembly. M0 intentionally avoided a broad persistence refactor merely for test exposure.
+- Private persistence methods remain inside the Dalamud-coupled plugin partial; M0 intentionally avoided a broad persistence refactor only for test exposure.
 - No canonical persistence implementation or legacy-filter change was introduced.
 
 ### M0-C — Replay persistence round-trip characterization
@@ -116,11 +115,11 @@ Lock down the current Better Deaths behavior that later M1/M2 changes must prese
 
 ### M0-E — Baseline report and sign-off
 
-**Status:** `BLOCKED`
+**Status:** `APPROVED`
 
 **Owner:** Lead reviewer / integrator
 
-**Completed review work**
+**Sign-off evidence**
 
 - Reviewed each M0 implementation diff for milestone leakage and unrelated churn.
 - Confirmed M0-A through M0-D remain characterization-focused.
@@ -128,10 +127,9 @@ Lock down the current Better Deaths behavior that later M1/M2 changes must prese
 - Confirmed legacy persistence support remains intact and its current contract is documented.
 - Confirmed the short death-recap retention windows remain bounded and unchanged.
 - Confirmed no canonical domain/analyzer/FFLogs/workspace implementation leaked into M0.
+- GitHub Actions run `32142414713` successfully completed checkout, .NET setup, Dalamud download, restore, formatting verification, unit tests, and plugin build against the combined M0 branch state.
 
-**Remaining sign-off gate**
-
-Obtain executable evidence that the combined `main` state passes the repository's formatting, unit-test, and plugin-build workflow. GitHub Actions is now enabled and the `analyzer/m0-ci-validation` PR is the verification run. Until that evidence is green, M0 is not `APPROVED` and M1 must not begin.
+**Decision:** M0 is approved. M1 is authorized to begin after this sign-off PR is merged.
 
 ## Baseline contracts M1/M2 must preserve or intentionally replace
 
@@ -148,8 +146,8 @@ Obtain executable evidence that the combined `main` state passes the repository'
 
 | Milestone | Status | Gate to start |
 |---|---|---|
-| M0 Baseline & characterization | BLOCKED | Executable test/build/format evidence required |
-| M1 Canonical domain skeleton | NOT STARTED | M0 approved |
+| M0 Baseline & characterization | APPROVED | Complete |
+| M1 Canonical domain skeleton | AUTHORIZED | M0 approved |
 | M2 Full-pull live recorder | NOT STARTED | M1 approved |
 | M3 Analyzer engine | NOT STARTED | M2 approved |
 | M4 New workspace shell | NOT STARTED | M3 approved |
@@ -171,7 +169,7 @@ Verified useful upstream surfaces for later M8 work:
 - `src/lib/arena.ts` — role/group matching, waymarks, player/boss/arena elements, AoEs, tethers, arrows, polygons, visibility predicates, and declarative arena data concepts.
 - `src/routes/ultimates/umad/data.ts` — phase/mechanic scaffolding and role/light-party strategy assignment data.
 
-Do not port these during M0. When M8 begins, record exact upstream path + commit per ported subsystem and update `THIRD_PARTY_NOTICES.md` with the MIT notice before/with the first direct reuse.
+Do not port these during M1. When M8 begins, record exact upstream path + commit per ported subsystem and update `THIRD_PARTY_NOTICES.md` with the MIT notice before/with the first direct reuse.
 
 ## Review ledger
 
@@ -182,7 +180,8 @@ Do not port these during M0. When M8 begins, record exact upstream path + commit
 | 2026-08-18 | M0-C PR #9 | Implementation + lead diff review | APPROVED | Replay persistence round-trip fixture; merged as `fe803523d0fd207b6508c4c7440449cc37ee6d33`. |
 | 2026-08-18 | M0-A PR #10 | Implementation + lead diff review | APPROVED | Minimal lifecycle policy seam/tests; unrelated import churn caught and removed; merged as `79709671cb260b394c5fad790e883f9cf3e2e61a`. |
 | 2026-08-18 | M0-B PR #11 | Implementation + lead diff review | APPROVED | Persistence contracts/docs with explicit direct-test limitation; merged as `22ead99dcd44f3dfa4a36fca1f32604c70e0abef`. |
-| 2026-08-18 | M0-E | Lead integrator | BLOCKED | Static integration review complete; Actions now enabled; awaiting validation PR CI evidence. |
+| 2026-08-18 | M0 validation PR #13 | GitHub Actions + lead integrator | APPROVED | Run `32142414713`: restore, format, test, and plugin build all green after billing lock was cleared. |
+| 2026-08-18 | M0-E | Lead integrator | APPROVED | Static integration review plus executable CI validation complete; M1 authorized. |
 
 ## Agent return format
 
