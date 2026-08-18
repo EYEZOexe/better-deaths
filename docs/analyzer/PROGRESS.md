@@ -18,7 +18,9 @@ Encounter knowledge/reference repository: `EYEZOexe/wtfdig`
 
 ### M0 — Baseline and characterization
 
-**Status:** `IN PROGRESS`
+**Status:** `BLOCKED`
+
+**Blocker:** M0-A through M0-D are implemented, statically reviewed, and merged. The mandatory build/test/format gate is not yet verified: the repository contains a CI workflow, but no workflow runs or commit statuses are currently surfaced for the M0 PR/main commits through the available GitHub integration. The local execution environment also does not contain the .NET SDK/Dalamud toolchain. M1 remains unauthorized until executable validation evidence is available.
 
 **Purpose**
 
@@ -26,14 +28,14 @@ Lock down the current Better Deaths behavior that later M1/M2 changes must prese
 
 **Required characterization surface**
 
-- [ ] Pull/duty reset and archive behavior.
-- [ ] Death-gated current snapshot behavior.
-- [ ] Saved pull serialization/loading and current schema/version assumptions.
-- [ ] Replay data survives saved-pull round trip.
-- [ ] `LeadUpTimingPolicy` retention/display behavior.
-- [ ] Existing test suite remains green.
-- [ ] Plugin build remains green.
-- [ ] Concise implementation note records exact preserved/current behavior.
+- [x] Pull/duty reset and archive behavior.
+- [x] Death-gated current snapshot behavior.
+- [x] Saved pull serialization/loading and current schema/version assumptions.
+- [x] Replay data survives saved-pull round trip.
+- [x] `LeadUpTimingPolicy` retention/display behavior.
+- [ ] Existing test suite verified green after the combined M0 changes.
+- [ ] Plugin build/format checks verified green after the combined M0 changes.
+- [x] Concise implementation notes record the exact preserved/current behavior.
 
 **Observed baseline facts from repository inspection**
 
@@ -43,84 +45,110 @@ Lock down the current Better Deaths behavior that later M1/M2 changes must prese
 - The current root persisted detail type is `PullDeathSnapshot`, confirming the death-centric storage boundary M2 must eventually replace/add alongside.
 - Recorded pull storage already uses an index + detail-file model with backup/temp recovery and background saving, so M2 should build on this behavior rather than replacing persistence wholesale.
 - Legacy normalization/loading currently filters entries to positive death counts; zero-death pull support therefore requires an intentional later migration rather than only changing finalization.
-- `LeadUpTimingPolicy` currently defines 10/30/60 second display choices, 70 seconds capture history, and 75 seconds live retention.
-- CI already verifies formatting, tests, and plugin build on .NET 10 with Dalamud downloaded during workflow execution.
+- Current saved-pull schema constants are history version 3 and split-index version 7.
+- `LeadUpTimingPolicy` currently defines 10/30/60 second display choices, 70 seconds capture history, 75 seconds live retention, and a 10 second late-fatal-cause lookback.
+- The repository CI workflow is configured for .NET 10 restore, formatting verification, tests, Dalamud download, and plugin build; executable run evidence for the M0 commits is currently unavailable through the integration.
 
 ## Work packages
 
 ### M0-A — Pull lifecycle characterization
 
-**Status:** `NOT STARTED`
+**Status:** `APPROVED`
 
-**Agent brief**
+**Issue / PR:** #3 / #10
 
-Characterize current lifecycle behavior without introducing M1/M2 structures. Focus on `Plugin.PullLifecycle.cs` and any minimal pure policy seam needed to test archive/reset decisions deterministically.
+**Merged commit:** `79709671cb260b394c5fad790e883f9cf3e2e61a`
 
-**Acceptance evidence required**
+**Evidence**
 
-- Tests demonstrate that a death-containing pull archives for review.
-- Tests demonstrate that a started zero-death pull is reset/not persisted under current behavior.
-- Tests demonstrate relevant duty reset and combat-end close behavior or the smallest deterministic policy seam underlying them.
-- Existing runtime code behavior remains unchanged.
+- Added the minimal pure `PullLifecyclePolicy` seam for the existing archive/reset and single-snapshot guards.
+- Existing `Plugin.PullLifecycle.cs` routes the same current conditions through that seam; no zero-death persistence was introduced.
+- Tests characterize death-containing archive, zero-death reset, inactive no-op, and duplicate/empty snapshot guards.
+- Existing `CaptureTimingPolicyTests` continue to characterize post-combat grace/close behavior.
+- Initial diff review found unrelated import churn; it was corrected before merge.
+- No `RecordedPull`, `FullPullRecorder`, analyzer engine, FFLogs, or analyzer UI implementation was introduced.
 
 ### M0-B — Persistence/schema characterization
 
-**Status:** `NOT STARTED`
+**Status:** `APPROVED`
 
-**Agent brief**
+**Issue / PR:** #4 / #11
 
-Characterize the current saved-pull format and migration assumptions in `Plugin.RecordedPulls.cs`/`Models.cs`. Prefer extracting only pure serialization/normalization helpers if direct plugin testing is impractical.
+**Merged commit:** `22ead99dcd44f3dfa4a36fca1f32604c70e0abef`
 
-**Acceptance evidence required**
+**Evidence**
 
-- Current legacy array and wrapped-history behavior is documented/tested where feasible.
-- Death-count filtering behavior is locked down.
-- Pull numbering normalization assumptions are covered.
-- Index/detail model and schema version assumptions are documented.
-- No new canonical `RecordedPull` architecture yet.
+- Added public-model serialization tests for legacy raw-array and wrapped-history shapes.
+- Added characterization coverage for death-only persistence and pull-number normalization assumptions.
+- Added source-contract assertions tying schema versions and current death filters to the actual runtime source.
+- Added `docs/analyzer/M0_PERSISTENCE_BASELINE.md` documenting schema versions, split index/detail storage, load/recovery order, background-save revision safety, compressed-detail migration, and M1/M2 compatibility constraints.
+- Limitation recorded: private persistence methods remain inside the Dalamud-coupled plugin partial and are not directly invoked by the lightweight test assembly. M0 intentionally avoided a broad persistence refactor merely for test exposure.
+- No canonical persistence implementation or legacy-filter change was introduced.
 
 ### M0-C — Replay persistence round-trip characterization
 
-**Status:** `NOT STARTED`
+**Status:** `APPROVED`
 
-**Agent brief**
+**Issue / PR:** #5 / #9
 
-Add a fixture or pure serialization test proving representative replay positions, markers, mechanics, world markers, mitigation, and debuff state survive the current saved-detail round trip.
+**Merged commit:** `fe803523d0fd207b6508c4c7440449cc37ee6d33`
 
-**Acceptance evidence required**
+**Evidence**
 
-- Representative `PullDeathSnapshot` round-trip retains replay collections and key fields.
-- Existing replay-specific tests remain green.
+- Added a representative `PullDeathSnapshot` serialization round-trip fixture.
+- Verifies replay positions, markers, mechanics, world markers, mitigation, debuffs, `ReplayDebuffsCaptured`, and representative identity/timing/state fields.
+- No replay redesign, canonical event migration, or encounter analyzer implementation was introduced.
 
 ### M0-D — Timing-policy characterization
 
-**Status:** `NOT STARTED`
+**Status:** `APPROVED`
 
-**Agent brief**
+**Issue / PR:** #6 / #8
 
-Confirm `LeadUpTimingPolicy` behavior with direct unit tests if not already fully covered. Do not change timing values during M0.
+**Merged commit:** `bd0359a2b90adde40debbeb0e322699f39da5a61`
 
-**Acceptance evidence required**
+**Evidence**
 
-- 10/30/60 normalization behavior covered.
-- Capture/live-retention constants and relationship covered.
-- No production behavior change.
+- Added direct tests for 10/30/60 display normalization.
+- Locked down 70 second capture, 75 second live retention, and 10 second late fatal-cause lookback constants.
+- Locked down the existing `MaximumDisplay + 10` capture and `Capture + 5` retention relationships.
+- Production timing values and retention behavior were not changed or expanded.
 
 ### M0-E — Baseline report and sign-off
 
-**Status:** `NOT STARTED`
+**Status:** `BLOCKED`
 
 **Owner:** Lead reviewer / integrator
 
-**Deliverable**
+**Completed review work**
 
-Review all M0 PRs together, verify repository gates, record the exact baseline contracts M1/M2 must preserve or intentionally replace, then mark M0 `APPROVED` before any M1 implementation starts.
+- Reviewed each M0 implementation diff for milestone leakage and unrelated churn.
+- Confirmed M0-A through M0-D remain characterization-focused.
+- Confirmed zero-death persistence has not been implemented early.
+- Confirmed legacy persistence support remains intact and its current contract is documented.
+- Confirmed the short death-recap retention windows remain bounded and unchanged.
+- Confirmed no canonical domain/analyzer/FFLogs/workspace implementation leaked into M0.
+
+**Remaining sign-off gate**
+
+Obtain executable evidence that the combined `main` state passes the repository's formatting, unit-test, and plugin-build workflow. Until that evidence exists, M0 is not `APPROVED` and M1 must not begin.
+
+## Baseline contracts M1/M2 must preserve or intentionally replace
+
+1. Existing Better Deaths death recap remains death-gated until M2 intentionally adds a separate full-pull path.
+2. Existing short lead-up buffers remain bounded; full-pull capture must not be implemented by extending them indefinitely.
+3. Legacy `PullDeathSnapshot` loading remains supported while canonical persistence is introduced additively.
+4. Existing persistence recovery/background-save safety must not be silently discarded.
+5. Zero-death pull support requires both lifecycle and persistence changes; changing only archive finalization is insufficient.
+6. Replay/context fields currently persisted on death snapshots must remain reviewable during migration.
+7. Existing post-combat grace and deterministic pull-close behavior must remain intact unless a later milestone explicitly changes it.
+8. New canonical schema versions must not silently reuse the existing history version 3 / index version 7 semantics.
 
 ## Milestone roadmap
 
 | Milestone | Status | Gate to start |
 |---|---|---|
-| M0 Baseline & characterization | IN PROGRESS | Current |
+| M0 Baseline & characterization | BLOCKED | Executable test/build/format evidence required |
 | M1 Canonical domain skeleton | NOT STARTED | M0 approved |
 | M2 Full-pull live recorder | NOT STARTED | M1 approved |
 | M3 Analyzer engine | NOT STARTED | M2 approved |
@@ -149,7 +177,12 @@ Do not port these during M0. When M8 begins, record exact upstream path + commit
 
 | Date | Package/PR | Agent | Review result | Evidence / notes |
 |---|---|---|---|---|
-| 2026-08-18 | Foundation docs | Lead integrator | IN PROGRESS | Added execution contract and progress ledger on `analyzer/foundation`. |
+| 2026-08-18 | Foundation PR #1 | Lead integrator | APPROVED | Execution contract and progress ledger merged as `9198ec55ae117209ed0bda349a473df7520df1b0`. |
+| 2026-08-18 | M0-D PR #8 | Implementation + lead diff review | APPROVED | Timing tests only; merged as `bd0359a2b90adde40debbeb0e322699f39da5a61`. |
+| 2026-08-18 | M0-C PR #9 | Implementation + lead diff review | APPROVED | Replay persistence round-trip fixture; merged as `fe803523d0fd207b6508c4c7440449cc37ee6d33`. |
+| 2026-08-18 | M0-A PR #10 | Implementation + lead diff review | APPROVED | Minimal lifecycle policy seam/tests; unrelated import churn caught and removed; merged as `79709671cb260b394c5fad790e883f9cf3e2e61a`. |
+| 2026-08-18 | M0-B PR #11 | Implementation + lead diff review | APPROVED | Persistence contracts/docs with explicit direct-test limitation; merged as `22ead99dcd44f3dfa4a36fca1f32604c70e0abef`. |
+| 2026-08-18 | M0-E | Lead integrator | BLOCKED | Static integration review complete; executable CI/build/test evidence is unavailable, therefore M0 cannot be signed off yet. |
 
 ## Agent return format
 
