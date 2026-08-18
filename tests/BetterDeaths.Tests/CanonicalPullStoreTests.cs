@@ -3,7 +3,6 @@ namespace BetterDeaths;
 using BetterDeaths.Domain;
 using BetterDeaths.Persistence;
 using System.IO;
-using System.Text.Json;
 
 public sealed class CanonicalPullStoreTests
 {
@@ -38,7 +37,8 @@ public sealed class CanonicalPullStoreTests
             "\"FileSchemaVersion\":999",
             StringComparison.Ordinal);
 
-        var error = Assert.Throws<InvalidDataException>(() => CanonicalPullSerializer.Deserialize(incompatible));
+        var error = Assert.Throws<CanonicalPullCompatibilityException>(
+            () => CanonicalPullSerializer.Deserialize(incompatible));
 
         Assert.Contains("Unsupported canonical pull file schema", error.Message, StringComparison.Ordinal);
     }
@@ -54,7 +54,7 @@ public sealed class CanonicalPullStoreTests
             SchemaVersion = new PullSchemaVersion(999),
         };
 
-        var error = Assert.Throws<InvalidDataException>(() => CanonicalPullSerializer.Serialize(pull));
+        var error = Assert.Throws<CanonicalPullCompatibilityException>(() => CanonicalPullSerializer.Serialize(pull));
 
         Assert.Contains("Unsupported canonical pull schema", error.Message, StringComparison.Ordinal);
     }
@@ -119,6 +119,37 @@ public sealed class CanonicalPullStoreTests
     }
 
     [Fact]
+    public async Task LoadDoesNotHideUnsupportedPrimarySchemaBehindOlderBackup()
+    {
+        using var directory = new TemporaryDirectory();
+        using var store = new FileCanonicalPullStore(directory.Path);
+        var id = "56565656-5656-5656-5656-565656565656";
+        var first = CreatePull(id, 100, null) with
+        {
+            Metadata = CreateMetadata(100, TimeSpan.FromSeconds(10), null),
+        };
+        var second = first with
+        {
+            Metadata = CreateMetadata(100, TimeSpan.FromSeconds(20), null),
+        };
+
+        await store.SaveAsync(first);
+        await store.SaveAsync(second);
+
+        var detailPath = GetDetailPath(directory.Path, first.Id);
+        var currentJson = await File.ReadAllTextAsync(detailPath);
+        var incompatible = currentJson.Replace(
+            $"\"FileSchemaVersion\":{CanonicalPullSerializer.CurrentFileSchemaVersion}",
+            "\"FileSchemaVersion\":999",
+            StringComparison.Ordinal);
+        await File.WriteAllTextAsync(detailPath, incompatible);
+
+        var error = await Assert.ThrowsAsync<CanonicalPullCompatibilityException>(() => store.LoadAsync(first.Id));
+
+        Assert.Contains("Unsupported canonical pull file schema", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task QueryRebuildsIndexFromDetailsWhenPrimaryAndBackupAreCorrupt()
     {
         using var directory = new TemporaryDirectory();
@@ -146,6 +177,32 @@ public sealed class CanonicalPullStoreTests
         Assert.Equal(2, summaries.Count);
         Assert.Contains(summaries, summary => summary.Id == first.Id);
         Assert.Contains(summaries, summary => summary.Id == second.Id);
+    }
+
+    [Fact]
+    public async Task QueryRejectsUnsupportedIndexSchemaInsteadOfSilentlyRebuilding()
+    {
+        using var directory = new TemporaryDirectory();
+        using var store = new FileCanonicalPullStore(directory.Path);
+        var pull = CreatePull(
+            "78787878-7878-7878-7878-787878787878",
+            100,
+            new DateTimeOffset(2026, 8, 18, 18, 0, 0, TimeSpan.Zero));
+
+        await store.SaveAsync(pull);
+
+        var indexPath = System.IO.Path.Combine(directory.Path, "canonical-pulls.index.json");
+        var currentJson = await File.ReadAllTextAsync(indexPath);
+        var incompatible = currentJson.Replace(
+            $"\"SchemaVersion\":{FileCanonicalPullStore.CurrentIndexSchemaVersion}",
+            "\"SchemaVersion\":999",
+            StringComparison.Ordinal);
+        await File.WriteAllTextAsync(indexPath, incompatible);
+
+        var error = await Assert.ThrowsAsync<CanonicalPullCompatibilityException>(
+            () => store.QueryAsync(new PullQuery { Limit = 10 }));
+
+        Assert.Contains("Unsupported canonical pull index schema", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
