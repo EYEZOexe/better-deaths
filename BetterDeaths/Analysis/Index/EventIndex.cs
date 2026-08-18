@@ -10,7 +10,6 @@ internal sealed class EventIndex
     private static readonly IReadOnlyList<NormalizedEvent> EmptyEvents = Array.Empty<NormalizedEvent>();
 
     private readonly IReadOnlyList<NormalizedEvent> orderedEvents;
-    private readonly IReadOnlyDictionary<EventId, NormalizedEvent> eventsById;
     private readonly IReadOnlyDictionary<Type, IReadOnlyList<NormalizedEvent>> eventsByExactType;
     private readonly IReadOnlyDictionary<ActorId, IReadOnlyList<NormalizedEvent>> eventsBySourceActor;
     private readonly IReadOnlyDictionary<ActorId, IReadOnlyList<NormalizedEvent>> eventsByTargetActor;
@@ -22,7 +21,7 @@ internal sealed class EventIndex
     {
         ArgumentNullException.ThrowIfNull(events);
 
-        var idIndex = new Dictionary<EventId, NormalizedEvent>(events.Count);
+        var eventIds = new HashSet<EventId>();
         var typeBuckets = new Dictionary<Type, List<NormalizedEvent>>();
         var sourceBuckets = new Dictionary<ActorId, List<NormalizedEvent>>();
         var targetBuckets = new Dictionary<ActorId, List<NormalizedEvent>>();
@@ -41,7 +40,7 @@ internal sealed class EventIndex
                     $"Canonical event sequence must increase strictly. Previous={previous}, current={evt.Sequence}.");
             }
 
-            if (!idIndex.TryAdd(evt.Id, evt))
+            if (!eventIds.Add(evt.Id))
             {
                 throw new InvalidOperationException($"Duplicate canonical event ID {evt.Id.Value}.");
             }
@@ -77,7 +76,6 @@ internal sealed class EventIndex
         }
 
         orderedEvents = ordered;
-        eventsById = idIndex;
         eventsByExactType = Freeze(typeBuckets);
         eventsBySourceActor = Freeze(sourceBuckets);
         eventsByTargetActor = Freeze(targetBuckets);
@@ -87,18 +85,6 @@ internal sealed class EventIndex
     }
 
     public IReadOnlyList<NormalizedEvent> All => orderedEvents;
-
-    public bool TryGet(EventId eventId, out NormalizedEvent? evt)
-    {
-        return eventsById.TryGetValue(eventId, out evt);
-    }
-
-    public NormalizedEvent GetRequired(EventId eventId)
-    {
-        return eventsById.TryGetValue(eventId, out var evt)
-            ? evt
-            : throw new KeyNotFoundException($"Canonical event ID {eventId.Value} is not present in the pull.");
-    }
 
     public IReadOnlyList<TEvent> OfType<TEvent>()
         where TEvent : NormalizedEvent
