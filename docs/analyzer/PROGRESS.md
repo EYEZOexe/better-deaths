@@ -19,10 +19,11 @@ Encounter knowledge/reference repository: `EYEZOexe/wtfdig`
 
 ### M4 — New Workspace Shell
 
-**Status:** `READY FOR REVIEW`
+**Status:** `APPROVED`
 
 **Parent issue:** #41
 **Integration/sign-off issue:** #45
+**Combined-state CI:** `32178240346`
 
 ### M4-A — Shared analyzer workspace selection state
 
@@ -75,7 +76,7 @@ Evidence:
 
 ### M4-D — Combined workspace review
 
-**Status:** `READY FOR REVIEW`
+**Status:** `APPROVED`
 
 Combined review:
 - [x] one shared state owns pull/actor/time/result/mechanic selection;
@@ -87,11 +88,13 @@ Combined review:
 - [x] UI consumes `IPullStore`/analyzer contracts rather than concrete persistence from panels;
 - [x] no M5 broad analysis, M6 FFLogs, M7 job, or M8 encounter/WTFDiG implementation leaked into M4;
 - [x] M4-A/B/C are merged on `main`;
-- [ ] M4-D sign-off branch CI must pass restore, formatting, tests, and plugin/package build before M4 becomes `APPROVED`.
+- [x] M4-D combined-state CI `32178240346` passed restore, formatting, tests, and plugin/package build.
 
 Detailed review: `docs/analyzer/M4_SIGNOFF.md`.
 
 **Runtime validation note:** CI cannot launch FFXIV/Dalamud. In-game confirmation of workspace opening, pull population, panel rendering, and legacy review navigation remains a manual smoke item and is not claimed as automated evidence.
+
+**Decision:** M4 is approved. M5 — Generic Hardcore Analysis — is authorized after this sign-off PR is merged.
 
 ## Completed milestone: M3 — Analyzer Engine
 
@@ -148,8 +151,8 @@ M0 characterized lifecycle/archive/reset, death-gated legacy snapshots, persiste
 | M1 Canonical domain skeleton | APPROVED | Complete |
 | M2 Full-pull live recorder | APPROVED | Complete |
 | M3 Analyzer engine | APPROVED | Complete |
-| M4 New workspace shell | READY FOR REVIEW | M4-D combined CI |
-| M5 Generic hardcore analysis | BLOCKED | M4 approved |
+| M4 New workspace shell | APPROVED | Complete after CI `32178240346` |
+| M5 Generic hardcore analysis | AUTHORIZED | M4 approved |
 | M6 FFLogs integration | NOT STARTED | M5 approved |
 | M7 First job analyzer | NOT STARTED | M6 approved |
 | M8 First encounter pack | NOT STARTED | M7 approved |
@@ -181,7 +184,7 @@ Do not port WTFDiG until M8. Record exact upstream path + commit and update `THI
 | 2026-08-18 | M4-A PR #46 | APPROVED | Shared workspace selection state. |
 | 2026-08-18 | M4-B PR #48 | APPROVED | Focused shell panels; Deaths render-rescan fixed; CI `32176263964`. |
 | 2026-08-18 | M4-C PR #49 | APPROVED | Async AnalyzerWindow + IPullStore/engine integration; CI `32177896535`. |
-| 2026-08-18 | M4-D | READY FOR REVIEW | Awaiting combined-state sign-off branch CI. |
+| 2026-08-18 | M4-D / PR #50 | APPROVED | Combined-state CI `32178240346`; M5 authorized after merge. |
 
 ## Agent return format
 
