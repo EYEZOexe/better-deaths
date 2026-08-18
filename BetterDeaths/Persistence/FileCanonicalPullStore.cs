@@ -186,6 +186,10 @@ internal sealed class FileCanonicalPullStore : IPullStore, IDisposable
 
             return envelope.Pulls;
         }
+        catch (CanonicalPullCompatibilityException)
+        {
+            throw;
+        }
         catch (JsonException)
         {
             return null;
