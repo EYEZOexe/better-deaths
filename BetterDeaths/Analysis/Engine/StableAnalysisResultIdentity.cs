@@ -10,7 +10,7 @@ internal static class StableAnalysisResultIdentity
     public static AnalysisResultId ForEvent(PullId pullId, string analyzerId, EventId eventId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(analyzerId);
-        return Create($"{pullId.Value:N}|{analyzerId}|event|{eventId.Value}");
+        return Create($"{pullId.Value:N}|{analyzerId}|{eventId.Value}");
     }
 
     public static AnalysisResultId ForActorWindow(
