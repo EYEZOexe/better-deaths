@@ -72,6 +72,10 @@ public sealed partial class Plugin
 
     private void ArchiveCurrentPullForReview(string reason, bool suppressResetStateDeaths = true)
     {
+        // The canonical full-pull path is additive and must finalize before the legacy
+        // zero-death branch resets the existing Better Deaths state.
+        FinalizeCurrentFullPull(reason);
+
         var archiveAction = PullLifecyclePolicy.GetArchiveAction(
             currentDeaths.Count,
             pullStartedAtUtc is not null,
@@ -147,6 +151,7 @@ public sealed partial class Plugin
     {
         currentDeaths.Clear();
         ClearLivePullCaptureState();
+        ResetFullPullCapture();
         if (suppressResetStateDeaths)
         {
             StartPostResetDeathSuppression();
@@ -170,6 +175,7 @@ public sealed partial class Plugin
     private void PrepareCurrentPullForReview(bool suppressResetStateDeaths)
     {
         ClearLivePullCaptureState();
+        ResetFullPullCapture();
         if (suppressResetStateDeaths)
         {
             StartPostResetDeathSuppression();
@@ -342,6 +348,7 @@ public sealed partial class Plugin
             currentPullTerritoryName = currentTerritoryName;
         }
 
+        EnsureFullPullCaptureStarted(pullStartedAtUtc.Value);
         combatTimerRunning = combatTimerRunning || Condition[ConditionFlag.InCombat];
         lastKnownPullElapsedSeconds = CalculatePullElapsed(now);
     }
@@ -370,6 +377,7 @@ public sealed partial class Plugin
                 currentPullTerritoryName = currentTerritoryName;
             }
 
+            MarkFullPullCombatObserved(now);
             combatTimerRunning = true;
             lastKnownPullElapsedSeconds = CalculatePullElapsed(now);
             return;
