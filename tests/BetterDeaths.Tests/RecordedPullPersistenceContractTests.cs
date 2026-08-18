@@ -1,5 +1,6 @@
 namespace BetterDeaths;
 
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 
 public sealed class RecordedPullPersistenceContractTests
@@ -86,10 +87,37 @@ public sealed class RecordedPullPersistenceContractTests
     }
 
     [Fact]
-    public void SchemaVersionsCharacterizedForM0RemainExplicit()
+    public void RuntimeSourceStillDeclaresCharacterizedSchemaVersions()
     {
-        Assert.Equal(3, CurrentHistorySchemaVersion);
-        Assert.Equal(7, CurrentIndexSchemaVersion);
+        var pluginSource = ReadRepositoryFile("BetterDeaths/Plugin.cs");
+
+        Assert.Matches(@"RecordedPullHistorySchemaVersion\s*=\s*3\s*;", pluginSource);
+        Assert.Matches(@"RecordedPullIndexSchemaVersion\s*=\s*7\s*;", pluginSource);
+    }
+
+    [Fact]
+    public void RuntimeSourceStillAcceptsBothLegacyHistoryShapes()
+    {
+        var persistenceSource = ReadRepositoryFile("BetterDeaths/Plugin.RecordedPulls.cs");
+
+        Assert.Contains(
+            "JsonValueKind.Array => JsonSerializer.Deserialize<List<PullDeathSnapshot>>",
+            persistenceSource);
+        Assert.Contains(
+            "JsonValueKind.Object when document.RootElement.TryGetProperty(nameof(RecordedPullHistoryFile.Pulls), out _)",
+            persistenceSource);
+    }
+
+    [Fact]
+    public void RuntimeSourceStillAppliesDeathOnlyFiltersAtCurrentPersistenceBoundaries()
+    {
+        var persistenceSource = ReadRepositoryFile("BetterDeaths/Plugin.RecordedPulls.cs");
+
+        Assert.Contains(".Where(pull => pull is { Deaths.Count: > 0 })", persistenceSource);
+        Assert.Contains(".Where(state => state.Summary.DeathCount > 0)", persistenceSource);
+        Assert.Contains(
+            ".Where(entry => entry.DeathCount > 0 && !string.IsNullOrWhiteSpace(entry.DetailFileName))",
+            persistenceSource);
     }
 
     private static bool HasPersistableDeaths(PullDeathSnapshot pull)
@@ -160,6 +188,17 @@ public sealed class RecordedPullPersistenceContractTests
             PullGroupId = "group",
             PullGroupColorIndex = 1,
         };
+    }
+
+    private static string ReadRepositoryFile(
+        string relativePath,
+        [CallerFilePath] string testSourcePath = "")
+    {
+        var testDirectory = Path.GetDirectoryName(testSourcePath)
+            ?? throw new InvalidOperationException("Could not resolve test source directory.");
+        var repositoryRoot = Path.GetFullPath(Path.Combine(testDirectory, "..", ".."));
+        var normalizedRelativePath = relativePath.Replace('/', Path.DirectorySeparatorChar);
+        return File.ReadAllText(Path.Combine(repositoryRoot, normalizedRelativePath));
     }
 
     private sealed record HistoryEnvelope(int SchemaVersion, List<PullDeathSnapshot> Pulls);
