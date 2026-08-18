@@ -261,7 +261,7 @@ public sealed class CanonicalDomainSerializationTests
         Assert.Equal(StartedAt, roundTripped.Metadata.StartedAt);
         Assert.Equal(PullDataSourceKind.DalamudLive, roundTripped.Provenance.SourceKind);
 
-        var pet = Assert.Single(roundTripped.Actors.Where(actor => actor.Kind == ActorKind.Pet));
+        var pet = Assert.Single(roundTripped.Actors, actor => actor.Kind == ActorKind.Pet);
         Assert.Equal(playerId, pet.OwnerActorId);
 
         Assert.Equal(14, roundTripped.Events.Count);
