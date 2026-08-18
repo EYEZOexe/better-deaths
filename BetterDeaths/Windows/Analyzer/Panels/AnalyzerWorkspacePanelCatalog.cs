@@ -1,0 +1,17 @@
+namespace BetterDeaths.Windows.Analyzer.Panels;
+
+using System.Collections.Generic;
+
+internal static class AnalyzerWorkspacePanelCatalog
+{
+    public static IReadOnlyList<IAnalyzerWorkspacePanel> CreateDefault()
+    {
+        return
+        [
+            new AnalyzerOverviewPanel(),
+            new AnalyzerTimelinePanel(),
+            new AnalyzerDeathsPanel(),
+            new AnalyzerReplayPanel(),
+        ];
+    }
+}
