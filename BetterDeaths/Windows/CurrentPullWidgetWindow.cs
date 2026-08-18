@@ -16,6 +16,7 @@ public sealed class CurrentPullWidgetWindow : Window, IDisposable
     {
         this.plugin = plugin;
         this.recapWindow = recapWindow;
+        plugin.EnsureAnalyzerWorkspaceRegistered();
 
         Size = new Vector2(620.0f, 360.0f);
         SizeCondition = ImGuiCond.FirstUseEver;
@@ -46,6 +47,12 @@ public sealed class CurrentPullWidgetWindow : Window, IDisposable
 
     public override void Draw()
     {
+        if (ImGui.Button("Analyzer Workspace"))
+        {
+            plugin.ToggleAnalyzerWorkspace();
+        }
+
+        ImGui.Separator();
         recapWindow.DrawCurrentPullWidgetContent();
         DrawBottomLeftResizeGrip(BetterDeathsThemeCatalog.GetTheme(plugin.Configuration));
     }
