@@ -15,9 +15,10 @@ public sealed class AnalyzerWindowIntegrationContractTests
         Assert.Contains("AnalyzerWorkspacePanelCatalog.CreateDefault", source, StringComparison.Ordinal);
         Assert.Contains("DeathEvents = loaded.DeathEvents", source, StringComparison.Ordinal);
 
-        Assert.DoesNotContain(".Result", source, StringComparison.Ordinal);
         Assert.DoesNotContain(".Wait(", source, StringComparison.Ordinal);
         Assert.DoesNotContain("GetAwaiter().GetResult", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("QueryPullsAsync(PullQueryLimit).Result", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("LoadPullAsync(pullId, requestCts.Token).Result", source, StringComparison.Ordinal);
         Assert.DoesNotContain("FileCanonicalPullStore", source, StringComparison.Ordinal);
     }
 
