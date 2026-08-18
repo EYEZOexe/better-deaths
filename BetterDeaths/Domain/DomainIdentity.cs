@@ -1,5 +1,7 @@
 namespace BetterDeaths.Domain;
 
+using System;
+
 public readonly record struct PullId(Guid Value)
 {
     public static PullId New() => new(Guid.NewGuid());
