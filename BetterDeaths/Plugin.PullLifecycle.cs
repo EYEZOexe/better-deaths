@@ -20,7 +20,6 @@ using FFXIVClientStructs.FFXIV.Client.Game.Object;
 using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using FFXIVClientStructs.FFXIV.Client.System.String;
 using FFXIVClientStructs.FFXIV.Client.UI;
-using FFXIVClientStructs.FFXIV.Client.UI.Shell;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 using Lumina.Excel.Sheets;
 using System;
@@ -72,14 +71,19 @@ public sealed partial class Plugin
 
     private void ArchiveCurrentPullForReview(string reason, bool suppressResetStateDeaths = true)
     {
-        if (currentDeaths.Count > 0)
+        var archiveAction = PullLifecyclePolicy.GetArchiveAction(
+            currentDeaths.Count,
+            pullStartedAtUtc is not null,
+            lastKnownPullElapsedSeconds > 0.0f);
+
+        if (archiveAction == PullArchiveAction.ArchiveForReview)
         {
             CaptureCurrentPullSnapshot(reason);
             PrepareCurrentPullForReview(suppressResetStateDeaths);
             return;
         }
 
-        if (pullStartedAtUtc is not null || lastKnownPullElapsedSeconds > 0.0f)
+        if (archiveAction == PullArchiveAction.Reset)
         {
             ResetCurrentPull(suppressResetStateDeaths);
         }
@@ -87,8 +91,7 @@ public sealed partial class Plugin
 
     private bool CaptureCurrentPullSnapshot(string reason)
     {
-        if (currentPullSnapshotCaptured ||
-            currentDeaths.Count == 0)
+        if (!PullLifecyclePolicy.ShouldCaptureSnapshot(currentPullSnapshotCaptured, currentDeaths.Count))
         {
             return false;
         }
