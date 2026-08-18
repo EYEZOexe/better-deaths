@@ -3,7 +3,6 @@ namespace BetterDeaths.Capture.FullPull;
 using BetterDeaths.Domain;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 
 internal sealed record LiveObservedStatus
 {
@@ -18,6 +17,8 @@ internal sealed record LiveObservedStatus
 
 internal sealed class LiveSnapshotDeltaTracker
 {
+    private static readonly TimeSpan MinimumRefreshIncrease = TimeSpan.FromSeconds(1);
+
     private readonly Dictionary<string, bool> targetabilityByActor = new(StringComparer.Ordinal);
     private readonly Dictionary<string, Dictionary<ObservedStatusKey, LiveObservedStatus>> statusesByActor = new(StringComparer.Ordinal);
 
@@ -86,7 +87,7 @@ internal sealed class LiveSnapshotDeltaTracker
                 continue;
             }
 
-            if (prior.Stacks != pair.Value.Stacks)
+            if (prior.Stacks != pair.Value.Stacks || HasMeaningfulDurationRefresh(prior, pair.Value))
             {
                 facts.Add(CreateStatusFact(observedAt, target, pair.Value, applied: true));
             }
@@ -100,6 +101,13 @@ internal sealed class LiveSnapshotDeltaTracker
     {
         targetabilityByActor.Clear();
         statusesByActor.Clear();
+    }
+
+    private static bool HasMeaningfulDurationRefresh(LiveObservedStatus previous, LiveObservedStatus current)
+    {
+        return previous.RemainingDuration is { } previousDuration &&
+            current.RemainingDuration is { } currentDuration &&
+            currentDuration > previousDuration + MinimumRefreshIncrease;
     }
 
     private static LiveStatusFact CreateStatusFact(
