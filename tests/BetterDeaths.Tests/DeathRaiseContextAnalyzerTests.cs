@@ -128,8 +128,11 @@ public sealed class DeathRaiseContextAnalyzerTests
         var raiser = new ActorId(3);
         var pull = PullWithActors(
             DefaultActors().Append(new ActorRecord { Id = raiser, Name = "Healer", Kind = ActorKind.Player }).ToArray(),
-            Death(1, 10),
-            Raise(2, 75, raiser, actionId: 125),
+            new NormalizedEvent[]
+            {
+                Death(1, 10),
+                Raise(2, 75, raiser, actionId: 125),
+            },
             durationSeconds: 90);
 
         var run = await Analyze(pull);
