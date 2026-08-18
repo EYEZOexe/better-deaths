@@ -39,6 +39,9 @@
     <Compile Include="../../BetterDeaths/ReplayStatusPanelPolicy.cs" Link="ReplayStatusPanelPolicy.cs" />
     <Compile Include="../../BetterDeaths/ThemeIdentityPolicy.cs" Link="ThemeIdentityPolicy.cs" />
     <Compile Include="../../BetterDeaths/WhatIfMitigationRules.cs" Link="WhatIfMitigationRules.cs" />
+    <Compile Include="../../BetterDeaths/Windows/Analyzer/AnalyzerWorkspacePanelContext.cs" Link="Windows/Analyzer/AnalyzerWorkspacePanelContext.cs" />
+    <Compile Include="../../BetterDeaths/Windows/Analyzer/AnalyzerWorkspaceSelection.cs" Link="Windows/Analyzer/AnalyzerWorkspaceSelection.cs" />
+    <Compile Include="../../BetterDeaths/Windows/Analyzer/Panels/IAnalyzerWorkspacePanel.cs" Link="Windows/Analyzer/Panels/IAnalyzerWorkspacePanel.cs" />
   </ItemGroup>
 
   <ItemGroup>
