@@ -10,8 +10,8 @@ public sealed class AnalyzerWindowIntegrationContractTests
         var source = ReadRepositoryFile("BetterDeaths/Windows/Analyzer/AnalyzerWindow.cs");
 
         Assert.Contains("Task.Run", source, StringComparison.Ordinal);
-        Assert.Contains("dataController.QueryPullsAsync", source, StringComparison.Ordinal);
-        Assert.Contains("dataController.LoadPullAsync", source, StringComparison.Ordinal);
+        Assert.Contains("QueryPullsAsync(PullQueryLimit)", source, StringComparison.Ordinal);
+        Assert.Contains("LoadPullAsync(pullId, requestCts.Token)", source, StringComparison.Ordinal);
         Assert.Contains("AnalyzerWorkspacePanelCatalog.CreateDefault", source, StringComparison.Ordinal);
         Assert.Contains("DeathEvents = loaded.DeathEvents", source, StringComparison.Ordinal);
 
