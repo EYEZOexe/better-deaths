@@ -5,7 +5,7 @@ using System;
 using System.IO;
 using System.Text.Json;
 
-internal sealed class CanonicalPullCompatibilityException : InvalidDataException
+internal sealed class CanonicalPullCompatibilityException : IOException
 {
     public CanonicalPullCompatibilityException(string message)
         : base(message)
