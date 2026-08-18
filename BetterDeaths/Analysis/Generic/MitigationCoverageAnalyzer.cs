@@ -19,6 +19,7 @@ internal sealed class MitigationCoverageAnalyzer : IAnalyzerModule
     {
         ArgumentNullException.ThrowIfNull(definitions);
         var ids = new HashSet<string>(StringComparer.Ordinal);
+        var statusApplications = new HashSet<(uint StatusId, MitigationApplicationKind ApplicationKind)>();
         foreach (var definition in definitions)
         {
             ArgumentNullException.ThrowIfNull(definition);
@@ -26,6 +27,12 @@ internal sealed class MitigationCoverageAnalyzer : IAnalyzerModule
             if (!ids.Add(definition.Id))
             {
                 throw new InvalidOperationException($"Duplicate mitigation definition ID '{definition.Id}'.");
+            }
+
+            if (!statusApplications.Add((definition.StatusId, definition.ApplicationKind)))
+            {
+                throw new InvalidOperationException(
+                    $"Mitigation status {definition.StatusId} with application kind {definition.ApplicationKind} is configured more than once.");
             }
         }
 
@@ -231,14 +238,17 @@ internal sealed class MitigationCoverageAnalyzer : IAnalyzerModule
         IReadOnlyList<ActiveMitigation> active)
     {
         var confidence = Math.Clamp(damage.Provenance.Confidence, 0.0f, 1.0f);
-        var statusEvents = context.Events.OfType<StatusApplyEvent>()
-            .Concat<NormalizedEvent>(context.Events.OfType<StatusRemoveEvent>())
-            .ToDictionary(evt => evt.Id);
-        foreach (var eventId in active.SelectMany(entry => entry.Intervals.SelectMany(interval => interval.EvidenceEventIds)).Distinct())
+        foreach (var entry in active)
         {
-            if (statusEvents.TryGetValue(eventId, out var evt))
+            var evidenceIds = entry.Intervals
+                .SelectMany(interval => interval.EvidenceEventIds)
+                .ToHashSet();
+            foreach (var evt in context.Events.ByStatus(entry.Definition.StatusId))
             {
-                confidence = Math.Min(confidence, Math.Clamp(evt.Provenance.Confidence, 0.0f, 1.0f));
+                if (evidenceIds.Contains(evt.Id))
+                {
+                    confidence = Math.Min(confidence, Math.Clamp(evt.Provenance.Confidence, 0.0f, 1.0f));
+                }
             }
         }
 
