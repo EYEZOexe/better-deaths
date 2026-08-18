@@ -13,15 +13,19 @@ public sealed class GoldenDeathEventAnalyzerTests
         var registry = new AnalyzerRegistry();
         registry.Register(new DeathEventAnalyzer());
         var engine = new AnalyzerEngine(registry);
+        var pull = CreateGoldenPull();
 
-        var run = await engine.AnalyzeAsync(CreateGoldenPull());
+        var run = await engine.AnalyzeAsync(pull);
+        var repeatedRun = await engine.AnalyzeAsync(pull);
 
         Assert.Empty(run.Failures);
         Assert.Empty(run.Skipped);
         Assert.Equal(2, run.Results.Count);
 
         var first = run.Results[0];
-        Assert.Equal(new AnalysisResultId(Guid.Parse("01890bd0-395e-6abb-d18d-6a825152c76a")), first.Id);
+        Assert.Equal(
+            StableAnalysisResultIdentity.ForEvent(pull.Id, DeathEventAnalyzer.AnalyzerId, new EventId(3)),
+            first.Id);
         Assert.Equal(DeathEventAnalyzer.AnalyzerId, first.AnalyzerId);
         Assert.Equal(AnalysisSeverity.Error, first.Severity);
         Assert.Equal(AnalysisCategory.Death, first.Category);
@@ -35,7 +39,9 @@ public sealed class GoldenDeathEventAnalyzerTests
         Assert.Equal(new[] { new ActorId(1) }, firstEvidence.ActorIds);
 
         var second = run.Results[1];
-        Assert.Equal(new AnalysisResultId(Guid.Parse("b398e8a2-8cdb-a095-c5b1-0bb20996a9ae")), second.Id);
+        Assert.Equal(
+            StableAnalysisResultIdentity.ForEvent(pull.Id, DeathEventAnalyzer.AnalyzerId, new EventId(5)),
+            second.Id);
         Assert.Equal("Player Two died", second.Title);
         Assert.Equal(new TimeRange(TimeSpan.FromSeconds(45), TimeSpan.FromSeconds(45)), second.TimeRange);
         Assert.Equal(new[] { new ActorId(2) }, second.Actors);
@@ -43,13 +49,15 @@ public sealed class GoldenDeathEventAnalyzerTests
         Assert.Equal(45d, second.Metrics["pullTimeSeconds"]);
         Assert.Equal(new[] { new EventId(5) }, Assert.Single(second.Evidence).EventIds);
 
-        // The serialized structured output is intentionally part of the golden contract:
-        // result ordering and evidence IDs must remain stable for the same canonical pull.
         var json = JsonSerializer.Serialize(run.Results);
+        Assert.Equal(json, JsonSerializer.Serialize(repeatedRun.Results));
+
         var roundTripped = JsonSerializer.Deserialize<List<AnalysisResult>>(json);
         Assert.NotNull(roundTripped);
         Assert.Equal(run.Results.Select(result => result.Id), roundTripped.Select(result => result.Id));
-        Assert.Equal(run.Results.Select(result => result.Evidence[0].EventIds[0]), roundTripped.Select(result => result.Evidence[0].EventIds[0]));
+        Assert.Equal(
+            run.Results.Select(result => result.Evidence[0].EventIds[0]),
+            roundTripped.Select(result => result.Evidence[0].EventIds[0]));
     }
 
     [Fact]
