@@ -23,5 +23,9 @@ internal sealed record AnalyzerWorkspacePanelContext
 
     public IReadOnlyList<AnalysisResult> Results { get; init; } = Array.Empty<AnalysisResult>();
 
+    // Derived once when the selected pull changes by the outer workspace. Shell panels
+    // should not rescan an entire full-pull event stream every render frame.
+    public IReadOnlyList<DeathEvent> DeathEvents { get; init; } = Array.Empty<DeathEvent>();
+
     public IAnalyzerWorkspaceNavigation? Navigation { get; init; }
 }
