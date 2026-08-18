@@ -53,20 +53,164 @@ public sealed class CanonicalDomainSerializationTests
             ],
             Events =
             [
-                BaseEvent(new DamageEvent { Amount = 125000, ActionId = 1001, IsCritical = true }, 1, enemyId, playerId, exact),
-                BaseEvent(new HealEvent { Amount = 48000, ActionId = 2001 }, 2, playerId, playerId, exact),
-                BaseEvent(new CastStartEvent { ActionId = 3001, CastDuration = TimeSpan.FromSeconds(4.2) }, 3, enemyId, null, exact),
-                BaseEvent(new CastEndEvent { ActionId = 3001 }, 4, enemyId, null, exact),
-                BaseEvent(new ActionUseEvent { ActionId = 4001 }, 5, playerId, enemyId, exact),
-                BaseEvent(new StatusApplyEvent { StatusId = 5001, Stacks = 2, Duration = TimeSpan.FromSeconds(15) }, 6, enemyId, playerId, exact),
-                BaseEvent(new StatusRemoveEvent { StatusId = 5001 }, 7, enemyId, playerId, exact),
-                BaseEvent(new TargetabilityEvent { IsTargetable = false }, 8, enemyId, enemyId, exact),
-                BaseEvent(new GaugeEvent { GaugeKey = "esprit", Value = 76 }, 9, playerId, playerId, EventSource(CaptureFidelity.Derived, 0.95f)),
-                BaseEvent(new TetherEvent { TetherId = 84 }, 10, enemyId, playerId, exact),
-                BaseEvent(new MarkerEvent { MarkerId = 17 }, 11, null, playerId, exact),
-                BaseEvent(new MechanicSignalEvent { SignalKey = "arena-state", SignalId = 6001, State = 2 }, 12, enemyId, null, EventSource(CaptureFidelity.Inferred, 0.8f)),
-                BaseEvent(new RaiseEvent { ActionId = 7001 }, 13, playerId, petId, exact),
-                BaseEvent(new DeathEvent(), 14, enemyId, playerId, exact),
+                new DamageEvent
+                {
+                    Id = new EventId(1),
+                    Sequence = 1,
+                    PullTime = TimeSpan.FromSeconds(1),
+                    ObservedAt = StartedAt.AddSeconds(1),
+                    SourceActorId = enemyId,
+                    TargetActorId = playerId,
+                    Provenance = exact,
+                    Amount = 125000,
+                    ActionId = 1001,
+                    IsCritical = true,
+                },
+                new HealEvent
+                {
+                    Id = new EventId(2),
+                    Sequence = 2,
+                    PullTime = TimeSpan.FromSeconds(2),
+                    ObservedAt = StartedAt.AddSeconds(2),
+                    SourceActorId = playerId,
+                    TargetActorId = playerId,
+                    Provenance = exact,
+                    Amount = 48000,
+                    ActionId = 2001,
+                },
+                new CastStartEvent
+                {
+                    Id = new EventId(3),
+                    Sequence = 3,
+                    PullTime = TimeSpan.FromSeconds(3),
+                    ObservedAt = StartedAt.AddSeconds(3),
+                    SourceActorId = enemyId,
+                    Provenance = exact,
+                    ActionId = 3001,
+                    CastDuration = TimeSpan.FromSeconds(4.2),
+                },
+                new CastEndEvent
+                {
+                    Id = new EventId(4),
+                    Sequence = 4,
+                    PullTime = TimeSpan.FromSeconds(4),
+                    ObservedAt = StartedAt.AddSeconds(4),
+                    SourceActorId = enemyId,
+                    Provenance = exact,
+                    ActionId = 3001,
+                },
+                new ActionUseEvent
+                {
+                    Id = new EventId(5),
+                    Sequence = 5,
+                    PullTime = TimeSpan.FromSeconds(5),
+                    ObservedAt = StartedAt.AddSeconds(5),
+                    SourceActorId = playerId,
+                    TargetActorId = enemyId,
+                    Provenance = exact,
+                    ActionId = 4001,
+                },
+                new StatusApplyEvent
+                {
+                    Id = new EventId(6),
+                    Sequence = 6,
+                    PullTime = TimeSpan.FromSeconds(6),
+                    ObservedAt = StartedAt.AddSeconds(6),
+                    SourceActorId = enemyId,
+                    TargetActorId = playerId,
+                    Provenance = exact,
+                    StatusId = 5001,
+                    Stacks = 2,
+                    Duration = TimeSpan.FromSeconds(15),
+                },
+                new StatusRemoveEvent
+                {
+                    Id = new EventId(7),
+                    Sequence = 7,
+                    PullTime = TimeSpan.FromSeconds(7),
+                    ObservedAt = StartedAt.AddSeconds(7),
+                    SourceActorId = enemyId,
+                    TargetActorId = playerId,
+                    Provenance = exact,
+                    StatusId = 5001,
+                },
+                new TargetabilityEvent
+                {
+                    Id = new EventId(8),
+                    Sequence = 8,
+                    PullTime = TimeSpan.FromSeconds(8),
+                    ObservedAt = StartedAt.AddSeconds(8),
+                    SourceActorId = enemyId,
+                    TargetActorId = enemyId,
+                    Provenance = exact,
+                    IsTargetable = false,
+                },
+                new GaugeEvent
+                {
+                    Id = new EventId(9),
+                    Sequence = 9,
+                    PullTime = TimeSpan.FromSeconds(9),
+                    ObservedAt = StartedAt.AddSeconds(9),
+                    SourceActorId = playerId,
+                    TargetActorId = playerId,
+                    Provenance = EventSource(CaptureFidelity.Derived, 0.95f),
+                    GaugeKey = "esprit",
+                    Value = 76,
+                },
+                new TetherEvent
+                {
+                    Id = new EventId(10),
+                    Sequence = 10,
+                    PullTime = TimeSpan.FromSeconds(10),
+                    ObservedAt = StartedAt.AddSeconds(10),
+                    SourceActorId = enemyId,
+                    TargetActorId = playerId,
+                    Provenance = exact,
+                    TetherId = 84,
+                },
+                new MarkerEvent
+                {
+                    Id = new EventId(11),
+                    Sequence = 11,
+                    PullTime = TimeSpan.FromSeconds(11),
+                    ObservedAt = StartedAt.AddSeconds(11),
+                    TargetActorId = playerId,
+                    Provenance = exact,
+                    MarkerId = 17,
+                },
+                new MechanicSignalEvent
+                {
+                    Id = new EventId(12),
+                    Sequence = 12,
+                    PullTime = TimeSpan.FromSeconds(12),
+                    ObservedAt = StartedAt.AddSeconds(12),
+                    SourceActorId = enemyId,
+                    Provenance = EventSource(CaptureFidelity.Inferred, 0.8f),
+                    SignalKey = "arena-state",
+                    SignalId = 6001,
+                    State = 2,
+                },
+                new RaiseEvent
+                {
+                    Id = new EventId(13),
+                    Sequence = 13,
+                    PullTime = TimeSpan.FromSeconds(13),
+                    ObservedAt = StartedAt.AddSeconds(13),
+                    SourceActorId = playerId,
+                    TargetActorId = petId,
+                    Provenance = exact,
+                    ActionId = 7001,
+                },
+                new DeathEvent
+                {
+                    Id = new EventId(14),
+                    Sequence = 14,
+                    PullTime = TimeSpan.FromSeconds(14),
+                    ObservedAt = StartedAt.AddSeconds(14),
+                    SourceActorId = enemyId,
+                    TargetActorId = playerId,
+                    Provenance = exact,
+                },
             ],
             Positions =
             [
@@ -200,27 +344,7 @@ public sealed class CanonicalDomainSerializationTests
         Assert.Equal(0.98f, roundTripped.Confidence);
         Assert.Equal(actorId, Assert.Single(roundTripped.Actors));
         Assert.Equal(eventIds, Assert.Single(roundTripped.Evidence).EventIds);
-        Assert.Equal(125000, roundTripped.Metrics["damage"]);
-    }
-
-    private static T BaseEvent<T>(
-        T evt,
-        long sequence,
-        ActorId? sourceActorId,
-        ActorId? targetActorId,
-        EventProvenance provenance)
-        where T : NormalizedEvent
-    {
-        return evt with
-        {
-            Id = new EventId(sequence),
-            Sequence = sequence,
-            PullTime = TimeSpan.FromSeconds(sequence),
-            ObservedAt = StartedAt.AddSeconds(sequence),
-            SourceActorId = sourceActorId,
-            TargetActorId = targetActorId,
-            Provenance = provenance,
-        };
+        Assert.Equal(125000d, roundTripped.Metrics["damage"]);
     }
 
     private static EventProvenance EventSource(CaptureFidelity fidelity, float confidence)
