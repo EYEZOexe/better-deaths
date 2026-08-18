@@ -72,14 +72,19 @@ public sealed partial class Plugin
 
     private void ArchiveCurrentPullForReview(string reason, bool suppressResetStateDeaths = true)
     {
-        if (currentDeaths.Count > 0)
+        var archiveAction = PullLifecyclePolicy.GetArchiveAction(
+            currentDeaths.Count,
+            pullStartedAtUtc is not null,
+            lastKnownPullElapsedSeconds > 0.0f);
+
+        if (archiveAction == PullArchiveAction.ArchiveForReview)
         {
             CaptureCurrentPullSnapshot(reason);
             PrepareCurrentPullForReview(suppressResetStateDeaths);
             return;
         }
 
-        if (pullStartedAtUtc is not null || lastKnownPullElapsedSeconds > 0.0f)
+        if (archiveAction == PullArchiveAction.Reset)
         {
             ResetCurrentPull(suppressResetStateDeaths);
         }
@@ -87,8 +92,7 @@ public sealed partial class Plugin
 
     private bool CaptureCurrentPullSnapshot(string reason)
     {
-        if (currentPullSnapshotCaptured ||
-            currentDeaths.Count == 0)
+        if (!PullLifecyclePolicy.ShouldCaptureSnapshot(currentPullSnapshotCaptured, currentDeaths.Count))
         {
             return false;
         }
