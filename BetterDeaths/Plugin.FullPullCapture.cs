@@ -127,7 +127,7 @@ public sealed partial class Plugin
                     Source = source,
                     Target = targetActor,
                     ActionId = packet.ActionId,
-                    Amount = CalculateRawActionEffectAmount(effect),
+                    Amount = CalculateDamageValue(effect.Value, effect.Param0, effect.Param1),
                     IsCritical = (effect.Param0 & 0x20) == 0x20,
                     IsDirectHit = (effect.Param0 & 0x40) == 0x40,
                     Fidelity = CaptureFidelity.Exact,
