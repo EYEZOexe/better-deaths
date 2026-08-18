@@ -94,6 +94,8 @@ public sealed class AnalyzerWorkspacePanelTests
         Assert.Contains("context.Selection", timeline, StringComparison.Ordinal);
         Assert.Contains("context.Selection", deaths, StringComparison.Ordinal);
         Assert.Contains("context.Selection", replay, StringComparison.Ordinal);
+        Assert.Contains("context.DeathEvents", deaths, StringComparison.Ordinal);
+        Assert.DoesNotContain("pull.Events.OfType", deaths, StringComparison.Ordinal);
         Assert.Contains("AnalyzerWorkspaceNavigationTarget.LegacyDeaths", deaths, StringComparison.Ordinal);
         Assert.Contains("AnalyzerWorkspaceNavigationTarget.LegacyReplay", replay, StringComparison.Ordinal);
 
