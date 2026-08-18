@@ -17,159 +17,159 @@ Encounter knowledge/reference repository: `EYEZOexe/wtfdig`
 
 ## Current milestone
 
-### M2 — Full-pull live recorder
+### M3 — Analyzer Engine
+
+**Status:** `READY FOR REVIEW`
+
+**Parent issue:** #32
+**Integration/sign-off issue:** #36
+
+M3 was previously marked approved too early: the documentation sign-off landed while implementation PRs #38 and #39 were still open. The inconsistency was discovered before M4-B began. #32/#36 were reopened, both missing implementation PRs were independently reviewed/fixed/merged, and a fresh combined-state sign-off is now the only remaining gate.
+
+### M3 work packages
+
+#### M3-A — Canonical Actor/Event indexes
 
 **Status:** `APPROVED`
 
-**Parent issue:** #21
-
-**Integration/sign-off issue:** #26
-
-**Purpose**
-
-Introduce a separate append-only canonical full-pull path that can preserve meaningful zero-death pulls without changing Better Deaths' existing short death-recap buffers or legacy `PullDeathSnapshot` review workflow.
-
-### M2 work packages
-
-#### M2-A — FullPullRecorder and finalization policy
-
-**Status:** `APPROVED`
-
-**Issue / PR:** #22 / #27
-
-**Merged commit:** `d69c4864a131147cd3f15149bdf550a8f57d4608`
+**Issue / PR:** #33 / #37
+**Merged commit:** `607b2c9530c7a94f24c7248df79e4317f6c9fbd7`
 
 Evidence:
-- Added append-only `FullPullRecorder` with explicit begin/combat/register/append/finalize/reset lifecycle.
-- One strict sequence boundary covers events, positions, and world-marker samples.
-- Pull-local actor registration rejects conflicting identity reuse.
-- `PullFinalizationPolicy` requires duty-active + combat-observed + at least one relevant canonical event + at least one second duration.
-- Meaningful zero-death pulls can finalize; trivial/no-event pulls are discarded.
-- Reset/finalize tests prove no cross-pull contamination.
-- Existing lead-up/death buffers were not modified.
-- PR CI run `32162633593` passed restore, format, tests, and plugin/package build.
+- validated unique actor IDs, event IDs, and strictly increasing canonical sequence;
+- deterministic typed/source/target/involved/action/status lookup paths;
+- pure source-agnostic analysis boundary;
+- repository CI passed before merge.
 
-#### M2-B — Canonical pull persistence
+#### M3-B — Analyzer engine, registry, dependencies, failure isolation
 
 **Status:** `APPROVED`
 
-**Issue / PR:** #23 / #28
-
-**Merged commit:** `2b0b3e757c3ae2f549db11e7d1c29a5f631eceb1`
+**Issue / PR:** #34 / #38
+**Merged commit:** `d0b026df60213fb1aa453b2f06637c2c53d73368`
+**Final CI:** `32174557211`
 
 Evidence:
-- Added `IPullStore`, canonical `PullSummary`/`PullQuery`, `CanonicalPullSerializer`, and file-backed canonical pull store.
-- Canonical file/pull/index schemas start at version 1 and are explicitly separate from legacy history schema 3 / index schema 7.
-- Compact index and per-pull details are stored separately.
-- Writes use temp + flush-to-disk + backup + replace behavior.
-- Corrupt compatible data can recover through detail backup or index backup/detail rebuild.
-- Unsupported schema versions fail explicitly instead of being silently reinterpreted or hidden behind older backups.
-- Save/Delete validate an existing index before mutating canonical detail storage.
-- Zero-death canonical pulls save, load, query, and delete normally.
-- Legacy `PullDeathSnapshot` persistence was not replaced or modified.
-- Final PR CI run `32163926522` passed 226 tests, format, and plugin/package build with 0 warnings/errors.
+- registry composition with no hard-coded dispatch;
+- deterministic dependency resolution with explicit missing/self/cycle failures;
+- declared dependency-result access;
+- event/actor indexes built once per run;
+- per-module buffered output, failure isolation, dependent skip behavior, cancellation propagation;
+- result ownership/global identity validation.
 
-#### M2-C — Live canonical normalization boundary
+Lead review caught and fixed a correctness bug before merge: global result IDs were being reserved while a module was still being validated. A module that later failed could therefore poison result IDs for subsequent independent modules. The final implementation validates the complete module result set first and commits global ID reservations only on success.
+
+#### M3-C — First generic analyzer / golden fixture
 
 **Status:** `APPROVED`
 
-**Issue / PR:** #24 / #29
-
-**Merged commit:** `ea9b07a74818571d4c92d4473ed126eabd5aeb8b`
+**Issue / PR:** #35 / #39
+**Merged commit:** `924f57a517a85d8ede108192aae4d8a205c542b9`
+**Final CI:** `32174764060`
 
 Evidence:
-- Added source-boundary live fact records outside `BetterDeaths.Domain`.
-- Added `DalamudLiveEventNormalizer` translating reconstructed live facts into typed canonical events/spatial samples.
-- Stable adapter-supplied source-instance keys resolve deterministic pull-local `ActorId` values and preserve owner/pet relationships.
-- Conflicting reuse of one source-instance key is rejected rather than silently merging actor instances.
-- Events and spatial samples share one explicit sequence allocator; `EventId` is stable from that sequence.
-- Pull-relative time is primary; source wall-clock remains metadata.
-- Dalamud source provenance, fidelity, and confidence are attached to normalized facts.
-- No analyzer interpretation or plugin-hook wiring was introduced in this package.
-- Final PR CI run `32164499951` passed 231 tests, format, and plugin/package build with 0 warnings/errors.
+- `DeathEventAnalyzer` consumes canonical `DeathEvent` facts through the real engine;
+- structured result links stable event/actor/time evidence and provenance confidence;
+- deterministic result identity derives from pull + analyzer + event identity;
+- no-death pulls are cleanly unsupported;
+- no M5 causal/blame logic was pulled forward.
 
-#### M2-D — Additive live lifecycle integration
+Lead review caught and fixed an invalid golden fixture: two hard-coded result GUIDs did not match the actual stable identity algorithm. The corrected fixture derives expected IDs from the identity contract and verifies repeated runs serialize to identical structured results.
+
+#### M3-D — Corrected integration review
+
+**Status:** `READY FOR REVIEW`
+
+Combined review:
+- [x] M3-A/B/C are now actually merged on `main`.
+- [x] Analyzer contracts remain source-agnostic and independent of Dalamud/ImGui/FFLogs/network/persistence implementation types.
+- [x] Module output commit semantics are atomic after the M3-B lead-review fix.
+- [x] Generic analyzer output is deterministic and evidence-backed after the M3-C fixture correction.
+- [x] No M4+ implementation leaked into the analyzer engine packages.
+- [ ] Corrected combined-state sign-off branch CI must pass restore, format, tests, and plugin/package build.
+
+See `docs/analyzer/M3_SIGNOFF.md` for the detailed correction record.
+
+## M4 — New Workspace Shell
+
+**Status:** `BLOCKED` pending corrected M3 sign-off, except already-merged M4-A.
+
+**Parent issue:** #41
+
+### M4-A — Shared analyzer workspace selection state
+
+**Status:** `APPROVED / ALREADY MERGED`
+
+**Issue / PR:** #42 / #46
+**Merged commit:** `b6ab9d996ee0025477e2abf669ca90069b53009b`
+
+This package landed while the M3 ledger was inconsistent. It remains because it is pure UI selection-state infrastructure and does not depend on unmerged analyzer-engine behavior.
+
+It owns one synchronized selection model for:
+- selected `PullId`;
+- selected `ActorId`;
+- selected `TimeRange`;
+- selected `AnalysisResultId`;
+- optional mechanic occurrence key;
+- monotonic change/version notification.
+
+Changing pull clears stale cross-pull context; selecting an `AnalysisResult` synchronizes its deterministic actor/time selection. No ImGui, Dalamud, persistence, or analyzer execution is embedded in the state model.
+
+### Remaining M4 work
+
+- **M4-B / #43 — BLOCKED:** focused panel contracts and Overview/Timeline/Deaths/Replay shells.
+- **M4-C / #44 — BLOCKED:** `AnalyzerWindow` plugin integration, canonical pull/result loading and navigation.
+- **M4-D / #45 — BLOCKED:** combined workspace review/sign-off.
+
+M4-B resumes only after corrected M3-D approval.
+
+## Completed milestone: M2 — Full-pull live recorder
 
 **Status:** `APPROVED`
 
-**Issue / PR:** #25 / #30
+- M2-A / #22 / PR #27 — separate append-only `FullPullRecorder`, meaningful-pull finalization, zero-death support.
+- M2-B / #23 / PR #28 — independent versioned canonical `IPullStore` persistence and recovery.
+- M2-C / #24 / PR #29 — source-boundary Dalamud live normalization into canonical events/spatial facts.
+- M2-D / #25 / PR #30 — additive live lifecycle integration and zero-death persistence while preserving legacy recap behavior.
+- M2-E / #26 / PR #31 — combined sign-off.
 
-**Merged commit:** `67c839cb450d40c849ceefa62c949d8326bdc32d`
-
-Evidence:
-- Existing pull start/combat lifecycle starts and marks the separate `FullPullRecorder`.
-- Existing resolved raw action-effect packets additionally feed canonical action/damage/heal events and sampled positions; old replay and death-resolution calls still run.
-- Party actor identity uses existing stable member keys; other live objects prefer Dalamud game-object identity with explicit fallback behavior.
-- `ArchiveCurrentPullForReview` finalizes the canonical pull before the old death-gated archive/reset decision, so a meaningful zero-death pull can survive while legacy zero-death behavior remains unchanged.
-- Canonical storage is isolated under a separate `analyzer-pulls` configuration directory and queued away from the immediate finalization path.
-- Canonical normalization/persistence failures are caught separately from the legacy death recap path.
-- `ResetCurrentPull` / `PrepareCurrentPullForReview` also clear the canonical live recorder after finalization/reset boundaries.
-- Automated end-to-end coverage proves live canonical facts -> zero-death `RecordedPull` -> canonical file store -> reload.
-- Source-contract coverage verifies canonical capture is additive rather than a replacement for existing replay/death processing.
-- Existing legacy snapshot death gate and 70/75-second short-buffer limits remain explicitly covered.
-- Review caught an invalid amount-helper call; it was corrected to reuse the existing raw action-effect amount reconstruction before merge.
-- Final PR CI run `32166053444` passed 236 tests, format, and plugin/package build with 0 warnings/errors.
-
-### M2-E — Integration review
-
-**Status:** `APPROVED`
-
-Combined review findings:
-- [x] A meaningful clean zero-death pull can be finalized into `RecordedPull`, saved through `IPullStore`, reloaded, and inspected in automated integration coverage.
-- [x] The legacy `PullDeathSnapshot` capture path remains death-gated and is still executed for death-containing pulls.
-- [x] Canonical finalization happens before legacy zero-death reset.
-- [x] Existing `LeadUpTimingPolicy` display/capture/live-retention values remain unchanged and bounded.
-- [x] Full-pull recorder reset/finalize semantics prevent pull-to-pull state leakage.
-- [x] Canonical event IDs/order/time/provenance are explicit and deterministic within one pull.
-- [x] Canonical persistence schema is distinct from legacy history v3/index v7 and has corruption/compatibility recovery coverage.
-- [x] M2 contains no analyzer engine, new workspace UI, FFLogs integration, job analyzer, encounter pack, or WTFDiG port.
-- [x] Each implementation PR passed repository CI before merge.
-- [x] Combined M2 sign-off CI run `32166422121` passed restore, formatting, all tests, and plugin/package build.
-
-**Decision:** M2 is approved. M3 — Analyzer Engine — is authorized after this sign-off change is merged.
-
-**Runtime validation note:** automated CI cannot launch FFXIV/Dalamud in-game. An in-game smoke test of combat start/end, wipe/duty reset, plugin reload, and generated canonical files remains a manual runtime validation item. No current automated/static review evidence indicates a regression, but this is kept explicit rather than claiming unexecuted runtime validation.
+Important preserved contracts:
+- legacy death recap remains available and death-gated;
+- short recap buffers remain bounded at their characterized limits;
+- canonical full-pull storage is separate from legacy history;
+- runtime in-game FFXIV/Dalamud smoke validation remains a manual item because CI cannot launch the game.
 
 ## Completed milestone: M1 — Canonical domain skeleton
 
 **Status:** `APPROVED`
 
-**Issue / implementation PR:** #14 / #19
+Issue #14 / implementation PR #19 / sign-off PR #20.
 
-**Merged implementation commit:** `db4882cf8f781faf85a5ef14c0c9bd9040bdff90`
-
-Key contracts established:
-- canonical `RecordedPull`, versioned schema, metadata, actors, typed normalized events, positions/world markers, and provenance;
-- stable `PullId`, `EventId`, pull-local `ActorId`, `AnalysisResultId`, and explicit sequence + pull-relative `TimeSpan` ordering;
-- structured `AnalysisResult` / `AnalysisEvidence` contracts;
-- source/fidelity provenance and mixed-event serialization;
-- pure Domain compile boundary without Dalamud/ImGui/FFLogs/network/persistence implementation dependencies.
-
-Final implementation CI run `32161772862` passed restore, formatting, 201 tests, and plugin/package build. Sign-off PR #20 merged as `71e0149480ff92bc14c232a264028d5bd0890e47`.
+Established source-agnostic canonical `RecordedPull`, typed `NormalizedEvent` records, stable pull/event/actor/result IDs, pull-relative deterministic sequence/time, structured `AnalysisResult`/`AnalysisEvidence`, provenance/fidelity, and serialization/boundary tests.
 
 ## Completed milestone: M0 — Baseline and characterization
 
 **Status:** `APPROVED`
 
-- M0-A / #3 / PR #10: lifecycle/archive/reset characterization; merge `79709671cb260b394c5fad790e883f9cf3e2e61a`.
-- M0-B / #4 / PR #11: persistence/schema baseline and compatibility assumptions; merge `22ead99dcd44f3dfa4a36fca1f32604c70e0abef`.
-- M0-C / #5 / PR #9: replay persistence round-trip; merge `fe803523d0fd207b6508c4c7440449cc37ee6d33`.
-- M0-D / #6 / PR #8: 10/30/60 display, 70-second capture, 75-second live retention characterization; merge `bd0359a2b90adde40debbeb0e322699f39da5a61`.
-- M0-E / #7: combined integration review and executable CI validation.
+- M0-A: lifecycle/archive/reset characterization.
+- M0-B: persistence/schema/death-filter baseline.
+- M0-C: replay persistence round trip.
+- M0-D: 10/30/60 display, 70-second capture and 75-second live retention characterization.
+- M0-E: combined CI validation.
 
 ## Contracts later milestones must preserve or intentionally replace
 
-1. Existing Better Deaths death recap remains available and its short optimized buffers remain bounded.
-2. Full-pull history is collected by the separate M2 recorder, never by making legacy recap lists unbounded.
-3. Legacy `PullDeathSnapshot` reading/persistence remains supported while canonical storage evolves additively.
-4. Existing persistence recovery/background-save safety must not be silently discarded.
-5. Canonical schema versions must not silently reuse legacy history version 3 / index version 7 semantics.
-6. All future data sources normalize into the M1 `RecordedPull` / `NormalizedEvent` contracts before analyzer interpretation.
-7. Stable event IDs, explicit sequence, and pull-relative time remain the evidence/time-ordering basis; wall-clock timestamps are metadata.
-8. Domain/analyzer contracts remain free of Dalamud service objects, FFLogs DTOs, ImGui types, network clients, and persistence implementations.
-9. Analyzer findings remain structured/evidence-backed rather than UI-formatted prose as the source of truth.
-10. Canonical persistence incompatibility remains explicit; unsupported schema data is not silently treated as corrupt or rebuilt into another semantic version.
-11. Canonical runtime capture remains additive until later milestones intentionally migrate old death analysis onto canonical events.
+1. Existing Better Deaths death recap remains available and its optimized short buffers remain bounded.
+2. Full-pull history uses the separate canonical recorder; legacy recap lists are never made unbounded.
+3. Legacy `PullDeathSnapshot` persistence remains supported during additive migration.
+4. Canonical data has independent versioning/recovery behavior and unsupported versions fail explicitly.
+5. All future sources normalize into canonical `RecordedPull` / `NormalizedEvent` contracts before analyzer interpretation.
+6. Stable event IDs, explicit sequence, and pull-relative time remain the evidence/time-ordering basis; wall-clock timestamps are metadata.
+7. Domain/analyzer contracts remain free of Dalamud services, FFLogs DTOs, ImGui types, network clients, and persistence implementations.
+8. Analyzer findings remain structured and evidence-backed; rendered prose is not the source of truth.
+9. Analyzer modules do not make network calls, render UI, mutate pulls, or depend on hidden global state.
+10. New analyzer UI remains outside the monolithic legacy `RecapWindow`.
+11. WTFDiG code/data is not ported until M8 and requires exact-path/commit provenance plus MIT attribution.
 
 ## Milestone roadmap
 
@@ -178,8 +178,8 @@ Final implementation CI run `32161772862` passed restore, formatting, 201 tests,
 | M0 Baseline & characterization | APPROVED | Complete |
 | M1 Canonical domain skeleton | APPROVED | Complete |
 | M2 Full-pull live recorder | APPROVED | Complete |
-| M3 Analyzer engine | AUTHORIZED | M2 approved |
-| M4 New workspace shell | NOT STARTED | M3 approved |
+| M3 Analyzer engine | READY FOR REVIEW | Corrected combined-state CI |
+| M4 New workspace shell | BLOCKED (M4-A already merged) | M3 corrected approval |
 | M5 Generic hardcore analysis | NOT STARTED | M4 approved |
 | M6 FFLogs integration | NOT STARTED | M5 approved |
 | M7 First job analyzer | NOT STARTED | M6 approved |
@@ -197,7 +197,7 @@ Verified later-use surfaces:
 - `src/lib/arena.ts` — role/group matching, waymarks, arena/player/boss/AoE/tether/arrow/polygon concepts.
 - `src/routes/ultimates/umad/data.ts` — phase/mechanic scaffolding and role/light-party strategy assignment data.
 
-Do not port WTFDiG until the M8 encounter-pack milestone. Record exact upstream path + commit and update `THIRD_PARTY_NOTICES.md` with the MIT notice when direct reuse first lands.
+Do not port WTFDiG until M8. Record exact upstream path + commit and update `THIRD_PARTY_NOTICES.md` when direct reuse first lands.
 
 ## Review ledger
 
@@ -205,12 +205,14 @@ Do not port WTFDiG until the M8 encounter-pack milestone. Record exact upstream 
 |---|---|---|---|
 | 2026-08-18 | Foundation PR #1 | APPROVED | Execution contract/progress ledger foundation. |
 | 2026-08-18 | M0 PRs #8–#13 | APPROVED | Baseline characterization and combined CI complete. |
-| 2026-08-18 | M1 PR #19 / sign-off #20 | APPROVED | Canonical domain/result contracts; final implementation CI `32161772862` green. |
-| 2026-08-18 | M2-A PR #27 | APPROVED | Recorder/finalization policy; CI `32162633593` green. |
-| 2026-08-18 | M2-B PR #28 | APPROVED | Canonical pull file store; compatibility fixes reviewed; CI `32163926522` green. |
-| 2026-08-18 | M2-C PR #29 | APPROVED | Live normalization boundary; CI `32164499951` green. |
-| 2026-08-18 | M2-D PR #30 | APPROVED | Additive lifecycle integration; 236 tests/build green on CI `32166053444`. |
-| 2026-08-18 | M2-E / sign-off PR #31 | APPROVED | Combined M2 state green on CI `32166422121`; M3 authorized. |
+| 2026-08-18 | M1 PR #19 / #20 | APPROVED | Canonical domain/results boundary established. |
+| 2026-08-18 | M2 PRs #27–#31 | APPROVED | Full-pull recorder/persistence/live normalization/lifecycle integration. |
+| 2026-08-18 | M3-A PR #37 | APPROVED | Canonical analysis indexes. |
+| 2026-08-18 | Original M3 sign-off PR #40 | SUPERSEDED | Sign-off was premature because PRs #38/#39 were still open; correction initiated before M4-B. |
+| 2026-08-18 | M4-A PR #46 | APPROVED / retained | Pure selection-state package landed during ledger inconsistency; no analyzer-engine dependency. |
+| 2026-08-18 | M3-B PR #38 | APPROVED | Atomic result-ID defect caught/fixed; CI `32174557211`; merge `d0b026df...`. |
+| 2026-08-18 | M3-C PR #39 | APPROVED | Invalid golden IDs caught/fixed; CI `32174764060`; merge `924f57a5...`. |
+| 2026-08-18 | Corrected M3-D | READY FOR REVIEW | Awaiting fresh combined-state CI. |
 
 ## Agent return format
 
