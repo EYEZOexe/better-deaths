@@ -40,12 +40,12 @@ internal sealed class FileCanonicalPullStore : IPullStore, IDisposable
         await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            var summaries = (await LoadIndexWithRecoveryAsync(cancellationToken).ConfigureAwait(false)).ToList();
+
             Directory.CreateDirectory(rootDirectory);
             Directory.CreateDirectory(detailsDirectory);
-
             await WriteAtomicAsync(GetDetailPath(pull.Id), serialized, cancellationToken).ConfigureAwait(false);
 
-            var summaries = (await LoadIndexWithRecoveryAsync(cancellationToken).ConfigureAwait(false)).ToList();
             summaries.RemoveAll(summary => summary.Id == pull.Id);
             summaries.Add(CreateSummary(pull));
             SortSummaries(summaries);
@@ -109,11 +109,12 @@ internal sealed class FileCanonicalPullStore : IPullStore, IDisposable
         await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            var summaries = (await LoadIndexWithRecoveryAsync(cancellationToken).ConfigureAwait(false)).ToList();
+
             DeleteIfExists(GetDetailPath(id));
             DeleteIfExists(GetDetailPath(id) + BackupSuffix);
             DeleteIfExists(GetDetailPath(id) + TempSuffix);
 
-            var summaries = (await LoadIndexWithRecoveryAsync(cancellationToken).ConfigureAwait(false)).ToList();
             summaries.RemoveAll(summary => summary.Id == id);
             await SaveIndexAsync(summaries, cancellationToken).ConfigureAwait(false);
         }
