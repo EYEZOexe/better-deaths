@@ -75,7 +75,7 @@ M0-A through M0-D are implemented, reviewed, and merged. The combined M0 state w
 ### M0 work packages
 
 - **M0-A / #3 / PR #10 — APPROVED:** lifecycle policy seam and archive/reset/snapshot characterization; merged as `79709671cb260b394c5fad790e883f9cf3e2e61a`.
-- **M0-B / #4 / PR #11 — APPROVED:** persistence/schema/death-filter/normalization characterization and `M0_PERSISTENCE_BASELINE.md`; merged as `22ead99dcd44f3cfa1f32604c70e0abef`.
+- **M0-B / #4 / PR #11 — APPROVED:** persistence/schema/death-filter/normalization characterization and `M0_PERSISTENCE_BASELINE.md`; merged as `22ead99dcd44f3dfa4a36fca1f32604c70e0abef`.
 - **M0-C / #5 / PR #9 — APPROVED:** representative replay persistence round-trip; merged as `fe803523d0fd207b6508c4c7440449cc37ee6d33`.
 - **M0-D / #6 / PR #8 — APPROVED:** 10/30/60 display, 70-second capture, 75-second live retention, and late-fatal-cause timing characterization; merged as `bd0359a2b90adde40debbeb0e322699f39da5a61`.
 - **M0-E / #7 — APPROVED:** combined diff review and executable CI validation.
@@ -132,7 +132,7 @@ Do not port these during M2. When M8 begins, record exact upstream path + commit
 | 2026-08-18 | M0-D PR #8 | Implementation + lead diff review | APPROVED | Timing tests only; merged as `bd0359a2b90adde40debbeb0e322699f39da5a61`. |
 | 2026-08-18 | M0-C PR #9 | Implementation + lead diff review | APPROVED | Replay persistence round-trip fixture; merged as `fe803523d0fd207b6508c4c7440449cc37ee6d33`. |
 | 2026-08-18 | M0-A PR #10 | Implementation + lead diff review | APPROVED | Minimal lifecycle policy seam/tests; unrelated import churn caught and removed; merged as `79709671cb260b394c5fad790e883f9cf3e2e61a`. |
-| 2026-08-18 | M0-B PR #11 | Implementation + lead diff review | APPROVED | Persistence contracts/docs with explicit direct-test limitation; merged as `22ead99dcd44f3cfa1f32604c70e0abef`. |
+| 2026-08-18 | M0-B PR #11 | Implementation + lead diff review | APPROVED | Persistence contracts/docs with explicit direct-test limitation; merged as `22ead99dcd44f3dfa4a36fca1f32604c70e0abef`. |
 | 2026-08-18 | M0 validation PR #13 | GitHub Actions + lead integrator | APPROVED | Restore, format, tests, and plugin build green; M0 signed off. |
 | 2026-08-18 | M1 PR #19 | Implementation + lead integrator | APPROVED | Canonical domain/results contracts and serialization/boundary tests; final head CI run `32161772862` green; merged as `db4882cf8f781faf85a5ef14c0c9bd9040bdff90`. |
 
