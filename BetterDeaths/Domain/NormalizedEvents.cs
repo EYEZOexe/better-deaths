@@ -1,5 +1,6 @@
 namespace BetterDeaths.Domain;
 
+using System;
 using System.Text.Json.Serialization;
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "$eventType")]
