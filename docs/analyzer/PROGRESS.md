@@ -17,93 +17,22 @@ Encounter knowledge/reference repository: `EYEZOexe/wtfdig`
 
 ## Current milestone
 
-### M3 — Analyzer Engine
+### M4 — New Workspace Shell
 
-**Status:** `READY FOR REVIEW`
-
-**Parent issue:** #32
-**Integration/sign-off issue:** #36
-
-M3 was previously marked approved too early: the documentation sign-off landed while implementation PRs #38 and #39 were still open. The inconsistency was discovered before M4-B began. #32/#36 were reopened, both missing implementation PRs were independently reviewed/fixed/merged, and a fresh combined-state sign-off is now the only remaining gate.
-
-### M3 work packages
-
-#### M3-A — Canonical Actor/Event indexes
-
-**Status:** `APPROVED`
-
-**Issue / PR:** #33 / #37
-**Merged commit:** `607b2c9530c7a94f24c7248df79e4317f6c9fbd7`
-
-Evidence:
-- validated unique actor IDs, event IDs, and strictly increasing canonical sequence;
-- deterministic typed/source/target/involved/action/status lookup paths;
-- pure source-agnostic analysis boundary;
-- repository CI passed before merge.
-
-#### M3-B — Analyzer engine, registry, dependencies, failure isolation
-
-**Status:** `APPROVED`
-
-**Issue / PR:** #34 / #38
-**Merged commit:** `d0b026df60213fb1aa453b2f06637c2c53d73368`
-**Final CI:** `32174557211`
-
-Evidence:
-- registry composition with no hard-coded dispatch;
-- deterministic dependency resolution with explicit missing/self/cycle failures;
-- declared dependency-result access;
-- event/actor indexes built once per run;
-- per-module buffered output, failure isolation, dependent skip behavior, cancellation propagation;
-- result ownership/global identity validation.
-
-Lead review caught and fixed a correctness bug before merge: global result IDs were being reserved while a module was still being validated. A module that later failed could therefore poison result IDs for subsequent independent modules. The final implementation validates the complete module result set first and commits global ID reservations only on success.
-
-#### M3-C — First generic analyzer / golden fixture
-
-**Status:** `APPROVED`
-
-**Issue / PR:** #35 / #39
-**Merged commit:** `924f57a517a85d8ede108192aae4d8a205c542b9`
-**Final CI:** `32174764060`
-
-Evidence:
-- `DeathEventAnalyzer` consumes canonical `DeathEvent` facts through the real engine;
-- structured result links stable event/actor/time evidence and provenance confidence;
-- deterministic result identity derives from pull + analyzer + event identity;
-- no-death pulls are cleanly unsupported;
-- no M5 causal/blame logic was pulled forward.
-
-Lead review caught and fixed an invalid golden fixture: two hard-coded result GUIDs did not match the actual stable identity algorithm. The corrected fixture derives expected IDs from the identity contract and verifies repeated runs serialize to identical structured results.
-
-#### M3-D — Corrected integration review
-
-**Status:** `READY FOR REVIEW`
-
-Combined review:
-- [x] M3-A/B/C are now actually merged on `main`.
-- [x] Analyzer contracts remain source-agnostic and independent of Dalamud/ImGui/FFLogs/network/persistence implementation types.
-- [x] Module output commit semantics are atomic after the M3-B lead-review fix.
-- [x] Generic analyzer output is deterministic and evidence-backed after the M3-C fixture correction.
-- [x] No M4+ implementation leaked into the analyzer engine packages.
-- [ ] Corrected combined-state sign-off branch CI must pass restore, format, tests, and plugin/package build.
-
-See `docs/analyzer/M3_SIGNOFF.md` for the detailed correction record.
-
-## M4 — New Workspace Shell
-
-**Status:** `BLOCKED` pending corrected M3 sign-off, except already-merged M4-A.
+**Status:** `AUTHORIZED`
 
 **Parent issue:** #41
 
+M3 is now correctly approved after the premature original sign-off was repaired and the true combined M3-A/B/C repository state passed CI run `32175231795` (restore, formatting, tests, plugin/package build).
+
 ### M4-A — Shared analyzer workspace selection state
 
-**Status:** `APPROVED / ALREADY MERGED`
+**Status:** `APPROVED`
 
 **Issue / PR:** #42 / #46
 **Merged commit:** `b6ab9d996ee0025477e2abf669ca90069b53009b`
 
-This package landed while the M3 ledger was inconsistent. It remains because it is pure UI selection-state infrastructure and does not depend on unmerged analyzer-engine behavior.
+This package landed while the M3 ledger was inconsistent. It remains because it is pure workspace selection-state infrastructure and does not depend on unfinished analyzer behavior.
 
 It owns one synchronized selection model for:
 - selected `PullId`;
@@ -117,11 +46,81 @@ Changing pull clears stale cross-pull context; selecting an `AnalysisResult` syn
 
 ### Remaining M4 work
 
-- **M4-B / #43 — BLOCKED:** focused panel contracts and Overview/Timeline/Deaths/Replay shells.
-- **M4-C / #44 — BLOCKED:** `AnalyzerWindow` plugin integration, canonical pull/result loading and navigation.
-- **M4-D / #45 — BLOCKED:** combined workspace review/sign-off.
+- **M4-B / #43 — AUTHORIZED:** focused panel contracts and Overview/Timeline/Deaths/Replay shells.
+- **M4-C / #44 — BLOCKED on M4-B:** `AnalyzerWindow` plugin integration, canonical pull/result loading and navigation.
+- **M4-D / #45 — BLOCKED on M4-B/C:** combined workspace review/sign-off.
 
-M4-B resumes only after corrected M3-D approval.
+## Completed milestone: M3 — Analyzer Engine
+
+**Status:** `APPROVED`
+
+**Parent issue:** #32
+**Integration/sign-off issue:** #36
+**Corrected combined-state CI:** `32175231795`
+
+The original documentation sign-off PR #40 was merged prematurely while implementation PRs #38 and #39 were still open. The inconsistency was discovered before M4-B began. #32/#36 were reopened, the missing implementation PRs were independently reviewed/fixed/merged, and the actual combined repository state was then revalidated before M4 resumed.
+
+### M3-A — Canonical Actor/Event indexes
+
+**Status:** `APPROVED`
+
+**Issue / PR:** #33 / #37
+**Merged commit:** `607b2c9530c7a94f24c7248df79e4317f6c9fbd7`
+
+Evidence:
+- validated unique actor IDs, event IDs, and strictly increasing canonical sequence;
+- deterministic typed/source/target/involved/action/status lookup paths;
+- pure source-agnostic analysis boundary;
+- repository CI passed before merge.
+
+### M3-B — Analyzer engine, registry, dependencies, failure isolation
+
+**Status:** `APPROVED`
+
+**Issue / PR:** #34 / #38
+**Merged commit:** `d0b026df60213fb1aa453b2f06637c2c53d73368`
+**Final implementation CI:** `32174557211`
+
+Evidence:
+- registry composition with no hard-coded dispatch;
+- deterministic dependency resolution with explicit missing/self/cycle failures;
+- declared dependency-result access;
+- event/actor indexes built once per run;
+- per-module buffered output, failure isolation, dependent skip behavior, cancellation propagation;
+- result ownership/global identity validation.
+
+Lead review caught and fixed a correctness bug before merge: global result IDs were being reserved while a module was still being validated. A module that later failed could therefore poison result IDs for subsequent independent modules. The final implementation validates the complete module result set first and commits global ID reservations only on success.
+
+### M3-C — First generic analyzer / golden fixture
+
+**Status:** `APPROVED`
+
+**Issue / PR:** #35 / #39
+**Merged commit:** `924f57a517a85d8ede108192aae4d8a205c542b9`
+**Final implementation CI:** `32174764060`
+
+Evidence:
+- `DeathEventAnalyzer` consumes canonical `DeathEvent` facts through the real engine;
+- structured result links stable event/actor/time evidence and provenance confidence;
+- deterministic result identity derives from pull + analyzer + event identity;
+- no-death pulls are cleanly unsupported;
+- no M5 causal/blame logic was pulled forward.
+
+Lead review caught and fixed an invalid golden fixture: two hard-coded result GUIDs did not match the actual stable identity algorithm. The corrected fixture derives expected IDs from the identity contract and verifies repeated runs serialize to identical structured results.
+
+### M3-D — Corrected integration review
+
+**Status:** `APPROVED`
+
+Combined review:
+- [x] M3-A/B/C are actually merged on `main`.
+- [x] Analyzer contracts remain source-agnostic and independent of Dalamud/ImGui/FFLogs/network/persistence implementation types.
+- [x] Module output commit semantics are atomic after the M3-B lead-review fix.
+- [x] Generic analyzer output is deterministic and evidence-backed after the M3-C fixture correction.
+- [x] No M4+ implementation leaked into the analyzer engine packages.
+- [x] Corrected combined-state CI `32175231795` passed restore, formatting, all tests, and plugin/package build.
+
+See `docs/analyzer/M3_SIGNOFF.md` for the detailed correction record.
 
 ## Completed milestone: M2 — Full-pull live recorder
 
@@ -178,8 +177,8 @@ Established source-agnostic canonical `RecordedPull`, typed `NormalizedEvent` re
 | M0 Baseline & characterization | APPROVED | Complete |
 | M1 Canonical domain skeleton | APPROVED | Complete |
 | M2 Full-pull live recorder | APPROVED | Complete |
-| M3 Analyzer engine | READY FOR REVIEW | Corrected combined-state CI |
-| M4 New workspace shell | BLOCKED (M4-A already merged) | M3 corrected approval |
+| M3 Analyzer engine | APPROVED | Complete after corrected CI `32175231795` |
+| M4 New workspace shell | AUTHORIZED | M3 corrected approval complete |
 | M5 Generic hardcore analysis | NOT STARTED | M4 approved |
 | M6 FFLogs integration | NOT STARTED | M5 approved |
 | M7 First job analyzer | NOT STARTED | M6 approved |
@@ -212,7 +211,7 @@ Do not port WTFDiG until M8. Record exact upstream path + commit and update `THI
 | 2026-08-18 | M4-A PR #46 | APPROVED / retained | Pure selection-state package landed during ledger inconsistency; no analyzer-engine dependency. |
 | 2026-08-18 | M3-B PR #38 | APPROVED | Atomic result-ID defect caught/fixed; CI `32174557211`; merge `d0b026df...`. |
 | 2026-08-18 | M3-C PR #39 | APPROVED | Invalid golden IDs caught/fixed; CI `32174764060`; merge `924f57a5...`. |
-| 2026-08-18 | Corrected M3-D | READY FOR REVIEW | Awaiting fresh combined-state CI. |
+| 2026-08-18 | Corrected M3-D / PR #47 | APPROVED | Combined-state CI `32175231795` green; M4-B authorized after merge. |
 
 ## Agent return format
 
