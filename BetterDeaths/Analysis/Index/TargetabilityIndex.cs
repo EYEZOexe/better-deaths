@@ -142,18 +142,20 @@ internal sealed class TargetabilityIndex
         var intervals = new List<TargetabilityInterval>();
         var current = events[0];
         var currentStart = current.PullTime;
+        var lastEventTime = current.PullTime;
         var currentEvidence = new List<EventId> { current.Id };
 
         for (var index = 1; index < events.Count; index++)
         {
             var next = events[index];
-            if (next.PullTime < currentStart)
+            if (next.PullTime < lastEventTime)
             {
                 throw new InvalidOperationException(
                     $"Targetability event time moved backwards for actor {actorId.Value}: " +
-                    $"{currentStart} -> {next.PullTime}.");
+                    $"{lastEventTime} -> {next.PullTime}.");
             }
 
+            lastEventTime = next.PullTime;
             if (next.IsTargetable == current.IsTargetable)
             {
                 currentEvidence.Add(next.Id);
