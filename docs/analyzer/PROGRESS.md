@@ -19,7 +19,7 @@ Encounter knowledge/reference repository: `EYEZOexe/wtfdig`
 
 ### M2 — Full-pull live recorder
 
-**Status:** `READY FOR REVIEW`
+**Status:** `APPROVED`
 
 **Parent issue:** #21
 
@@ -112,7 +112,7 @@ Evidence:
 
 ### M2-E — Integration review
 
-**Status:** `READY FOR REVIEW`
+**Status:** `APPROVED`
 
 Combined review findings:
 - [x] A meaningful clean zero-death pull can be finalized into `RecordedPull`, saved through `IPullStore`, reloaded, and inspected in automated integration coverage.
@@ -124,7 +124,9 @@ Combined review findings:
 - [x] Canonical persistence schema is distinct from legacy history v3/index v7 and has corruption/compatibility recovery coverage.
 - [x] M2 contains no analyzer engine, new workspace UI, FFLogs integration, job analyzer, encounter pack, or WTFDiG port.
 - [x] Each implementation PR passed repository CI before merge.
-- [ ] Final combined M2 sign-off branch CI must pass before M2 is marked `APPROVED` and M3 begins.
+- [x] Combined M2 sign-off CI run `32166422121` passed restore, formatting, all tests, and plugin/package build.
+
+**Decision:** M2 is approved. M3 — Analyzer Engine — is authorized after this sign-off change is merged.
 
 **Runtime validation note:** automated CI cannot launch FFXIV/Dalamud in-game. An in-game smoke test of combat start/end, wipe/duty reset, plugin reload, and generated canonical files remains a manual runtime validation item. No current automated/static review evidence indicates a regression, but this is kept explicit rather than claiming unexecuted runtime validation.
 
@@ -175,8 +177,8 @@ Final implementation CI run `32161772862` passed restore, formatting, 201 tests,
 |---|---|---|
 | M0 Baseline & characterization | APPROVED | Complete |
 | M1 Canonical domain skeleton | APPROVED | Complete |
-| M2 Full-pull live recorder | READY FOR REVIEW | Final combined sign-off CI |
-| M3 Analyzer engine | BLOCKED | M2 approved |
+| M2 Full-pull live recorder | APPROVED | Complete |
+| M3 Analyzer engine | AUTHORIZED | M2 approved |
 | M4 New workspace shell | NOT STARTED | M3 approved |
 | M5 Generic hardcore analysis | NOT STARTED | M4 approved |
 | M6 FFLogs integration | NOT STARTED | M5 approved |
@@ -208,7 +210,7 @@ Do not port WTFDiG until the M8 encounter-pack milestone. Record exact upstream 
 | 2026-08-18 | M2-B PR #28 | APPROVED | Canonical pull file store; compatibility fixes reviewed; CI `32163926522` green. |
 | 2026-08-18 | M2-C PR #29 | APPROVED | Live normalization boundary; CI `32164499951` green. |
 | 2026-08-18 | M2-D PR #30 | APPROVED | Additive lifecycle integration; 236 tests/build green on CI `32166053444`. |
-| 2026-08-18 | M2-E | READY FOR REVIEW | Combined automated/static review complete; awaiting sign-off branch CI. |
+| 2026-08-18 | M2-E / sign-off PR #31 | APPROVED | Combined M2 state green on CI `32166422121`; M3 authorized. |
 
 ## Agent return format
 
