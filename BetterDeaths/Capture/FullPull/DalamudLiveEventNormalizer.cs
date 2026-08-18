@@ -236,7 +236,7 @@ internal sealed class DalamudLiveEventNormalizer
             fact,
             sequence,
             sourceActorId: null,
-            ResolveActor(fact.Target));
+            targetActorId: ResolveActor(fact.Target));
 
         recorder.Append(new MarkerEvent
         {
