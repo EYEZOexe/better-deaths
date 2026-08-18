@@ -1,5 +1,8 @@
 namespace BetterDeaths.Domain;
 
+using System;
+using System.Collections.Generic;
+
 public readonly record struct TimeRange(TimeSpan Start, TimeSpan End);
 
 public enum AnalysisSeverity
