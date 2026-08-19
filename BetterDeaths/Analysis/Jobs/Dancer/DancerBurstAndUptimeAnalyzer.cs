@@ -12,6 +12,11 @@ using System.Threading.Tasks;
 internal sealed class DancerBurstAndUptimeAnalyzer : IAnalyzerModule
 {
     public const string AnalyzerId = "job.dnc.burst-uptime";
+    public const string DevilmentOutsideTechnicalRuleKey = "devilment.outside-technical-window";
+    public const string DevilmentDelayedTechnicalRuleKey = "devilment.delayed-inside-technical";
+    public const string CooldownAdditionalOpportunityRulePrefix = "cooldown.additional-opportunity";
+    public const string CooldownActiveDriftRulePrefix = "cooldown.active-drift";
+    public const string TargetableGcdGapRuleKey = "gcd.targetable-gap";
 
     private static readonly TimeSpan TechnicalWindowDuration = TimeSpan.FromSeconds(20);
     private static readonly TimeSpan CooldownDriftGrace = TimeSpan.FromSeconds(5);
@@ -126,6 +131,7 @@ internal sealed class DancerBurstAndUptimeAnalyzer : IAnalyzerModule
                         outsideRange,
                         $"devilment-outside-technical:{finish.Id.Value}:{devilment.Id.Value}"),
                     AnalyzerId = AnalyzerId,
+                    RuleKey = DevilmentOutsideTechnicalRuleKey,
                     Severity = AnalysisSeverity.Warning,
                     Category = AnalysisCategory.Job,
                     Title = $"{dancer.Name}: Devilment after the observed Technical Finish window",
@@ -178,6 +184,7 @@ internal sealed class DancerBurstAndUptimeAnalyzer : IAnalyzerModule
                     delayedRange,
                     $"devilment-delayed:{finish.Id.Value}:{devilment.Id.Value}"),
                 AnalyzerId = AnalyzerId,
+                RuleKey = DevilmentDelayedTechnicalRuleKey,
                 Severity = AnalysisSeverity.Optimization,
                 Category = AnalysisCategory.Job,
                 Title = $"{dancer.Name}: Devilment delayed inside Technical Finish",
@@ -344,6 +351,9 @@ internal sealed class DancerBurstAndUptimeAnalyzer : IAnalyzerModule
                     ? $"cooldown-terminal:{definition.Key}:{previousUse.Id.Value}"
                     : $"cooldown-drift:{definition.Key}:{previousUse.Id.Value}:{currentUse!.Id.Value}"),
             AnalyzerId = AnalyzerId,
+            RuleKey = terminalOpportunity
+                ? $"{CooldownAdditionalOpportunityRulePrefix}.{definition.Key}"
+                : $"{CooldownActiveDriftRulePrefix}.{definition.Key}",
             Severity = terminalOpportunity ? AnalysisSeverity.Warning : AnalysisSeverity.Optimization,
             Category = AnalysisCategory.Job,
             Title = title,
@@ -446,6 +456,7 @@ internal sealed class DancerBurstAndUptimeAnalyzer : IAnalyzerModule
                         range,
                         $"gcd-gap:{primaryTarget.Id.Value}:{previous.Id.Value}:{next.Id.Value}"),
                     AnalyzerId = AnalyzerId,
+                    RuleKey = TargetableGcdGapRuleKey,
                     Severity = AnalysisSeverity.Optimization,
                     Category = AnalysisCategory.Job,
                     Title = $"{dancer.Name}: {targetableGap.TotalSeconds:F1}s targetable GCD gap",
