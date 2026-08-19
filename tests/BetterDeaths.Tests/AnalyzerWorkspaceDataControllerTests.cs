@@ -22,7 +22,7 @@ public sealed class AnalyzerWorkspaceDataControllerTests
     }
 
     [Fact]
-    public async Task LoadPullRunsRegisteredAnalyzersAndPrecomputesDeathEventsOnce()
+    public async Task LoadPullRunsDefaultM5AnalyzersAndPrecomputesDeathEventsOnce()
     {
         var pull = CreatePull(includeDeath: true);
         var store = new FakePullStore(pull);
@@ -36,14 +36,16 @@ public sealed class AnalyzerWorkspaceDataControllerTests
         Assert.Equal(new EventId(2), death.Id);
 
         var result = Assert.Single(loaded.Results);
-        Assert.Equal(DeathEventAnalyzer.AnalyzerId, result.AnalyzerId);
+        Assert.Equal(DeathRaiseContextAnalyzer.AnalyzerId, result.AnalyzerId);
         Assert.Equal(AnalysisCategory.Death, result.Category);
-        Assert.Equal(new[] { death.Id }, Assert.Single(result.Evidence).EventIds);
+        Assert.Contains(death.Id, result.Evidence.SelectMany(evidence => evidence.EventIds));
         Assert.Empty(loaded.Failures);
+        Assert.Contains(loaded.Skipped, skip => skip.AnalyzerId == HealingActivityAnalyzer.AnalyzerId);
+        Assert.Contains(loaded.Skipped, skip => skip.AnalyzerId == TargetabilityAwareUptimeAnalyzer.AnalyzerId);
     }
 
     [Fact]
-    public async Task LoadPullWithoutDeathReturnsSuccessfulPullWithUnsupportedAnalyzerSkip()
+    public async Task LoadPullWithoutDeathReturnsSuccessfulPullWithUnsupportedDefaultAnalyzers()
     {
         var pull = CreatePull(includeDeath: false);
         var store = new FakePullStore(pull);
@@ -55,8 +57,44 @@ public sealed class AnalyzerWorkspaceDataControllerTests
         Assert.Empty(loaded.DeathEvents);
         Assert.Empty(loaded.Results);
         Assert.Empty(loaded.Failures);
-        var skip = Assert.Single(loaded.Skipped);
-        Assert.Equal(DeathEventAnalyzer.AnalyzerId, skip.AnalyzerId);
+        Assert.Equal(3, loaded.Skipped.Count);
+        Assert.Contains(loaded.Skipped, skip => skip.AnalyzerId == DeathRaiseContextAnalyzer.AnalyzerId);
+        Assert.Contains(loaded.Skipped, skip => skip.AnalyzerId == HealingActivityAnalyzer.AnalyzerId);
+        Assert.Contains(loaded.Skipped, skip => skip.AnalyzerId == TargetabilityAwareUptimeAnalyzer.AnalyzerId);
+    }
+
+    [Fact]
+    public async Task DefaultWorkspaceSurfacesNeutralHealingAnalysisWhenHealingEvidenceExists()
+    {
+        var baseline = CreatePull(includeDeath: false);
+        var player = baseline.Actors.Single(actor => actor.Kind == ActorKind.Player).Id;
+        var heal = new HealEvent
+        {
+            Id = new EventId(2),
+            Sequence = 2,
+            PullTime = TimeSpan.FromSeconds(10),
+            SourceActorId = player,
+            TargetActorId = player,
+            Provenance = new EventProvenance
+            {
+                SourceKind = PullDataSourceKind.DalamudLive,
+                SourceReference = "workspace-test",
+                Fidelity = CaptureFidelity.Exact,
+                Confidence = 1.0f,
+            },
+            Amount = 50000,
+            ActionId = 200,
+        };
+        var pull = baseline with { Events = baseline.Events.Append<NormalizedEvent>(heal).ToArray() };
+        var controller = AnalyzerWorkspaceDataController.CreateDefault(new FakePullStore(pull));
+
+        var loaded = await controller.LoadPullAsync(pull.Id);
+
+        Assert.NotNull(loaded);
+        var healing = Assert.Single(loaded.Results, result => result.AnalyzerId == HealingActivityAnalyzer.AnalyzerId);
+        Assert.Equal(AnalysisSeverity.Info, healing.Severity);
+        Assert.Equal(AnalysisCategory.Healing, healing.Category);
+        Assert.Contains("neutral activity summary—not an overheal/waste judgment", healing.Summary, StringComparison.Ordinal);
     }
 
     [Fact]

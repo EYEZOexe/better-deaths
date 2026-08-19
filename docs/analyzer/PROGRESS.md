@@ -1,6 +1,6 @@
 # FFXIV Static Analyzer — Progress & Review Ledger
 
-Status date: 2026-08-18
+Status date: 2026-08-19
 Governing design: Technical Design v0.2
 Primary implementation repository: `EYEZOexe/better-deaths`
 Encounter knowledge/reference repository: `EYEZOexe/wtfdig`
@@ -17,84 +17,129 @@ Encounter knowledge/reference repository: `EYEZOexe/wtfdig`
 
 ## Current milestone
 
-### M4 — New Workspace Shell
+### M5 — Generic Hardcore Analysis
 
 **Status:** `APPROVED`
 
-**Parent issue:** #41
-**Integration/sign-off issue:** #45
-**Combined-state CI:** `32178240346`
+**Parent issue:** #51
+**Integration/sign-off issue:** #58
+**Combined-state CI:** `32216593552`
+**Detailed review:** `docs/analyzer/M5_SIGNOFF.md`
 
-### M4-A — Shared analyzer workspace selection state
+M5 establishes source-agnostic generic raid analysis over canonical `RecordedPull` data while preserving evidence-first uncertainty and keeping FFLogs/job/encounter semantics out of the generic layer.
+
+### M5 work packages
+
+#### M5-A — Targetability/status interval indexes
 
 **Status:** `APPROVED`
-
-**Issue / PR:** #42 / #46
-**Merged commit:** `b6ab9d996ee0025477e2abf669ca90069b53009b`
+**Issue / PR:** #52 / #59
+**Merged commit:** `6cb116415aaeb9cc7ff5b2eb2a1cd9f4df2e297f`
 
 Evidence:
-- one shared state owns selected `PullId`, `ActorId`, `TimeRange`, `AnalysisResultId`, optional mechanic occurrence, and monotonic change/version notification;
-- selecting an `AnalysisResult` synchronizes result/actor/time in one transition;
-- changing pull clears stale cross-pull selection;
-- no ImGui, Dalamud, persistence, or analyzer execution is embedded in the state model.
+- targetability intervals retain unknown pre-first-observation state rather than assuming targetable;
+- status intervals are keyed by target/status/source and distinguish known vs uncertain endings;
+- interval indexes are built once per analyzer run and exposed read-only through `AnalyzerContext`.
 
-### M4-B — Focused panel contracts and shell panels
+#### M5-B — Live generic evidence enrichment
 
 **Status:** `APPROVED`
-
-**Issue / PR:** #43 / #48
-**Merged commit:** `1264d90ccb79f3260c24b0def3df849150e53250`
-**Final CI:** `32176263964`
+**Issue / PR:** #53 / #60
+**Merged commit:** `0ea7b9a25a1a714328a8b1068783db2fea3ccae7`
 
 Evidence:
-- added focused shared panel context/interface plus Overview/Timeline/Deaths/Replay shells;
-- Overview result selection, Timeline timestamp selection, Deaths evidence selection, and Replay focus all use the same shared state;
-- panels do not call one another or execute analyzers/access persistence directly;
-- no analyzer workspace logic was added to `RecapWindow`;
-- review caught and fixed a render-path scalability problem: the Deaths shell now consumes precomputed `DeathEvents` rather than rescanning the entire full-pull stream every frame;
-- repository CI passed restore, format, tests, and plugin/package build.
+- existing live object/action snapshots additionally produce sampled canonical status and targetability facts;
+- fidelity/confidence remain explicit and repeated/no-op observations are suppressed;
+- pull reset clears delta-tracker state;
+- no raise fact is guessed where deterministic source/target/action evidence is unavailable.
 
-### M4-C — AnalyzerWindow plugin integration
+#### M5-C — Targetability-aware uptime/activity
 
 **Status:** `APPROVED`
-
-**Issue / PR:** #44 / #49
-**Merged commit:** `72ec307d0189b0591a81b177450f30274285c0af`
-**Final CI:** `32177896535`
+**Issue / PR:** #54 / #61
+**Merged commit:** `f1d943da2b5f5888b763708b22d7d52457066867`
 
 Evidence:
-- `AnalyzerWorkspaceDataController` owns pure `IPullStore` + `AnalyzerEngine` orchestration;
-- `AnalyzerWindow` loads canonical summaries/details and runs the current analyzer registry away from ImGui `Draw`;
-- rapid pull changes cancel stale detail loads and generation checks prevent stale async completions from replacing current state;
-- selected pull/results/precomputed death events flow into one shared panel context;
-- analyzer module failures are surfaced while independent results remain usable;
-- a dedicated plugin partial registers the analyzer window through the existing `WindowSystem` without adding analyzer sections to the monolithic `Plugin.cs`/`RecapWindow.cs` bodies;
-- the existing current-pull widget exposes an additive `Analyzer Workspace` launcher while existing `/bd` behavior remains unchanged;
-- legacy Deaths/Replay bridges open the existing pull review rather than reaching into private death-centric replay internals;
-- review corrected an attempted direct replay bridge that was not part of the public legacy review surface;
-- final CI passed restore, formatting, 272 tests, and plugin/package build.
+- activity gaps are reported only inside evidence-supported targetable windows;
+- forced untargetable time is excluded;
+- unknown boundary time is not treated as active time;
+- death downtime is deferred to death/raise analysis rather than charged as ordinary execution loss.
 
-### M4-D — Combined workspace review
+#### M5-D — Death and raise context
+
+**Status:** `APPROVED`
+**Issue / PR:** #55 / #62
+**Merged commit:** `c02193cbd569c5bf26f1c40840c3b4abb14b2278`
+
+Evidence:
+- bounded fatal-context windows preserve damage/status evidence without treating chronology as lethal attribution;
+- current lack of target post-event HP/shield evidence is explicit;
+- even very large last damage remains context, not automatic cause/blame;
+- bounded canonical raise evidence is linked as a downstream observation without claiming resurrection completion.
+
+#### M5-E — Mitigation coverage / what-if
+
+**Status:** `APPROVED`
+**Issue / PR:** #56 / #64
+**Merged commit:** `1145ad3ee5678499d32b77d7f25223634f62df0c`
+**Corrected-head CI:** `32215987673`
+
+Evidence:
+- mitigation semantics are explicit configuration rather than invented FFXIV IDs;
+- evidence application (`TargetStatus` / `DamageSourceStatus`) is distinct from semantic scope (`Personal`, `Targeted`, `PartyWide`, `DamageSourceDebuff`, `Other`);
+- effect kind remains distinct (`DamageReduction`, `Shield`, `Invulnerability`, `Other`);
+- only positive evidence-supported coverage is reported; absence is not called a missed use;
+- overlap is neutral coverage evidence, not automatically waste;
+- configured reduction estimates are explicit counterfactuals rather than reconstructed server damage or survival proof;
+- lead review caught and corrected the original scope collapse before merge.
+
+#### M5-F — Healing + explicit buff/cooldown timelines
+
+**Status:** `APPROVED`
+**Issue:** #57
+**Healing PR / merge:** #63 / `10677289e609d640285d31beb0ad43f06e8fbfc7`
+**Timeline PR / merge:** #65 / `2e3c65fe298d2dd4d13ba481d79a58dfcffd30cb`
+**Corrected timeline CI:** `32216083596`
+
+Evidence:
+- healing analysis reports raw captured activity neutrally because effective healing/overheal/HP deficit/resource/opportunity cost are not in the current canonical contract;
+- raw/high healing is not automatically a warning;
+- cooldown/buff references must be explicitly configured;
+- ActionUse is preferred per source actor, with CastStart as that actor's fallback only;
+- damage/heal packets are never reinterpreted as extra cooldown uses;
+- unknown status ends remain uncertain and are not converted into full uptime/missed-refresh claims;
+- lead review caught both an invalid `CastTime` test fixture and global-rather-than-per-actor fallback behavior before merge.
+
+### M5-G — Combined fixture pack, workspace integration, and sign-off
 
 **Status:** `APPROVED`
 
-Combined review:
-- [x] one shared state owns pull/actor/time/result/mechanic selection;
-- [x] result selection synchronizes actor/time for Timeline + Deaths/Replay consumers;
-- [x] panels communicate through shared state/context only;
-- [x] `AnalyzerWindow` remains separate from `RecapWindow`;
-- [x] existing death recap/replay workflows remain available and were not rewritten wholesale;
-- [x] canonical persistence/analysis work is queued away from the ImGui render path;
-- [x] UI consumes `IPullStore`/analyzer contracts rather than concrete persistence from panels;
-- [x] no M5 broad analysis, M6 FFLogs, M7 job, or M8 encounter/WTFDiG implementation leaked into M4;
-- [x] M4-A/B/C are merged on `main`;
-- [x] M4-D combined-state CI `32178240346` passed restore, formatting, tests, and plugin/package build.
+Combined-review evidence:
+- [x] representative fixture runs death/raise, healing, targetability-aware uptime, mitigation, and explicit timelines together;
+- [x] clean no-evidence fixture produces no invented findings;
+- [x] deterministic result identities are checked across repeated runs;
+- [x] forced untargetable time is excluded from uptime findings;
+- [x] mitigation overlap/scope/uncertainty rules are exercised together;
+- [x] high raw healing remains neutral;
+- [x] death context remains distinct from blame and links raise evidence downstream;
+- [x] default Analyzer Workspace replaces the M3 vertical-slice `DeathEventAnalyzer` with `DeathRaiseContextAnalyzer` and also registers `HealingActivityAnalyzer` + `TargetabilityAwareUptimeAnalyzer`;
+- [x] configured mitigation and generic buff/cooldown analyzers remain definition-driven rather than silently inventing a global FFXIV semantic catalog;
+- [x] combined M5-G branch CI `32216593552` passed restore, formatting, all tests, and plugin/package build.
 
-Detailed review: `docs/analyzer/M4_SIGNOFF.md`.
+**Runtime validation note:** CI cannot launch FFXIV/Dalamud. Live status/targetability enrichment and Analyzer Workspace presentation remain explicit manual smoke items.
 
-**Runtime validation note:** CI cannot launch FFXIV/Dalamud. In-game confirmation of workspace opening, pull population, panel rendering, and legacy review navigation remains a manual smoke item and is not claimed as automated evidence.
+**Decision:** M5 is approved. M6 — FFLogs Integration — is authorized after the M5 sign-off PR is merged.
 
-**Decision:** M4 is approved. M5 — Generic Hardcore Analysis — is authorized after this sign-off PR is merged.
+## Completed milestone: M4 — New Workspace Shell
+
+**Status:** `APPROVED`
+
+- M4-A / #42 / PR #46 — shared workspace selection state; merge `b6ab9d996ee0025477e2abf669ca90069b53009b`.
+- M4-B / #43 / PR #48 — focused Overview/Timeline/Deaths/Replay shells; merge `1264d90ccb79f3260c24b0def3df849150e53250`; CI `32176263964`.
+- M4-C / #44 / PR #49 — async AnalyzerWindow + `IPullStore`/engine integration; merge `72ec307d0189b0591a81b177450f30274285c0af`; CI `32177896535`.
+- M4-D / #45 / PR #50 — combined sign-off; merge `517bd93c217f98e19a8e98334ee87a21c0b39599`; combined CI `32178240346`.
+
+M4 established one shared pull/actor/time/result/mechanic selection state, focused panels outside `RecapWindow`, and asynchronous canonical loading/analysis away from ImGui `Draw`.
 
 ## Completed milestone: M3 — Analyzer Engine
 
@@ -102,32 +147,26 @@ Detailed review: `docs/analyzer/M4_SIGNOFF.md`.
 
 - M3-A / #33 / PR #37 — canonical actor/event indexes; merge `607b2c9530c7a94f24c7248df79e4317f6c9fbd7`.
 - M3-B / #34 / PR #38 — analyzer registry/dependency execution/failure isolation; merge `d0b026df60213fb1aa453b2f06637c2c53d73368`; CI `32174557211`.
-- M3-C / #35 / PR #39 — first generic `DeathEventAnalyzer` + deterministic golden fixture; merge `924f57a517a85d8ede108192aae4d8a205c542b9`; CI `32174764060`.
-- corrected M3-D / #36 / PR #47 — combined state revalidated after the earlier premature sign-off; CI `32175231795`; merge `9c99abe899284a08bdfd323672c1e381d72a5d03`.
-
-Lead review during M3 caught and fixed non-atomic global result-ID reservation and incorrect hard-coded golden result IDs before final approval.
+- M3-C / #35 / PR #39 — first generic `DeathEventAnalyzer` vertical slice; merge `924f57a517a85d8ede108192aae4d8a205c542b9`; CI `32174764060`.
+- corrected M3-D / #36 / PR #47 — combined state revalidated after earlier premature sign-off; merge `9c99abe899284a08bdfd323672c1e381d72a5d03`; CI `32175231795`.
 
 ## Completed milestone: M2 — Full-pull live recorder
 
 **Status:** `APPROVED`
 
-- M2-A / #22 / PR #27 — separate append-only `FullPullRecorder`, meaningful-pull finalization, zero-death support.
-- M2-B / #23 / PR #28 — independent versioned canonical `IPullStore` persistence/recovery.
-- M2-C / #24 / PR #29 — live normalization into canonical events/spatial facts.
-- M2-D / #25 / PR #30 — additive runtime integration preserving legacy recap behavior.
-- M2-E / #26 / PR #31 — combined sign-off.
+M2 added the separate append-only `FullPullRecorder`, independent canonical persistence, live normalization, and additive runtime integration while preserving the legacy bounded death-recap path and enabling meaningful zero-death canonical pulls.
 
 ## Completed milestone: M1 — Canonical domain skeleton
 
 **Status:** `APPROVED`
 
-Issue #14 / implementation PR #19 / sign-off PR #20. Established source-agnostic `RecordedPull`, typed `NormalizedEvent` records, stable IDs, deterministic pull-relative ordering/time, structured evidence-backed `AnalysisResult`, provenance/fidelity, serialization, and dependency-boundary tests.
+Established source-agnostic `RecordedPull`, typed `NormalizedEvent` records, stable IDs, deterministic pull-relative ordering/time, structured evidence-backed `AnalysisResult`, provenance/fidelity, serialization, and dependency-boundary tests.
 
 ## Completed milestone: M0 — Baseline and characterization
 
 **Status:** `APPROVED`
 
-M0 characterized lifecycle/archive/reset, death-gated legacy snapshots, persistence/schema behavior, replay round trips, and 10/30/60 display with 70-second capture / 75-second live retention before additive migration work began.
+Characterized lifecycle/archive/reset, death-gated legacy snapshots, persistence/schema behavior, replay round trips, and 10/30/60 display with 70-second capture / 75-second live retention before migration work began.
 
 ## Contracts later milestones must preserve or intentionally replace
 
@@ -141,7 +180,8 @@ M0 characterized lifecycle/archive/reset, death-gated legacy snapshots, persiste
 8. Analyzer findings remain structured and evidence-backed; rendered prose is not the source of truth.
 9. Analyzer modules do not make network calls, render UI, mutate pulls, or depend on hidden global state.
 10. New analyzer UI remains outside the monolithic legacy `RecapWindow`.
-11. WTFDiG code/data is not ported until M8 and requires exact-path/commit provenance plus MIT attribution.
+11. Generic M5 analysis never turns unknown evidence into certainty, last-hit chronology into blame, raw healing into waste, mitigation overlap into waste, or forced downtime into inactivity.
+12. WTFDiG code/data is not ported until M8 and requires exact-path/commit provenance plus MIT attribution.
 
 ## Milestone roadmap
 
@@ -151,9 +191,9 @@ M0 characterized lifecycle/archive/reset, death-gated legacy snapshots, persiste
 | M1 Canonical domain skeleton | APPROVED | Complete |
 | M2 Full-pull live recorder | APPROVED | Complete |
 | M3 Analyzer engine | APPROVED | Complete |
-| M4 New workspace shell | APPROVED | Complete after CI `32178240346` |
-| M5 Generic hardcore analysis | AUTHORIZED | M4 approved |
-| M6 FFLogs integration | NOT STARTED | M5 approved |
+| M4 New workspace shell | APPROVED | Complete |
+| M5 Generic hardcore analysis | APPROVED | Complete after sign-off PR merge |
+| M6 FFLogs integration | AUTHORIZED | M5 approved |
 | M7 First job analyzer | NOT STARTED | M6 approved |
 | M8 First encounter pack | NOT STARTED | M7 approved |
 | M9 Session intelligence | NOT STARTED | M8 approved |
@@ -180,11 +220,16 @@ Do not port WTFDiG until M8. Record exact upstream path + commit and update `THI
 | 2026-08-18 | M1 PR #19 / #20 | APPROVED | Canonical domain/results boundary established. |
 | 2026-08-18 | M2 PRs #27–#31 | APPROVED | Full-pull recorder/persistence/live normalization/lifecycle integration. |
 | 2026-08-18 | Original M3 sign-off PR #40 | SUPERSEDED | Premature sign-off corrected before M4-B. |
-| 2026-08-18 | Corrected M3-D / PR #47 | APPROVED | Combined-state CI `32175231795`; M4 authorized. |
-| 2026-08-18 | M4-A PR #46 | APPROVED | Shared workspace selection state. |
-| 2026-08-18 | M4-B PR #48 | APPROVED | Focused shell panels; Deaths render-rescan fixed; CI `32176263964`. |
-| 2026-08-18 | M4-C PR #49 | APPROVED | Async AnalyzerWindow + IPullStore/engine integration; CI `32177896535`. |
-| 2026-08-18 | M4-D / PR #50 | APPROVED | Combined-state CI `32178240346`; M5 authorized after merge. |
+| 2026-08-18 | Corrected M3-D / PR #47 | APPROVED | Combined-state CI `32175231795`. |
+| 2026-08-18 | M4 PRs #46/#48/#49/#50 | APPROVED | Workspace shell/integration; combined CI `32178240346`. |
+| 2026-08-18 | M5-A PR #59 | APPROVED | Shared targetability/status interval indexes. |
+| 2026-08-18 | M5-B PR #60 | APPROVED | Live sampled status/targetability enrichment. |
+| 2026-08-18 | M5-C PR #61 | APPROVED | Targetability-aware uptime/activity. |
+| 2026-08-18 | M5-D PR #62 | APPROVED | Evidence-first death/raise context. |
+| 2026-08-18 | M5-F healing PR #63 | APPROVED | Neutral raw-healing context. |
+| 2026-08-19 | M5-E PR #64 | APPROVED | Mitigation scope correction + CI `32215987673`; merge `1145ad3ee5678499d32b77d7f25223634f62df0c`. |
+| 2026-08-19 | M5-F timeline PR #65 | APPROVED | Per-actor fallback + canonical CastDuration correction; CI `32216083596`; merge `2e3c65fe298d2dd4d13ba481d79a58dfcffd30cb`. |
+| 2026-08-19 | M5-G / PR #66 | APPROVED | Combined fixture/workspace/sign-off CI `32216593552`; M6 authorized after merge. |
 
 ## Agent return format
 
