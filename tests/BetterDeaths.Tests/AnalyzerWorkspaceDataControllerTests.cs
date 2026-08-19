@@ -1,5 +1,6 @@
 namespace BetterDeaths;
 
+using BetterDeaths.Analysis.Encounters.DancingMadUltimate;
 using BetterDeaths.Analysis.Generic;
 using BetterDeaths.Analysis.Jobs.Dancer;
 using BetterDeaths.Domain;
@@ -45,6 +46,7 @@ public sealed class AnalyzerWorkspaceDataControllerTests
         Assert.Contains(loaded.Skipped, skip => skip.AnalyzerId == TargetabilityAwareUptimeAnalyzer.AnalyzerId);
         Assert.Contains(loaded.Skipped, skip => skip.AnalyzerId == DancerCoreExecutionAnalyzer.AnalyzerId);
         Assert.Contains(loaded.Skipped, skip => skip.AnalyzerId == DancerBurstAndUptimeAnalyzer.AnalyzerId);
+        Assert.Contains(loaded.Skipped, skip => skip.AnalyzerId == ForsakenOpeningAssignmentAnalyzer.AnalyzerId);
     }
 
     [Fact]
@@ -60,12 +62,13 @@ public sealed class AnalyzerWorkspaceDataControllerTests
         Assert.Empty(loaded.DeathEvents);
         Assert.Empty(loaded.Results);
         Assert.Empty(loaded.Failures);
-        Assert.Equal(5, loaded.Skipped.Count);
+        Assert.Equal(6, loaded.Skipped.Count);
         Assert.Contains(loaded.Skipped, skip => skip.AnalyzerId == DeathRaiseContextAnalyzer.AnalyzerId);
         Assert.Contains(loaded.Skipped, skip => skip.AnalyzerId == HealingActivityAnalyzer.AnalyzerId);
         Assert.Contains(loaded.Skipped, skip => skip.AnalyzerId == TargetabilityAwareUptimeAnalyzer.AnalyzerId);
         Assert.Contains(loaded.Skipped, skip => skip.AnalyzerId == DancerCoreExecutionAnalyzer.AnalyzerId);
         Assert.Contains(loaded.Skipped, skip => skip.AnalyzerId == DancerBurstAndUptimeAnalyzer.AnalyzerId);
+        Assert.Contains(loaded.Skipped, skip => skip.AnalyzerId == ForsakenOpeningAssignmentAnalyzer.AnalyzerId);
     }
 
     [Fact]
@@ -131,6 +134,7 @@ public sealed class AnalyzerWorkspaceDataControllerTests
         Assert.NotEmpty(jobResult.Evidence.SelectMany(evidence => evidence.EventIds));
         Assert.DoesNotContain(loaded.Skipped, skip => skip.AnalyzerId == DancerCoreExecutionAnalyzer.AnalyzerId);
         Assert.DoesNotContain(loaded.Skipped, skip => skip.AnalyzerId == DancerBurstAndUptimeAnalyzer.AnalyzerId);
+        Assert.Contains(loaded.Skipped, skip => skip.AnalyzerId == ForsakenOpeningAssignmentAnalyzer.AnalyzerId);
     }
 
     [Fact]
