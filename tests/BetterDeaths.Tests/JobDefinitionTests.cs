@@ -2,6 +2,7 @@ namespace BetterDeaths;
 
 using BetterDeaths.Analysis.Jobs;
 using BetterDeaths.Analysis.Jobs.Dancer;
+using System.Runtime.CompilerServices;
 
 public sealed class JobDefinitionTests
 {
@@ -157,25 +158,15 @@ public sealed class JobDefinitionTests
         }
     }
 
-    private static string ReadRepositoryFile(string relativePath)
+    private static string ReadRepositoryFile(
+        string relativePath,
+        [CallerFilePath] string testSourcePath = "")
     {
-        var testSourcePath = typeof(JobDefinitionTests).Assembly.Location;
-        var testOutput = Path.GetDirectoryName(testSourcePath)
-            ?? throw new InvalidOperationException("Could not resolve test output directory.");
-
-        var current = new DirectoryInfo(testOutput);
-        while (current is not null && !File.Exists(Path.Combine(current.FullName, "BetterDeaths.sln")))
-        {
-            current = current.Parent;
-        }
-
-        if (current is null)
-        {
-            throw new InvalidOperationException("Could not locate repository root.");
-        }
-
+        var testDirectory = Path.GetDirectoryName(testSourcePath)
+            ?? throw new InvalidOperationException("Could not resolve test source directory.");
+        var repositoryRoot = Path.GetFullPath(Path.Combine(testDirectory, "..", ".."));
         return File.ReadAllText(Path.Combine(
-            current.FullName,
+            repositoryRoot,
             relativePath.Replace('/', Path.DirectorySeparatorChar)));
     }
 }
