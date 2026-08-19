@@ -17,15 +17,122 @@ Encounter knowledge/reference repository: `EYEZOexe/wtfdig`
 
 ## Current milestone
 
-### M9 — Session Intelligence
+### M10 — Hardening and Extraction Review
 
-**Status:** `AUTHORIZED`
+**Status:** `AUTHORIZED AFTER M9 SIGN-OFF MERGE`
 
-**Gate opened by:** M8 First Encounter Pack approval and merge `9b47183fe5fbaf03bd45ac73dfe31af6739f79db`.
+**Gate opened by:** M9 Session Intelligence combined implementation and performance review. Final authorization takes effect when the M9 sign-off/ledger PR merges.
 
-M9 may now begin. The milestone must aggregate structured pull-level analysis into raid-session summaries, stable recurrence/opportunity keys, phase progression, wipe-cause distributions, player/mechanic recurrence, mitigation/job consistency, and recent trend signals. Session logic consumes canonical pull summaries and structured analyzer results rather than scraping rendered UI prose.
+M10 must be evidence-based rather than a cleanup rewrite. Profile storage, capture, analysis and realistic long-session behavior first; improve migrations, export/anonymization and operational hardening where measured need exists; then evaluate whether pure Domain/Analysis extraction into a separate assembly has demonstrated value. Do not split projects solely to make the repository look cleaner.
 
-The M9 acceptance gate is the ability to answer questions such as “what repeatedly wipes us?” with occurrence/opportunity counts and inspectable evidence while remaining responsive over a realistic progression night. M10 must not begin until M9 is independently reviewed and approved.
+The v1 gate remains the Technical Design Definition of Done: complete local/FFLogs canonical analysis, generic/job/encounter/session extension points, synchronized review navigation, versioned persistence/migration behavior, acceptable measured long-pull/session performance, source-agnostic analysis boundaries, privacy, and retained third-party attribution.
+
+## Completed milestone: M9 — Session Intelligence
+
+**Status:** `APPROVED FOR MERGE`
+
+**Parent issue:** #104 — completion pending final sign-off merge  
+**Integration/sign-off issue:** #109 — completion pending final sign-off merge  
+**Dancer recurrence blocker:** #114 — completed by PR #115  
+**Performance/combined fixture PR:** #116 — merged as `44b20c67f8adcda1efdbaa7f5833b2e89fa10a70`  
+**Combined fixture CI:** `32257711062`  
+**Detailed review:** `docs/analyzer/M9_SESSION_SIGNOFF.md`
+
+M9 establishes the cross-pull Session Intelligence layer over structured canonical analysis. Recurrence uses producer-owned `AnalyzerId + RuleKey` identity rather than rendered prose, opportunity denominators preserve unknown evidence, wipe causes require explicit structured cause evidence, progression/trends remain deterministic and evidence-aware, and session loading/drill-down stays asynchronous and separated from rendering. A 500-pull combined fixture guards progression-night scale behavior.
+
+### M9 work packages
+
+#### M9-A — Stable recurrence identity and pure session contracts
+
+**Status:** `APPROVED`  
+**Issue / PR:** #105 / #110  
+**Merged commit:** `614c58ab552fd868dd7b51590145eea4332e6104`  
+**CI:** `32242548828`
+
+Evidence:
+- optional producer-owned `AnalysisResult.RuleKey` establishes stable cross-pull semantic identity;
+- `SessionFindingKey` is `AnalyzerId + RuleKey`, never localized title/summary, result ID, actor ID or timestamp;
+- cross-pull `SessionEvidenceReference` carries explicit `PullId + AnalysisResultId` plus pull-local actor/time context;
+- opportunity states are explicit `Unknown / Evaluable / NotApplicable`;
+- optional stable participant identity is distinct from pull-local `ActorId`;
+- pure Session contracts contain no source, persistence, UI, network or single-pull Analyzer Engine dependency.
+
+#### M9-B — Recurrence, wipe causes, progression and trends
+
+**Status:** `APPROVED`  
+**Issue / PR:** #106 / #111  
+**Merged commit:** `9a99446754cd0d6101b131e9d959e1164613d451`  
+**CI:** `32243347621`
+
+Evidence:
+- actionable recurrence begins at `Optimization` severity and reports finding/evaluable/unknown counts plus nullable rate;
+- unknown opportunities never enter the denominator;
+- a finding can prove only its own opportunity and cannot fabricate successful opportunities;
+- unkeyed actionable results remain excluded and visible through diagnostics;
+- wipe-cause aggregation accepts only an explicit wipe outcome plus explicitly referenced keyed Warning-or-higher structured cause;
+- missing/invalid cause evidence remains unknown and death chronology is never promoted to blame;
+- progression consumes explicit phase observations and keeps pulls without evidence unknown;
+- recent-vs-prior trends use opportunity-normalized rates, minimum sample gates and deterministic pull ordering.
+
+#### M9-C — Async session orchestration
+
+**Status:** `APPROVED`  
+**Issue / PR:** #107 / #112  
+**Merged commit:** `c4b9cf6c1ea1ddcf71aa679242c2b16784871b12`  
+**CI:** `32244501334`
+
+Evidence:
+- compact `PullSummary` rows are queried before full canonical pull loads;
+- territory/time filtering happens before full-load work;
+- full pulls load/analyze sequentially and asynchronously, then publish compact `SessionPullAnalysis` rather than retained `RecordedPull` event streams;
+- missing pulls, load failures, analyzer failures and enrichment failures are isolated into structured diagnostics;
+- cancellation and generation invalidation prevent stale loads from replacing newer session state;
+- default Forsaken opportunities become evaluable only from complete exact evidence; sampled/incomplete evidence stays unknown;
+- stable participant identity and wipe/kill outcome are not fabricated by the default enricher.
+
+#### M9-D — Generic Session workspace panel and drill-down
+
+**Status:** `APPROVED`  
+**Issue / PR:** #108 / #113  
+**Merged commit:** `520a5cdce6a2af69d2527387ec8323eb109fc790`  
+**CI:** `32245290450`
+
+Evidence:
+- one generic `AnalyzerSessionPanel` renders progression, recurrence rates, unknown counts, wipe causes, recent trends and diagnostics;
+- recurrence/wipe rows are bounded for per-frame rendering;
+- panel performs no session analysis, persistence query, FFLogs access or encounter/job-specific interpretation;
+- explicit Load/Refresh session work runs asynchronously outside `Draw` with separate cancellation/generation state;
+- evidence drill-down uses explicit `PullId + AnalysisResultId`, asynchronously loads the contributing pull and reuses `AnalyzerWorkspaceSelection.SelectResult` for synchronized actor/time/result navigation;
+- `RecapWindow.cs` remains outside the new Session architecture.
+
+#### M9 blocker — Dancer stable recurrence keys
+
+**Status:** `APPROVED`  
+**Issue / PR:** #114 / #115  
+**Merged commit:** `9851b90e694b395e0fed1ccc09d0f007d3776fa4`  
+**CI:** `32245996656`
+
+Lead review identified that M7 Dancer actionable results predated `RuleKey` and therefore could not legally participate in M9 recurrence. The fix stayed at the producer boundary: explicit semantic constants or stable prefixes plus immutable action/status/definition identity were added without changing M7 severities, thresholds, evidence or UI. Equivalent local/FFLogs facts use the same recurrence keys; Session logic does not reverse-engineer Dancer prose.
+
+#### M9-E — Performance fixture, combined review and sign-off
+
+**Status:** `APPROVED FOR MERGE`  
+**Issue / PR:** #109 / #116  
+**Merged fixture commit:** `44b20c67f8adcda1efdbaa7f5833b2e89fa10a70`  
+**CI:** `32257711062`
+
+Combined evidence:
+- 500-pull pure Session fixture reports 100 Forsaken findings / 450 known opportunities / 50 unknown opportunities with evidence for every counted finding;
+- representative per-player Dancer recurrence uses an explicit stable participant identity and producer-owned rule key;
+- 100 known / 400 unknown wipe causes prove unknown cause handling rather than chronology-derived blame;
+- P1/P2/P3/P4 phase-reach variation and recent-vs-prior improvement are exercised;
+- deterministic input reordering produces stable recurrence/wipe/progression/trend outputs;
+- 500-pull orchestration queries compact summaries first, loads 500 canonical pulls with 20 events each sequentially, keeps max concurrent full-pull loads at one and does not publish retained `RecordedPull` objects;
+- generous 5-second pure-aggregation and 10-second orchestration CI guards passed;
+- combined CI passed restore, formatting, all tests and plugin/package build;
+- no M10 extraction/storage rewrite leaked into M9.
+
+**Decision:** M9 satisfies the Technical Design v0.2 Session Intelligence milestone and is approved for final sign-off merge. After this reconciliation lands on `main`, complete #109/#104 and authorize M10 — Hardening and Extraction Review.
 
 ## Completed milestone: M8 — First Encounter Pack: Dancing Mad Ultimate / Forsaken
 
@@ -364,6 +471,12 @@ Characterized lifecycle/archive/reset, death-gated legacy snapshots, persistence
 13. Job analyzers remain generic-engine modules; missing resource/source evidence stays unknown rather than being reconstructed silently.
 14. Encounter analyzers consume canonical evidence plus explicit encounter definitions, do not fabricate static assignment identities, and keep insufficient/ambiguous evidence non-actionable.
 15. Mechanics UI remains generic and downstream of structured Encounter results; encounter-specific analysis never lives in rendering code or `RecapWindow`.
+16. Session recurrence identity remains explicit producer-owned `AnalyzerId + RuleKey`; rendered prose, result IDs, actor IDs and timestamps are not recurrence keys.
+17. Session opportunities preserve `Unknown` / `NotApplicable`; unknown evidence never becomes a pass or enters the evaluable denominator.
+18. Cross-pull drill-down carries explicit `PullId + AnalysisResultId`; pull-local identities are never treated as globally scoped evidence.
+19. Reliable wipe causes require explicit structured cause evidence; death/result chronology does not become blame.
+20. Session loading remains asynchronous/bounded and published session results do not retain full canonical pulls unless future profiling demonstrates a real need.
+21. M10 extraction remains evidence-based; no assembly split is justified solely by aesthetic repository structure.
 
 ## Milestone roadmap
 
@@ -378,8 +491,8 @@ Characterized lifecycle/archive/reset, death-gated legacy snapshots, persistence
 | M6 FFLogs integration | APPROVED | Complete |
 | M7 First job analyzer | APPROVED | Complete |
 | M8 First encounter pack | APPROVED | Complete |
-| M9 Session intelligence | AUTHORIZED | M8 approved |
-| M10 Hardening/extraction review | NOT STARTED | M9 approved |
+| M9 Session intelligence | APPROVED FOR MERGE | Final sign-off/ledger merge |
+| M10 Hardening/extraction review | AUTHORIZED AFTER M9 SIGN-OFF MERGE | M9 approved/merged |
 
 ## WTFDiG provenance baseline
 
@@ -420,6 +533,13 @@ M8 directly/derivatively reused only the audited Forsaken strategy/role semantic
 | 2026-08-19 | M8-B / PR #100 | APPROVED | Canonical Forsaken opening assignment analyzer with explicit ambiguity/insufficient-evidence behavior; merge `a3c6f81c541f1b328107cd0c5aeda037f66d4d80`. |
 | 2026-08-19 | M8-C / PR #101 | APPROVED | Generic Mechanics panel + default workspace composition; CI `32240327553`; merge `0f3d27d3b5ce23b4cca808c639e9a42956b29f25`. |
 | 2026-08-19 | M8-D / PR #102 | APPROVED | Combined Forsaken fixtures/review; CI `32240800389`, final-head CI `32241136029`; merge `9b47183fe5fbaf03bd45ac73dfe31af6739f79db`. |
+| 2026-08-19 | M9-A / PR #110 | APPROVED | Stable recurrence identity/session contracts; CI `32242548828`; merge `614c58ab552fd868dd7b51590145eea4332e6104`. |
+| 2026-08-19 | M9-B / PR #111 | APPROVED | Recurrence/opportunity, wipe-cause, progression and trend analysis; CI `32243347621`; merge `9a99446754cd0d6101b131e9d959e1164613d451`. |
+| 2026-08-19 | M9-C / PR #112 | APPROVED | Async session orchestration, conservative enrichment and partial-failure isolation; CI `32244501334`; merge `c4b9cf6c1ea1ddcf71aa679242c2b16784871b12`. |
+| 2026-08-19 | M9-D / PR #113 | APPROVED | Generic Session panel, async load flow and PullId+ResultId shared-selection drill-down; CI `32245290450`; merge `520a5cdce6a2af69d2527387ec8323eb109fc790`. |
+| 2026-08-19 | M9 blocker / PR #115 | APPROVED | Producer-owned Dancer recurrence RuleKeys; CI `32245996656`; merge `9851b90e694b395e0fed1ccc09d0f007d3776fa4`. |
+| 2026-08-19 | M9-E / PR #116 | APPROVED | 500-pull pure/orchestration performance fixture; CI `32257711062`; merge `44b20c67f8adcda1efdbaa7f5833b2e89fa10a70`. |
+| 2026-08-19 | M9 final sign-off / pending PR | APPROVED FOR MERGE | `M9_SESSION_SIGNOFF.md`; M10 gate activates after merge. |
 
 ## Agent return format
 
