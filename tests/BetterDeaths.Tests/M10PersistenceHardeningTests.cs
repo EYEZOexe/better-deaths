@@ -79,6 +79,33 @@ public sealed class M10PersistenceHardeningTests
     }
 
     [Fact]
+    public async Task IndexRebuildIgnoresDetailWhosePayloadIdentityDoesNotMatchItsFileName()
+    {
+        using var directory = new TemporaryDirectory();
+        using var store = new FileCanonicalPullStore(directory.Path);
+        var persisted = CreatePull(
+            "51515151-5151-5151-5151-515151515151",
+            TimeSpan.FromSeconds(10));
+        var mismatched = CreatePull(
+            "52525252-5252-5252-5252-525252525252",
+            TimeSpan.FromSeconds(20));
+
+        await store.SaveAsync(persisted);
+        await File.WriteAllTextAsync(
+            GetDetailPath(directory.Path, new PullId(Guid.Parse("53535353-5353-5353-5353-535353535353"))),
+            CanonicalPullSerializer.Serialize(mismatched));
+
+        DeleteIfExists(GetIndexPath(directory.Path));
+        DeleteIfExists(GetIndexPath(directory.Path) + ".bak");
+
+        var summaries = await store.QueryAsync(new PullQuery { Limit = 10 });
+
+        var summary = Assert.Single(summaries);
+        Assert.Equal(persisted.Id, summary.Id);
+        Assert.DoesNotContain(summaries, candidate => candidate.Id == mismatched.Id);
+    }
+
+    [Fact]
     public async Task LoadRejectsMismatchedPrimaryDetailIdentityAndUsesMatchingBackup()
     {
         using var directory = new TemporaryDirectory();
