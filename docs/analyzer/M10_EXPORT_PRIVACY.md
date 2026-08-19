@@ -1,9 +1,10 @@
 # M10 canonical export and anonymization policy
 
-Status: **M10-C implementation — READY FOR VALIDATION**
+Status: **M10-C implementation — READY FOR REVIEW**
 
 Parent: #118  
-Work package: #121
+Work package: #121  
+Validation CI: `32267164438`
 
 ## Purpose
 
@@ -148,6 +149,6 @@ It is not a formal k-anonymity/differential-privacy system. A sufficiently disti
 - [x] Export does not mutate the source `RecordedPull`.
 - [x] Export contracts contain no FFLogs/Dalamud/ImGui types.
 - [x] Analyzer workspace exposes explicit canonical/anonymized actions at the application boundary.
-- [ ] Full branch CI/build/format validation green.
+- [x] Full branch CI/build/format validation green in `32267164438`.
 
-M10-C remains **READY FOR VALIDATION** until the branch CI passes and the final diff receives independent review.
+CI `32267164438` passed restore, formatting, the complete automated test suite including existing M9/M10 performance gates, and plugin/package build. Final M10-C approval remains contingent on independent review of the implementation diff.
