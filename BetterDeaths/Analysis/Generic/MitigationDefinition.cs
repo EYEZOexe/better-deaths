@@ -8,6 +8,15 @@ internal enum MitigationApplicationKind
     DamageSourceStatus,
 }
 
+internal enum MitigationScopeKind
+{
+    Personal,
+    Targeted,
+    PartyWide,
+    DamageSourceDebuff,
+    Other,
+}
+
 internal enum MitigationEffectKind
 {
     DamageReduction,
@@ -26,6 +35,8 @@ internal sealed record MitigationDefinition
 
     public required MitigationApplicationKind ApplicationKind { get; init; }
 
+    public required MitigationScopeKind ScopeKind { get; init; }
+
     public required MitigationEffectKind EffectKind { get; init; }
 
     public double? DamageReductionFraction { get; init; }
@@ -37,6 +48,20 @@ internal sealed record MitigationDefinition
         if (StatusId == 0)
         {
             throw new InvalidOperationException($"Mitigation definition '{Id}' must reference a non-zero status ID.");
+        }
+
+        if (ApplicationKind == MitigationApplicationKind.DamageSourceStatus &&
+            ScopeKind is not MitigationScopeKind.DamageSourceDebuff and not MitigationScopeKind.Other)
+        {
+            throw new InvalidOperationException(
+                $"Mitigation definition '{Id}' uses damage-source status evidence but declares incompatible scope {ScopeKind}.");
+        }
+
+        if (ApplicationKind == MitigationApplicationKind.TargetStatus &&
+            ScopeKind == MitigationScopeKind.DamageSourceDebuff)
+        {
+            throw new InvalidOperationException(
+                $"Mitigation definition '{Id}' declares damage-source-debuff scope but uses target-status evidence.");
         }
 
         if (DamageReductionFraction is { } reduction && (reduction <= 0.0 || reduction >= 1.0))
