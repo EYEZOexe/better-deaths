@@ -19,23 +19,145 @@ Encounter knowledge/reference repository: `EYEZOexe/wtfdig`
 
 ### M10 — Hardening and Extraction Review
 
-**Status:** `AUTHORIZED AFTER M9 SIGN-OFF MERGE`
+**Status:** `APPROVED — V1 ARCHITECTURE COMPLETE`
 
-**Gate opened by:** M9 Session Intelligence combined implementation and performance review. Final authorization takes effect when the M9 sign-off/ledger PR merges.
+**Parent issue:** #118 — completion pending M10-E sign-off merge  
+**Integration/sign-off issue:** #123 — PR #129  
+**Detailed review:** `docs/analyzer/M10_V1_SIGNOFF.md`  
+**Combined M10-E validation CI:** `32270674469`
 
-M10 must be evidence-based rather than a cleanup rewrite. Profile storage, capture, analysis and realistic long-session behavior first; improve migrations, export/anonymization and operational hardening where measured need exists; then evaluate whether pure Domain/Analysis extraction into a separate assembly has demonstrated value. Do not split projects solely to make the repository look cleaner.
+M10 closed the v1 architectural loop with measured hardening rather than a cleanup rewrite. Capture, serialization, storage, Analyzer Engine and Session behavior were measured first; deterministic persistence/recovery gaps were hardened without a speculative backend rewrite; canonical and true anonymized export boundaries were added; and Domain/Analysis extraction was reviewed from dependency, test, API and package evidence rather than repository aesthetics.
 
-The v1 gate remains the Technical Design Definition of Done: complete local/FFLogs canonical analysis, generic/job/encounter/session extension points, synchronized review navigation, versioned persistence/migration behavior, acceptable measured long-pull/session performance, source-agnostic analysis boundaries, privacy, and retained third-party attribution.
+### M10 work packages
+
+#### M10-A — Performance baseline
+
+**Status:** `APPROVED / MERGED`  
+**Issue / PR:** #119 / #124  
+**Merged commit:** `38c9a85a3dd075ce7b7cc6f0bc074eb70b0762f0`  
+**CI:** `32259455682`  
+**Detailed evidence:** `docs/analyzer/M10_PERFORMANCE_BASELINE.md`
+
+Evidence:
+- realistic 20-minute / 50,000-event canonical recorder fixture;
+- serializer fixture includes 50,000 events + 4,000 positions;
+- default Analyzer Engine runs over the long-pull fixture;
+- real file-store fixture covers 20 x 1,000-event pulls;
+- M9 500-pull Session Intelligence and orchestration gates remain active;
+- generous regression ceilings are used instead of brittle hosted-CI microbenchmarks;
+- no optimization, storage-backend change or project split was justified by the measurements.
+
+Documented CI ceilings:
+- recorder append + finalize: 5 s;
+- serializer round-trip: 10 s and <= 100 MiB payload;
+- default Analyzer Engine: 10 s;
+- file store save/query/reload fixture: 20 s;
+- 500-pull Session: 5 s pure aggregation / 10 s orchestration.
+
+#### M10-B — Persistence/recovery/migration hardening
+
+**Status:** `APPROVED / MERGED`  
+**Issue / PR:** #120 / #125  
+**Merged commit:** `3ae3a6e821f5958a09115ad4f766c288b8679793`  
+**Final-head CI:** `32265402021`  
+**Decision record:** `docs/analyzer/M10_STORAGE_DECISION.md`
+
+Evidence:
+- unsupported canonical pull schema fails explicitly during deserialization;
+- corrupt primary index can use a valid backup deterministically;
+- stale `.tmp` files cannot replace last-known-good canonical data;
+- mismatched detail payload identity falls back only to a matching backup;
+- detail-driven index rebuild validates canonical N-format filename identity against embedded `PullId`;
+- unsupported index/file versions remain fail-closed rather than being hidden by recovery;
+- future schema bumps require an explicit source->target migration policy and deterministic migration fixtures before the version changes;
+- legacy Better Deaths saved-data support remains intentionally separate and retained.
+
+**Storage decision:** retain the replaceable file-backed `FileCanonicalPullStore` behind `IPullStore` for v1. SQLite and compressed/chunked storage are deferred until measured pull-count/query/disk/crash requirements justify them.
+
+#### M10-C — Canonical export and true anonymized export/privacy boundary
+
+**Status:** `APPROVED / MERGED`  
+**Issue / PR:** #121 / #127  
+**Merged commit:** `e082e143fe56c40bcc14ba2dda42491398479ad2`  
+**Final-head CI:** `32268302871`  
+**Policy:** `docs/analyzer/M10_EXPORT_PRIVACY.md`
+
+Evidence:
+- canonical export remains lossless local interchange and is explicitly not presented as privacy-safe sharing output;
+- anonymized export replaces player/pet/unknown actor display names while preserving canonical actor/owner relationships;
+- original pull identity is replaced from fully sanitized canonical content rather than source identity;
+- pull/event/position/marker `SourceReference` values are removed;
+- pull `StartedAt` and event `ObservedAt` wall-clock timestamps are removed while pull-relative evidence remains;
+- free-form world-marker labels are removed;
+- event IDs/order, actor references, jobs, mechanics and position evidence remain analyzable;
+- representative client ID, client secret, access token and Authorization-header strings are fixture-tested not to survive sensitive anonymized fields;
+- export core accepts only canonical `RecordedPull` + options and has no FFLogs credential/client, Dalamud or ImGui contract dependency;
+- Analyzer workspace exposes explicit canonical vs anonymized actions with serialization/file I/O outside `Draw` and no automatic upload/publish path.
+
+#### M10-D — Domain/Analysis extraction decision
+
+**Status:** `APPROVED / MERGED`  
+**Issue / PR:** #122 / #128  
+**Merged commit:** `4faee8bed44223633f62fcdc3e1463d9af2be19b`  
+**Final-head CI:** `32269832664`  
+**Decision record:** `docs/analyzer/M10_EXTRACTION_DECISION.md`
+
+**Decision:** `KEEP SINGLE ASSEMBLY` for v1.
+
+Evidence:
+- Domain, Engine/Index, Generic, Jobs/Dancer, Encounters/Forsaken and Session Intelligence are already sufficiently pure for a future mechanical extraction;
+- the plain `net10.0` test project already compiles/runs Domain/Analysis linked source without `Dalamud.NET.Sdk`, providing current test isolation;
+- most Analysis implementation contracts remain `internal`, so extraction would force a deliberate public/friend/facade API decision;
+- current Dalamud package validation expects one plugin DLL, so extraction would add package/deployment work and a new release failure surface;
+- no current external binary consumer needs the pure layer;
+- M10 measurements show no runtime/build problem solved by an assembly split.
+
+The ADR records the smallest future extraction plan and concrete revisit triggers; extraction is not rejected permanently.
+
+#### M10-E — Combined v1 Definition-of-Done review
+
+**Status:** `APPROVED — MERGE PENDING`  
+**Issue / PR:** #123 / #129  
+**Combined validation CI:** `32270674469`  
+**Detailed review:** `docs/analyzer/M10_V1_SIGNOFF.md`
+
+M10-E adds only two bounded final guards plus the sign-off documentation:
+- a meaningful zero-death live canonical pull must finalize, persist, reload and run the **default Analyzer Engine** without module failures;
+- all Domain/Analysis implementation contract types are reflection-guarded against `BetterDeaths.Sources`, `BetterDeaths.Persistence`, `BetterDeaths.Windows`, Dalamud and ImGui dependencies.
+
+CI `32270674469` passed restore, formatting, the complete automated suite including the retained M9/M10 performance fixtures, and plugin/package validation with those guards present. The final PR-head documentation reconciliation CI is recorded on PR #129 before merge.
+
+### Technical Design v0.2 Definition of Done
+
+| Requirement | Status | Primary evidence |
+|---|---|---|
+| Full pulls including zero-death pulls capture/save/reload/analyze locally | `SATISFIED` | `FullPullLifecycleIntegrationTests`; M10-E zero-death/default-engine guard |
+| FFLogs imports normalize into the same canonical `RecordedPull` | `SATISFIED` | M6 sign-off; `FFLogsAnalyzerParityTests` |
+| Generic death/mitigation/healing/damage-uptime is structured/evidence-backed | `SATISFIED` | `M5GenericAnalysisIntegrationTests`; M5 sign-off |
+| At least one Job analyzer extension point | `SATISFIED` | Dancer M7 integration/parity fixtures |
+| At least one Encounter/Mechanic extension point | `SATISFIED` | Forsaken M8 combined/parity fixtures |
+| Raid Session recurrence uses opportunity counts across multiple pulls | `SATISFIED` | M9 500-pull combined fixture |
+| Timeline/findings/deaths/replay share synchronized selection/time | `SATISFIED` | `AnalyzerWorkspaceSelectionContractTests`; M4 sign-off |
+| Existing Better Deaths death recap not materially regressed | `SATISFIED` automated characterization | legacy persistence/lifecycle characterization; in-game smoke remains release QA |
+| Persisted data versioned and migration behavior tested | `SATISFIED` | canonical compatibility suites; M10-B hardening + migration policy |
+| Long Ultimate pull / progression-session performance acceptable | `SATISFIED` within measured CI scope | M10-A 50k-event / file-store gates; M9 500-pull gates |
+| Source-specific DTO/service/UI types stay out of Domain/analyzer contracts | `SATISFIED` | existing boundary tests + M10-E broad implementation reflection guard |
+| Privacy remains local-first; FFLogs credentials handled safely | `SATISFIED` | M6 credential boundary; M10-C anonymized export/privacy fixtures |
+| Required third-party notices present | `SATISFIED` | `THIRD_PARTY_NOTICES.md`; package validator |
+
+**Decision:** the Technical Design v0.2 architecture and automated v1 Definition-of-Done gates are satisfied. GitHub CI cannot launch FFXIV/Dalamud itself, so in-game UI/capture/frame-time smoke remains normal release QA before distributing a build and is not misrepresented as automated evidence.
 
 ## Completed milestone: M9 — Session Intelligence
 
-**Status:** `APPROVED FOR MERGE`
+**Status:** `APPROVED / COMPLETED`
 
-**Parent issue:** #104 — completion pending final sign-off merge  
-**Integration/sign-off issue:** #109 — completion pending final sign-off merge  
+**Parent issue:** #104 — completed  
+**Integration/sign-off issue:** #109 — completed  
 **Dancer recurrence blocker:** #114 — completed by PR #115  
 **Performance/combined fixture PR:** #116 — merged as `44b20c67f8adcda1efdbaa7f5833b2e89fa10a70`  
+**Final sign-off PR:** #117 — merged as `ae7420d30c200a4ee1251ba62c45d728cb1d90e5`  
 **Combined fixture CI:** `32257711062`  
+**Final sign-off CI:** `32258653853`  
 **Detailed review:** `docs/analyzer/M9_SESSION_SIGNOFF.md`
 
 M9 establishes the cross-pull Session Intelligence layer over structured canonical analysis. Recurrence uses producer-owned `AnalyzerId + RuleKey` identity rather than rendered prose, opportunity denominators preserve unknown evidence, wipe causes require explicit structured cause evidence, progression/trends remain deterministic and evidence-aware, and session loading/drill-down stays asynchronous and separated from rendering. A 500-pull combined fixture guards progression-night scale behavior.
@@ -116,7 +238,7 @@ Lead review identified that M7 Dancer actionable results predated `RuleKey` and 
 
 #### M9-E — Performance fixture, combined review and sign-off
 
-**Status:** `APPROVED FOR MERGE`  
+**Status:** `APPROVED / MERGED`  
 **Issue / PR:** #109 / #116  
 **Merged fixture commit:** `44b20c67f8adcda1efdbaa7f5833b2e89fa10a70`  
 **CI:** `32257711062`
@@ -132,7 +254,7 @@ Combined evidence:
 - combined CI passed restore, formatting, all tests and plugin/package build;
 - no M10 extraction/storage rewrite leaked into M9.
 
-**Decision:** M9 satisfies the Technical Design v0.2 Session Intelligence milestone and is approved for final sign-off merge. After this reconciliation lands on `main`, complete #109/#104 and authorize M10 — Hardening and Extraction Review.
+**Decision:** M9 satisfies the Technical Design v0.2 Session Intelligence milestone and is complete after final sign-off PR #117 merged to `main`.
 
 ## Completed milestone: M8 — First Encounter Pack: Dancing Mad Ultimate / Forsaken
 
@@ -477,78 +599,3 @@ Characterized lifecycle/archive/reset, death-gated legacy snapshots, persistence
 19. Reliable wipe causes require explicit structured cause evidence; death/result chronology does not become blame.
 20. Session loading remains asynchronous/bounded and published session results do not retain full canonical pulls unless future profiling demonstrates a real need.
 21. M10 extraction remains evidence-based; no assembly split is justified solely by aesthetic repository structure.
-
-## Milestone roadmap
-
-| Milestone | Status | Gate to start |
-|---|---|---|
-| M0 Baseline & characterization | APPROVED | Complete |
-| M1 Canonical domain skeleton | APPROVED | Complete |
-| M2 Full-pull live recorder | APPROVED | Complete |
-| M3 Analyzer engine | APPROVED | Complete |
-| M4 New workspace shell | APPROVED | Complete |
-| M5 Generic hardcore analysis | APPROVED | Complete |
-| M6 FFLogs integration | APPROVED | Complete |
-| M7 First job analyzer | APPROVED | Complete |
-| M8 First encounter pack | APPROVED | Complete |
-| M9 Session intelligence | APPROVED FOR MERGE | Final sign-off/ledger merge |
-| M10 Hardening/extraction review | AUTHORIZED AFTER M9 SIGN-OFF MERGE | M9 approved/merged |
-
-## WTFDiG provenance baseline
-
-Fork inspected: `EYEZOexe/wtfdig`  
-Baseline commit observed: `73a2ffa959b8f57bfbe7a1a75d5e43383ae2ea81`  
-License: MIT, copyright 2024 Matthew Czubakowski.
-
-Verified reusable surfaces:
-- `src/lib/arena.ts` — role/group matching, waymarks, arena/player/boss/AoE/tether/arrow/polygon concepts;
-- `src/routes/ultimates/umad/data.ts` — phase/mechanic scaffolding and role/light-party strategy assignment data.
-
-M8 directly/derivatively reused only the audited Forsaken strategy/role semantics required by the first slice, translated behind C# encounter definitions. Exact path + commit provenance is recorded in `docs/analyzer/M8_WTFDIG_AUDIT.md`, and `THIRD_PARTY_NOTICES.md` now retains the WTFDiG MIT notice. Later encounter reuse must continue to record its own exact upstream provenance.
-
-## Review ledger
-
-| Date | Package/PR | Review result | Evidence / notes |
-|---|---|---|---|
-| 2026-08-18 | Foundation PR #1 | APPROVED | Execution contract/progress ledger foundation. |
-| 2026-08-18 | M0 PRs #8–#13 | APPROVED | Baseline characterization and combined CI complete. |
-| 2026-08-18 | M1 PR #19 / #20 | APPROVED | Canonical domain/results boundary established. |
-| 2026-08-18 | M2 PRs #27–#31 | APPROVED | Full-pull recorder/persistence/live normalization/lifecycle integration. |
-| 2026-08-18 | Original M3 sign-off PR #40 | SUPERSEDED | Premature sign-off corrected before M4-B. |
-| 2026-08-18 | Corrected M3-D / PR #47 | APPROVED | Combined-state CI `32175231795`. |
-| 2026-08-18 | M4 PRs #46/#48/#49/#50 | APPROVED | Workspace shell/integration; combined CI `32178240346`. |
-| 2026-08-19 | M5 PRs #59–#66 | APPROVED | Generic analysis combined CI `32216593552`. |
-| 2026-08-19 | M6-A / PR #74 | APPROVED | Source/auth/security boundary. |
-| 2026-08-19 | M6-B / PR #75 | APPROVED | OAuth/GraphQL/pagination/cache. |
-| 2026-08-19 | M6-C / PR #76 | APPROVED | Canonical FFLogs normalization. |
-| 2026-08-19 | M6-D / PR #77 | APPROVED | Local/FFLogs analyzer parity. |
-| 2026-08-19 | M6-E / PR #78 | APPROVED | Async Analyzer Workspace import flow. |
-| 2026-08-19 | M6-F / PR #80 | APPROVED | #79 fidelity correction; CI `32225159132` and final-head CI `32225505916`; merge `1f600fc6f91800f2b64ce9e035d05014d4c0cd2b`. |
-| 2026-08-19 | M7-A / PR #88 | APPROVED | DNC job definitions/provenance; CI `32227679821`; merge `f0c60d322600fd5ce9c84371d44eaf33226b56a7`. |
-| 2026-08-19 | M7-B / PR #89 | APPROVED | Evidence-first DNC dance/proc/partner analyzer; CI `32228178813`; merge `7f6988b7fc4cdbcdbda38dae1d2075f8524446b1`. |
-| 2026-08-19 | M7-C / PR #90 | APPROVED | DNC burst/cooldown/targetable GCD analyzer; corrected CI `32229549949`; merge `e1ff044611574cb7d021fb20193b3817066caf90`. |
-| 2026-08-19 | M7-D / PR #91 | APPROVED | Generic Jobs panel/workspace composition; CI `32230088925`; merge `13072911fab1254e294f42904db75fdf1092c3c0`. |
-| 2026-08-19 | M7-E / PR #92 | APPROVED | Combined DNC fixtures/review; CI `32230435195`, final-head CI `32230698017`; merge `eae228476c1683b7a267c9391aa79484263cb0ef`. |
-| 2026-08-19 | M8-A / PR #99 | APPROVED | Encounter-definition boundary, WTFDiG audit/provenance and Forsaken definition; merge `5ad919105ab35c5b206983fb89ab175e76c41b94`. |
-| 2026-08-19 | M8-B / PR #100 | APPROVED | Canonical Forsaken opening assignment analyzer with explicit ambiguity/insufficient-evidence behavior; merge `a3c6f81c541f1b328107cd0c5aeda037f66d4d80`. |
-| 2026-08-19 | M8-C / PR #101 | APPROVED | Generic Mechanics panel + default workspace composition; CI `32240327553`; merge `0f3d27d3b5ce23b4cca808c639e9a42956b29f25`. |
-| 2026-08-19 | M8-D / PR #102 | APPROVED | Combined Forsaken fixtures/review; CI `32240800389`, final-head CI `32241136029`; merge `9b47183fe5fbaf03bd45ac73dfe31af6739f79db`. |
-| 2026-08-19 | M9-A / PR #110 | APPROVED | Stable recurrence identity/session contracts; CI `32242548828`; merge `614c58ab552fd868dd7b51590145eea4332e6104`. |
-| 2026-08-19 | M9-B / PR #111 | APPROVED | Recurrence/opportunity, wipe-cause, progression and trend analysis; CI `32243347621`; merge `9a99446754cd0d6101b131e9d959e1164613d451`. |
-| 2026-08-19 | M9-C / PR #112 | APPROVED | Async session orchestration, conservative enrichment and partial-failure isolation; CI `32244501334`; merge `c4b9cf6c1ea1ddcf71aa679242c2b16784871b12`. |
-| 2026-08-19 | M9-D / PR #113 | APPROVED | Generic Session panel, async load flow and PullId+ResultId shared-selection drill-down; CI `32245290450`; merge `520a5cdce6a2af69d2527387ec8323eb109fc790`. |
-| 2026-08-19 | M9 blocker / PR #115 | APPROVED | Producer-owned Dancer recurrence RuleKeys; CI `32245996656`; merge `9851b90e694b395e0fed1ccc09d0f007d3776fa4`. |
-| 2026-08-19 | M9-E / PR #116 | APPROVED | 500-pull pure/orchestration performance fixture; CI `32257711062`; merge `44b20c67f8adcda1efdbaa7f5833b2e89fa10a70`. |
-| 2026-08-19 | M9 final sign-off / pending PR | APPROVED FOR MERGE | `M9_SESSION_SIGNOFF.md`; M10 gate activates after merge. |
-
-## Agent return format
-
-Every implementation package returns:
-1. scope completed;
-2. files changed;
-3. behavior implemented/characterized;
-4. commands/CI results;
-5. acceptance criteria pass/fail;
-6. risks/unknowns;
-7. branch + PR;
-8. requested review state (`READY FOR REVIEW`, never self-approved).
