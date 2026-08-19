@@ -1,11 +1,12 @@
 # M10 v1 hardening and Definition-of-Done sign-off
 
-Status: **M10-E combined review — READY FOR VALIDATION**
+Status: **APPROVED — v1 architecture complete**
 
 Governing design: Technical Design v0.2  
 Parent milestone: #118  
 Sign-off work package: #123  
-Reviewed combined baseline: `4faee8bed44223633f62fcdc3e1463d9af2be19b`
+Reviewed combined baseline: `4faee8bed44223633f62fcdc3e1463d9af2be19b`  
+Combined validation CI: `32270674469`
 
 ## Review objective
 
@@ -22,7 +23,7 @@ Technical Design v0.2 defines M10 as profiling storage/capture/analysis, improvi
 | M10-C / #121 / PR #127 | canonical export + true anonymized export/privacy boundary | `e082e143fe56c40bcc14ba2dda42491398479ad2` | final-head CI `32268302871` |
 | M10-D / #122 / PR #128 | evidence-based **KEEP SINGLE ASSEMBLY** decision | `4faee8bed44223633f62fcdc3e1463d9af2be19b` | final-head CI `32269832664` |
 
-All four prerequisite packages are merged before this combined sign-off branch.
+All four prerequisite packages were merged before this combined sign-off branch. Combined validation CI `32270674469` then reran restore, formatting, the complete automated suite including all retained M9/M10 performance fixtures, and plugin/package validation with the final M10-E guards present.
 
 ## v1 Definition of Done — item-by-item evidence
 
@@ -142,7 +143,7 @@ M10-A regression gates use deliberately generous hosted-CI upper bounds:
 - real file store over 20 x 1,000-event pulls: 20 s;
 - retained M9 500-pull Session gates: 5 s pure aggregation / 10 s orchestration.
 
-CI `32259455682` passed the baseline suite. Subsequent M10-B/C/D final-head CI runs also reran the retained performance tests successfully.
+CI `32259455682` passed the baseline suite. Subsequent M10-B/C/D final-head CI runs and M10-E combined CI `32270674469` also reran the retained performance tests successfully.
 
 These are regression ceilings, not invented precision benchmarks. Hosted tests cannot measure FFXIV/Dalamud frame scheduling; manual in-game frame-time validation remains a release QA item rather than a claimed CI metric.
 
@@ -155,7 +156,7 @@ Existing guards include:
 - `CanonicalDomainBoundaryTests` rejecting Dalamud, ImGui, FFLogs client/DTO and `HttpClient` types from canonical Domain contracts;
 - `FFLogsSourceBoundaryTests.DomainAndAnalysisContractsDoNotReferenceFFLogsIntegrationTypes` rejecting FFLogs integration types from Domain/Analysis contracts.
 
-M10-D manually audited Domain, Engine/Index, Generic, Jobs, Encounters and Sessions and found no forbidden coupling. M10-E adds a broader reflection guard over all `BetterDeaths.Domain*` and `BetterDeaths.Analysis*` implementation types, rejecting dependencies whose types come from `BetterDeaths.Sources`, `BetterDeaths.Persistence`, `BetterDeaths.Windows`, Dalamud or ImGui.
+M10-D manually audited Domain, Engine/Index, Generic, Jobs, Encounters and Sessions and found no forbidden coupling. M10-E adds a broader reflection guard over all `BetterDeaths.Domain*` and `BetterDeaths.Analysis*` implementation types, rejecting dependencies whose types come from `BetterDeaths.Sources`, `BetterDeaths.Persistence`, `BetterDeaths.Windows`, Dalamud or ImGui. Combined CI `32270674469` passed with that guard active.
 
 ### 12. Privacy remains local-first and FFLogs credentials are handled safely
 
@@ -186,7 +187,7 @@ The privacy policy explicitly documents residual correlation risk from distincti
 - xivanalysis MIT attribution and pinned Dawntrail revision/paths for Dancer definition/burst semantic references;
 - WTFDiG MIT attribution and pinned fork revision/paths for Dancing Mad Ultimate / Forsaken strategy/role semantics.
 
-The package validator requires `THIRD_PARTY_NOTICES.md` in the produced Dalamud package.
+The package validator requires `THIRD_PARTY_NOTICES.md` in the produced Dalamud package, and M10-E combined CI `32270674469` passed package validation.
 
 ## M10 hardening decisions reviewed together
 
@@ -212,7 +213,7 @@ The ADR records a smallest future extraction plan and concrete revisit triggers.
 
 ## Final combined fixture/audit coverage
 
-The complete repository test run on this branch is required to rerun, together:
+Combined validation CI `32270674469` reran, together:
 
 - zero-death local canonical lifecycle: `FullPullLifecycleIntegrationTests` + M10-E zero-death analyze guard;
 - local/FFLogs canonical/analyzer parity: `FFLogsAnalyzerParityTests`;
@@ -227,14 +228,12 @@ The complete repository test run on this branch is required to rerun, together:
 - architecture source/storage/UI purity: existing boundary tests + M10-E broad Domain/Analysis guard;
 - plugin/package integrity including third-party notice packaging: repository package validation step.
 
-The M10-E changed-file review is intentionally small: final sign-off documentation plus the two bounded DoD guards. No analyzer feature, storage backend, source adapter, UI rewrite, project split or broad cleanup belongs in the sign-off package.
+The run passed restore, formatting verification, all tests/performance guards, and plugin/package validation. The M10-E changed-file review remains intentionally small: final sign-off documentation plus the two bounded DoD guards. No analyzer feature, storage backend, source adapter, UI rewrite, project split or broad cleanup was introduced in the sign-off package.
 
 ## Final decision
 
-**PENDING FINAL PR-HEAD CI.**
-
-If the complete branch CI passes restore, formatting, all automated fixtures/performance gates, and plugin/package validation with no new review finding, the lead-integrator decision is:
-
 **APPROVED — v1 architecture complete.**
 
-This approval means the Technical Design v0.2 architecture/automated Definition-of-Done gates are satisfied. It does not pretend GitHub CI executed FFXIV/Dalamud itself. In-game UI/capture/frame-time smoke testing remains normal release QA and should be performed before distributing a release build.
+Technical Design v0.2 architecture and automated Definition-of-Done gates are satisfied on the reviewed combined M10 state. M10-A measured the performance-sensitive boundaries, M10-B hardened persistence and recorded explicit migration/storage policy, M10-C established the tested canonical/anonymized export privacy boundary, M10-D made the deferred extraction decision from evidence, and M10-E reran the complete repository suite with additional zero-death/default-engine and Domain/Analysis purity guards.
+
+This approval does not pretend GitHub CI executed FFXIV/Dalamud itself. In-game UI/capture/frame-time smoke testing remains normal release QA and should be performed before distributing a release build.
