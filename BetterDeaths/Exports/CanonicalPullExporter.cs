@@ -160,11 +160,6 @@ internal static class CanonicalPullExporter
         var material = Encoding.UTF8.GetBytes(
             $"better-deaths:canonical-export:v{CurrentExportPolicyVersion}:{canonicalSanitizedPayload}");
         var hash = SHA256.HashData(material);
-        var guidBytes = hash.AsSpan(0, 16).ToArray();
-
-        // Mark the generated value as RFC 4122 variant/version-shaped while retaining deterministic bytes.
-        guidBytes[6] = (byte)((guidBytes[6] & 0x0F) | 0x50);
-        guidBytes[8] = (byte)((guidBytes[8] & 0x3F) | 0x80);
-        return new PullId(new Guid(guidBytes));
+        return new PullId(new Guid(hash.AsSpan(0, 16)));
     }
 }
