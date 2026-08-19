@@ -79,6 +79,27 @@ public sealed class M10PersistenceHardeningTests
     }
 
     [Fact]
+    public async Task StaleTemporaryDetailDoesNotReplaceLastKnownGoodPrimary()
+    {
+        using var directory = new TemporaryDirectory();
+        using var store = new FileCanonicalPullStore(directory.Path);
+        var id = "41414141-4141-4141-4141-414141414141";
+        var persisted = CreatePull(id, TimeSpan.FromSeconds(10));
+        var interruptedReplacement = CreatePull(id, TimeSpan.FromSeconds(99));
+
+        await store.SaveAsync(persisted);
+
+        var tempPath = GetDetailPath(directory.Path, persisted.Id) + ".tmp";
+        await File.WriteAllTextAsync(tempPath, CanonicalPullSerializer.Serialize(interruptedReplacement));
+
+        var loaded = await store.LoadAsync(persisted.Id);
+
+        Assert.NotNull(loaded);
+        Assert.Equal(TimeSpan.FromSeconds(10), loaded.Metadata.Duration);
+        Assert.True(File.Exists(tempPath));
+    }
+
+    [Fact]
     public async Task IndexRebuildIgnoresDetailWhosePayloadIdentityDoesNotMatchItsFileName()
     {
         using var directory = new TemporaryDirectory();
