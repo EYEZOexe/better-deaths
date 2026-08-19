@@ -88,6 +88,19 @@ public sealed class SessionContractsTests
     }
 
     [Fact]
+    public void SessionIdentityAndParticipantKeysRejectEmptyValues()
+    {
+        Assert.Throws<ArgumentException>(() => new RaidSessionId(Guid.Empty));
+        Assert.Throws<ArgumentException>(() => new SessionParticipantKey(" "));
+
+        var sessionId = new RaidSessionId(Guid.Parse("12345678-1234-1234-1234-123456789abc"));
+        var participant = new SessionParticipantKey("  player@example  ");
+
+        Assert.Equal(Guid.Parse("12345678-1234-1234-1234-123456789abc"), sessionId.Value);
+        Assert.Equal("player@example", participant.Value);
+    }
+
+    [Fact]
     public async Task ForsakenActionableResultExposesStableRuleKeyForSessionRecurrence()
     {
         var registry = new AnalyzerRegistry();
@@ -149,14 +162,14 @@ public sealed class SessionContractsTests
         var ranged = new[] { Player(7, "Ranged One", "BRD"), Player(8, "Ranged Two", "PCT") };
         var assignments = new[]
         {
-            (tanks[0].Id, 5086u),
-            (tanks[1].Id, 5086u),
-            (healers[0].Id, 5085u),
-            (healers[1].Id, 5085u),
-            (melee[0].Id, 5085u),
-            (melee[1].Id, 5084u),
-            (ranged[0].Id, 5085u),
-            (ranged[1].Id, 5086u),
+            (Actor: tanks[0].Id, StatusId: 5086u),
+            (Actor: tanks[1].Id, StatusId: 5086u),
+            (Actor: healers[0].Id, StatusId: 5085u),
+            (Actor: healers[1].Id, StatusId: 5085u),
+            (Actor: melee[0].Id, StatusId: 5085u),
+            (Actor: melee[1].Id, StatusId: 5084u),
+            (Actor: ranged[0].Id, StatusId: 5085u),
+            (Actor: ranged[1].Id, StatusId: 5086u),
         };
         var provenance = new EventProvenance
         {
@@ -171,9 +184,9 @@ public sealed class SessionContractsTests
             Sequence = index + 1,
             PullTime = TimeSpan.FromSeconds(10 + index * 0.1),
             SourceActorId = Boss,
-            TargetActorId = entry.Id,
+            TargetActorId = entry.Actor,
             Provenance = provenance,
-            StatusId = entry.Item2,
+            StatusId = entry.StatusId,
             Duration = TimeSpan.FromSeconds(15),
         }).ToArray();
 
