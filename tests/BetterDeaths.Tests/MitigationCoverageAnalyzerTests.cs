@@ -22,12 +22,15 @@ public sealed class MitigationCoverageAnalyzerTests
         Assert.Equal(AnalysisCategory.Mitigation, result.Category);
         Assert.Equal(AnalysisSeverity.Info, result.Severity);
         Assert.Equal(1d, result.Metrics["activeMitigationCount"]);
+        Assert.Equal(1d, result.Metrics["activePersonalMitigationCount"]);
+        Assert.Equal(0d, result.Metrics["activePartyWideMitigationCount"]);
         Assert.Equal(0.20d, result.Metrics["configuredCombinedReductionFraction"], 6);
         Assert.Equal(1000d, result.Metrics["estimatedWithoutModeledReduction"], 6);
         Assert.Equal(200d, result.Metrics["estimatedModeledReductionAmount"], 6);
         Assert.Equal(0d, result.Metrics["availabilityKnown"]);
         Assert.Equal(0d, result.Metrics["missedUseClaimed"]);
         Assert.Equal(0.85f, result.Confidence);
+        Assert.Contains("(personal)", result.Summary, StringComparison.Ordinal);
         Assert.Contains("explicit assumption", result.Summary, StringComparison.Ordinal);
         Assert.Contains("counterfactual estimate", result.Summary, StringComparison.Ordinal);
         Assert.Contains("not reconstructed server damage or a survival claim", result.Summary, StringComparison.Ordinal);
@@ -48,7 +51,43 @@ public sealed class MitigationCoverageAnalyzerTests
 
         var result = Assert.Single(run.Results);
         Assert.Equal(0.10d, result.Metrics["configuredCombinedReductionFraction"], 6);
+        Assert.Equal(1d, result.Metrics["activeDamageSourceDebuffCount"]);
+        Assert.Contains("(damage-source debuff)", result.Summary, StringComparison.Ordinal);
         Assert.Contains(new ActorId(2), result.Actors);
+    }
+
+    [Fact]
+    public async Task TargetStatusScopesRemainDistinctInStructuredResults()
+    {
+        var pull = Pull(
+            StatusApply(1, 0, Player, Player, 100, 20),
+            StatusApply(2, 0, Player, Player, 101, 20),
+            Damage(3, 10, Boss, Player, 640));
+        var analyzer = Analyzer(
+            Definition(
+                "personal-20",
+                "Personal 20%",
+                100,
+                MitigationApplicationKind.TargetStatus,
+                0.20,
+                MitigationScopeKind.Personal),
+            Definition(
+                "party-20",
+                "Party 20%",
+                101,
+                MitigationApplicationKind.TargetStatus,
+                0.20,
+                MitigationScopeKind.PartyWide));
+
+        var run = await Analyze(pull, analyzer);
+
+        var result = Assert.Single(run.Results);
+        Assert.Equal(1d, result.Metrics["activePersonalMitigationCount"]);
+        Assert.Equal(1d, result.Metrics["activePartyWideMitigationCount"]);
+        Assert.Equal(0d, result.Metrics["activeTargetedMitigationCount"]);
+        Assert.Contains("Personal 20% (personal)", result.Summary, StringComparison.Ordinal);
+        Assert.Contains("Party 20% (party-wide)", result.Summary, StringComparison.Ordinal);
+        Assert.Contains("does not collapse personal, targeted, and party-wide semantics", result.Summary, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -113,14 +152,17 @@ public sealed class MitigationCoverageAnalyzerTests
             Name = "Shield",
             StatusId = 300,
             ApplicationKind = MitigationApplicationKind.TargetStatus,
+            ScopeKind = MitigationScopeKind.Targeted,
             EffectKind = MitigationEffectKind.Shield,
         });
 
         var run = await Analyze(pull, analyzer);
 
         var result = Assert.Single(run.Results);
+        Assert.Equal(1d, result.Metrics["activeTargetedMitigationCount"]);
         Assert.Equal(0d, result.Metrics["whatIfEstimateAvailable"]);
         Assert.False(result.Metrics.ContainsKey("configuredCombinedReductionFraction"));
+        Assert.Contains("(targeted)", result.Summary, StringComparison.Ordinal);
         Assert.Contains("does not claim", result.Summary, StringComparison.Ordinal);
     }
 
@@ -128,11 +170,27 @@ public sealed class MitigationCoverageAnalyzerTests
     public void DuplicateConfiguredStatusApplicationIsRejected()
     {
         var first = Definition("a", "A", 100, MitigationApplicationKind.TargetStatus, 0.10);
-        var second = Definition("b", "B", 100, MitigationApplicationKind.TargetStatus, 0.20);
+        var second = Definition("b", "B", 100, MitigationApplicationKind.TargetStatus, 0.20, MitigationScopeKind.PartyWide);
 
         var error = Assert.Throws<InvalidOperationException>(() => Analyzer(first, second));
 
         Assert.Contains("configured more than once", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void IncompatibleDamageSourceScopeIsRejected()
+    {
+        var definition = Definition(
+            "invalid-scope",
+            "Invalid Scope",
+            100,
+            MitigationApplicationKind.DamageSourceStatus,
+            0.10,
+            MitigationScopeKind.PartyWide);
+
+        var error = Assert.Throws<InvalidOperationException>(() => Analyzer(definition));
+
+        Assert.Contains("incompatible scope", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -171,7 +229,8 @@ public sealed class MitigationCoverageAnalyzerTests
         string name,
         uint statusId,
         MitigationApplicationKind application,
-        double reduction)
+        double reduction,
+        MitigationScopeKind? scope = null)
     {
         return new MitigationDefinition
         {
@@ -179,6 +238,9 @@ public sealed class MitigationCoverageAnalyzerTests
             Name = name,
             StatusId = statusId,
             ApplicationKind = application,
+            ScopeKind = scope ?? (application == MitigationApplicationKind.DamageSourceStatus
+                ? MitigationScopeKind.DamageSourceDebuff
+                : MitigationScopeKind.Personal),
             EffectKind = MitigationEffectKind.DamageReduction,
             DamageReductionFraction = reduction,
         };
