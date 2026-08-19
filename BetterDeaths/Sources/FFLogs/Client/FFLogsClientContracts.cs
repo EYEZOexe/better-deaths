@@ -77,15 +77,15 @@ internal sealed record FFLogsFightImportData
 }
 
 internal sealed record FFLogsApiResult<T>
-    where T : class
 {
-    private FFLogsApiResult(T? value, PullImportError? error)
+    private FFLogsApiResult(bool isSuccess, T? value, PullImportError? error)
     {
-        if ((value is null) == (error is null))
+        if (isSuccess && error is not null || !isSuccess && error is null)
         {
-            throw new ArgumentException("An FFLogs API result must contain exactly one of Value or Error.");
+            throw new ArgumentException("An FFLogs API result must contain exactly one success value or error.");
         }
 
+        IsSuccess = isSuccess;
         Value = value;
         Error = error;
     }
@@ -94,18 +94,22 @@ internal sealed record FFLogsApiResult<T>
 
     public PullImportError? Error { get; }
 
-    public bool IsSuccess => Value is not null;
+    public bool IsSuccess { get; }
 
     public static FFLogsApiResult<T> Success(T value)
     {
-        ArgumentNullException.ThrowIfNull(value);
-        return new FFLogsApiResult<T>(value, null);
+        if (value is null)
+        {
+            throw new ArgumentNullException(nameof(value));
+        }
+
+        return new FFLogsApiResult<T>(true, value, null);
     }
 
     public static FFLogsApiResult<T> Failure(PullImportError error)
     {
         ArgumentNullException.ThrowIfNull(error);
-        return new FFLogsApiResult<T>(null, error);
+        return new FFLogsApiResult<T>(false, default, error);
     }
 }
 
