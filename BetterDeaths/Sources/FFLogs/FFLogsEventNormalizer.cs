@@ -87,7 +87,7 @@ internal static class FFLogsEventNormalizer
                     fight.StartTimeMilliseconds,
                     report.StartTimeUnixMilliseconds,
                     sourceReference,
-                    actorDirectory.SourceToCanonical,
+                    actorDirectory,
                     out var candidate,
                     out var reason))
             {
@@ -154,7 +154,7 @@ internal static class FFLogsEventNormalizer
         double fightStartMilliseconds,
         double reportStartUnixMilliseconds,
         string sourceReference,
-        IReadOnlyDictionary<int, ActorId> actorIds,
+        ActorDirectory actorDirectory,
         out TranslatedEvent? translated,
         out string reason)
     {
@@ -168,8 +168,8 @@ internal static class FFLogsEventNormalizer
         }
 
         var payload = envelope.Payload;
-        var source = TryResolveActor(payload, "sourceID", actorIds);
-        var target = TryResolveActor(payload, "targetID", actorIds);
+        var source = TryResolveActor(payload, "source", actorDirectory);
+        var target = TryResolveActor(payload, "target", actorDirectory);
         var actionId = TryGetUInt32(payload, "abilityGameID") ?? TryGetNestedAbilityId(payload);
         var pullTime = TimeSpan.FromMilliseconds(envelope.TimestampMilliseconds - fightStartMilliseconds);
         var observedAt = DateTimeOffset.FromUnixTimeMilliseconds(checked((long)Math.Round(reportStartUnixMilliseconds)))
@@ -417,37 +417,48 @@ internal static class FFLogsEventNormalizer
             }
         }
 
-        var referenced = new SortedSet<int>(metadataBySourceId.Keys);
+        var referenced = new SortedSet<SourceActorKey>(SourceActorKeyComparer.Instance);
         foreach (var evt in events)
         {
-            AddReferencedActor(evt.Payload, "sourceID", referenced);
-            AddReferencedActor(evt.Payload, "targetID", referenced);
+            AddReferencedActor(evt.Payload, "source", metadataBySourceId, referenced);
+            AddReferencedActor(evt.Payload, "target", metadataBySourceId, referenced);
         }
 
-        var sourceToCanonical = new Dictionary<int, ActorId>();
-        var nextActorId = 1;
-        foreach (var sourceId in referenced)
+        var referencedSnapshot = referenced.ToArray();
+        foreach (var actorKey in referencedSnapshot)
         {
-            sourceToCanonical.Add(sourceId, new ActorId(nextActorId++));
+            if (!metadataBySourceId.TryGetValue(actorKey.ReportActorId, out var metadata) ||
+                metadata.PetOwnerId is not > 0 and var ownerSourceId)
+            {
+                continue;
+            }
+
+            referenced.Add(new SourceActorKey(ownerSourceId, null));
+        }
+
+        var sourceToCanonical = new Dictionary<SourceActorKey, ActorId>();
+        var nextActorId = 1;
+        foreach (var sourceKey in referenced)
+        {
+            sourceToCanonical.Add(sourceKey, new ActorId(nextActorId++));
         }
 
         var actors = new List<ActorRecord>(referenced.Count);
-        foreach (var sourceId in referenced)
+        foreach (var sourceKey in referenced)
         {
-            metadataBySourceId.TryGetValue(sourceId, out var metadata);
+            metadataBySourceId.TryGetValue(sourceKey.ReportActorId, out var metadata);
             ActorId? owner = null;
-            if (metadata?.PetOwnerId is { } ownerSourceId && sourceToCanonical.TryGetValue(ownerSourceId, out var ownerId))
+            if (metadata?.PetOwnerId is > 0 and var ownerSourceId &&
+                sourceToCanonical.TryGetValue(new SourceActorKey(ownerSourceId, null), out var ownerId))
             {
                 owner = ownerId;
             }
 
             actors.Add(new ActorRecord
             {
-                Id = sourceToCanonical[sourceId],
-                Name = string.IsNullOrWhiteSpace(metadata?.Name)
-                    ? $"FFLogs Actor {sourceId.ToString(CultureInfo.InvariantCulture)}"
-                    : metadata!.Name.Trim(),
-                Kind = MapActorKind(metadata?.Type, metadata?.PetOwnerId),
+                Id = sourceToCanonical[sourceKey],
+                Name = BuildActorName(metadata, sourceKey),
+                Kind = MapActorKind(metadata?.Type, metadata?.SubType, metadata?.PetOwnerId),
                 JobAbbreviation = string.Equals(metadata?.Type, "Player", StringComparison.OrdinalIgnoreCase) &&
                                   !string.IsNullOrWhiteSpace(metadata?.SubType)
                     ? metadata.SubType.Trim()
@@ -456,21 +467,43 @@ internal static class FFLogsEventNormalizer
             });
         }
 
-        return new ActorDirectory(actors, sourceToCanonical);
+        return new ActorDirectory(actors, sourceToCanonical, metadataBySourceId);
     }
 
-    private static ActorKind MapActorKind(string? type, int? ownerSourceId)
+    private static string BuildActorName(FFLogsReportActor? metadata, SourceActorKey sourceKey)
     {
-        if (ownerSourceId is not null)
+        if (!string.IsNullOrWhiteSpace(metadata?.Name))
+        {
+            return metadata.Name.Trim();
+        }
+
+        var instanceSuffix = sourceKey.InstanceId is > 0 and var instanceId
+            ? $" instance {instanceId.ToString(CultureInfo.InvariantCulture)}"
+            : string.Empty;
+        return $"FFLogs Actor {sourceKey.ReportActorId.ToString(CultureInfo.InvariantCulture)}{instanceSuffix}";
+    }
+
+    private static ActorKind MapActorKind(string? type, string? subType, int? ownerSourceId)
+    {
+        if (ownerSourceId is not null || string.Equals(type, "Pet", StringComparison.OrdinalIgnoreCase))
         {
             return ActorKind.Pet;
         }
 
+        if (string.Equals(type, "Player", StringComparison.OrdinalIgnoreCase))
+        {
+            return ActorKind.Player;
+        }
+
+        if (string.Equals(type, "NPC", StringComparison.OrdinalIgnoreCase))
+        {
+            return string.Equals(subType, "Boss", StringComparison.OrdinalIgnoreCase)
+                ? ActorKind.Enemy
+                : ActorKind.Npc;
+        }
+
         return type?.Trim().ToLowerInvariant() switch
         {
-            "player" => ActorKind.Player,
-            "pet" => ActorKind.Pet,
-            "npc" => ActorKind.Npc,
             "boss" => ActorKind.Enemy,
             "enemy" => ActorKind.Enemy,
             "object" => ActorKind.Object,
@@ -480,7 +513,7 @@ internal static class FFLogsEventNormalizer
 
     private static string? TryGetExplicitSourceIdentity(FFLogsEventEnvelope envelope)
     {
-        foreach (var key in new[] { "eventID", "packetID" })
+        foreach (var key in new[] { "eventID", "eventId", "packetID", "packetId" })
         {
             if (envelope.Payload.ValueKind == JsonValueKind.Object &&
                 envelope.Payload.TryGetProperty(key, out var property) &&
@@ -495,21 +528,58 @@ internal static class FFLogsEventNormalizer
 
     private static ActorId? TryResolveActor(
         JsonElement payload,
-        string propertyName,
-        IReadOnlyDictionary<int, ActorId> actorIds)
+        string actorPrefix,
+        ActorDirectory actorDirectory)
     {
-        var sourceId = TryGetInt32(payload, propertyName);
-        return sourceId is { } id && actorIds.TryGetValue(id, out var actorId)
+        var key = TryGetActorKey(payload, actorPrefix, actorDirectory.MetadataBySourceId);
+        return key is { } sourceKey && actorDirectory.SourceToCanonical.TryGetValue(sourceKey, out var actorId)
             ? actorId
             : null;
     }
 
-    private static void AddReferencedActor(JsonElement payload, string propertyName, ISet<int> referenced)
+    private static void AddReferencedActor(
+        JsonElement payload,
+        string actorPrefix,
+        IReadOnlyDictionary<int, FFLogsReportActor> metadataBySourceId,
+        ISet<SourceActorKey> referenced)
     {
-        if (TryGetInt32(payload, propertyName) is > 0 and var sourceId)
+        if (TryGetActorKey(payload, actorPrefix, metadataBySourceId) is { } key)
         {
-            referenced.Add(sourceId);
+            referenced.Add(key);
         }
+    }
+
+    private static SourceActorKey? TryGetActorKey(
+        JsonElement payload,
+        string actorPrefix,
+        IReadOnlyDictionary<int, FFLogsReportActor> metadataBySourceId)
+    {
+        var sourceId = TryGetInt32(payload, $"{actorPrefix}ID");
+        if (sourceId is not > 0 and var actorId)
+        {
+            return null;
+        }
+
+        if (metadataBySourceId.TryGetValue(actorId, out var metadata) &&
+            string.Equals(metadata.Type, "Player", StringComparison.OrdinalIgnoreCase))
+        {
+            return new SourceActorKey(actorId, null);
+        }
+
+        return new SourceActorKey(actorId, TryGetActorInstanceId(payload, actorPrefix));
+    }
+
+    private static int? TryGetActorInstanceId(JsonElement payload, string actorPrefix)
+    {
+        foreach (var suffix in new[] { "InstanceID", "InstanceId", "Instance" })
+        {
+            if (TryGetInt32(payload, $"{actorPrefix}{suffix}") is > 0 and var instanceId)
+            {
+                return instanceId;
+            }
+        }
+
+        return null;
     }
 
     private static int? TryGetInt32(JsonElement payload, string propertyName)
@@ -643,9 +713,43 @@ internal static class FFLogsEventNormalizer
         }
     }
 
+    private readonly record struct SourceActorKey(int ReportActorId, int? InstanceId);
+
+    private sealed class SourceActorKeyComparer : IComparer<SourceActorKey>
+    {
+        public static SourceActorKeyComparer Instance { get; } = new();
+
+        public int Compare(SourceActorKey x, SourceActorKey y)
+        {
+            var sourceComparison = x.ReportActorId.CompareTo(y.ReportActorId);
+            if (sourceComparison != 0)
+            {
+                return sourceComparison;
+            }
+
+            if (x.InstanceId == y.InstanceId)
+            {
+                return 0;
+            }
+
+            if (x.InstanceId is null)
+            {
+                return -1;
+            }
+
+            if (y.InstanceId is null)
+            {
+                return 1;
+            }
+
+            return x.InstanceId.Value.CompareTo(y.InstanceId.Value);
+        }
+    }
+
     private sealed record ActorDirectory(
         IReadOnlyList<ActorRecord> Actors,
-        IReadOnlyDictionary<int, ActorId> SourceToCanonical);
+        IReadOnlyDictionary<SourceActorKey, ActorId> SourceToCanonical,
+        IReadOnlyDictionary<int, FFLogsReportActor> MetadataBySourceId);
 
     private sealed record TranslatedEvent(
         int InputIndex,
