@@ -3,7 +3,6 @@ namespace BetterDeaths.Sources.FFLogs.Client;
 using BetterDeaths.Sources;
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -122,7 +121,7 @@ internal sealed class FFLogsGraphQlClient
 
         try
         {
-            var parsed = ParseReportDocument(response.Value!);
+            var parsed = ParseReportDocument(response.Value);
             if (parsed is null)
             {
                 return FFLogsApiResult<FFLogsReportDocument>.Failure(FFLogsIntegrationErrors.ReportNotFound());
@@ -255,7 +254,7 @@ internal sealed class FFLogsGraphQlClient
 
         try
         {
-            var page = ParseEventPage(response.Value!);
+            var page = ParseEventPage(response.Value);
             if (page is null)
             {
                 return FFLogsApiResult<FFLogsEventPage>.Failure(FFLogsIntegrationErrors.ReportNotFound());
@@ -295,7 +294,7 @@ internal sealed class FFLogsGraphQlClient
             return FFLogsApiResult<JsonElement>.Failure(exception.Error);
         }
 
-        var payload = JsonSerializer.Serialize(new GraphQlRequest(query, variables));
+        var payload = JsonSerializer.Serialize(new { query, variables });
         using var request = new HttpRequestMessage(HttpMethod.Post, options.GetGraphQlEndpoint(accessKind))
         {
             Content = new StringContent(payload, Encoding.UTF8, "application/json"),
@@ -540,7 +539,10 @@ internal sealed class FFLogsGraphQlClient
 
     private static double RequireDouble(JsonElement element, string propertyName)
     {
-        if (!element.TryGetProperty(propertyName, out var property) || !property.TryGetDouble(out var value) || !double.IsFinite(value))
+        if (!element.TryGetProperty(propertyName, out var property) ||
+            property.ValueKind != JsonValueKind.Number ||
+            !property.TryGetDouble(out var value) ||
+            !double.IsFinite(value))
         {
             throw new InvalidOperationException($"Required FFLogs property '{propertyName}' was missing or not a finite number.");
         }
@@ -550,7 +552,9 @@ internal sealed class FFLogsGraphQlClient
 
     private static int RequireInt32(JsonElement element, string propertyName)
     {
-        if (!element.TryGetProperty(propertyName, out var property) || !property.TryGetInt32(out var value))
+        if (!element.TryGetProperty(propertyName, out var property) ||
+            property.ValueKind != JsonValueKind.Number ||
+            !property.TryGetInt32(out var value))
         {
             throw new InvalidOperationException($"Required FFLogs property '{propertyName}' was missing or not an integer.");
         }
@@ -567,7 +571,10 @@ internal sealed class FFLogsGraphQlClient
 
     private static double? OptionalDouble(JsonElement element, string propertyName)
     {
-        return element.TryGetProperty(propertyName, out var property) && property.TryGetDouble(out var value) && double.IsFinite(value)
+        return element.TryGetProperty(propertyName, out var property) &&
+            property.ValueKind == JsonValueKind.Number &&
+            property.TryGetDouble(out var value) &&
+            double.IsFinite(value)
             ? value
             : null;
     }
@@ -579,8 +586,4 @@ internal sealed class FFLogsGraphQlClient
             ? property.GetBoolean()
             : null;
     }
-
-    private sealed record GraphQlRequest(
-        string Query,
-        IReadOnlyDictionary<string, object?> Variables);
 }
