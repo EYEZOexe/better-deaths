@@ -49,6 +49,14 @@ public sealed record AnalysisResult
 
     public required string AnalyzerId { get; init; }
 
+    /// <summary>
+    /// Stable analyzer-defined semantic rule identity for cross-pull aggregation.
+    /// Display/localized prose and pull-specific result identity must not be used as a substitute.
+    /// Results that do not yet expose a stable recurrence identity leave this null and are not
+    /// eligible for recurrence grouping until the producing analyzer defines one explicitly.
+    /// </summary>
+    public string? RuleKey { get; init; }
+
     public required AnalysisSeverity Severity { get; init; }
 
     public required AnalysisCategory Category { get; init; }
