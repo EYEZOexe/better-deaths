@@ -40,7 +40,9 @@
     <Compile Include="../../BetterDeaths/Sources/**/*.cs" LinkBase="Sources" />
     <Compile Include="../../BetterDeaths/ThemeIdentityPolicy.cs" Link="ThemeIdentityPolicy.cs" />
     <Compile Include="../../BetterDeaths/WhatIfMitigationRules.cs" Link="WhatIfMitigationRules.cs" />
+    <Compile Include="../../BetterDeaths/Windows/Analyzer/AnalyzerSessionDataController.cs" Link="Windows/Analyzer/AnalyzerSessionDataController.cs" />
     <Compile Include="../../BetterDeaths/Windows/Analyzer/AnalyzerWorkspaceDataController.cs" Link="Windows/Analyzer/AnalyzerWorkspaceDataController.cs" />
+    <Compile Include="../../BetterDeaths/Windows/Analyzer/AnalyzerWorkspaceEngineComposition.cs" Link="Windows/Analyzer/AnalyzerWorkspaceEngineComposition.cs" />
     <Compile Include="../../BetterDeaths/Windows/Analyzer/AnalyzerWorkspaceFFLogsImportController.cs" Link="Windows/Analyzer/AnalyzerWorkspaceFFLogsImportController.cs" />
     <Compile Include="../../BetterDeaths/Windows/Analyzer/AnalyzerWorkspacePanelContext.cs" Link="Windows/Analyzer/AnalyzerWorkspacePanelContext.cs" />
     <Compile Include="../../BetterDeaths/Windows/Analyzer/AnalyzerWorkspaceSelection.cs" Link="Windows/Analyzer/AnalyzerWorkspaceSelection.cs" />
