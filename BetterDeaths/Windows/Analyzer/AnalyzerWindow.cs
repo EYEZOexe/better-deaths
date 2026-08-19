@@ -1,5 +1,6 @@
 namespace BetterDeaths.Windows.Analyzer;
 
+using BetterDeaths.Analysis.Sessions;
 using BetterDeaths.Domain;
 using BetterDeaths.Persistence;
 using BetterDeaths.Windows.Analyzer.Panels;
@@ -11,32 +12,39 @@ using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
 
-internal sealed class AnalyzerWindow : Window, IAnalyzerWorkspaceNavigation, IDisposable
+internal sealed class AnalyzerWindow : Window, IAnalyzerWorkspaceNavigation, IAnalyzerSessionNavigation, IDisposable
 {
     private const int PullQueryLimit = 100;
+    private const int SessionQueryLimit = 500;
     private const float PullBrowserMinWidth = 220.0f;
     private const float PullBrowserMaxWidth = 340.0f;
 
     private readonly object stateLock = new();
     private readonly RecapWindow recapWindow;
     private readonly AnalyzerWorkspaceDataController dataController;
+    private readonly AnalyzerSessionDataController sessionController;
     private readonly AnalyzerWorkspaceSelection selection = new();
     private readonly IReadOnlyList<IAnalyzerWorkspacePanel> panels = AnalyzerWorkspacePanelCatalog.CreateDefault();
     private readonly Func<string, string, AnalyzerWorkspaceFFLogsImportController> fflogsControllerFactory;
 
     private IReadOnlyList<PullSummary> pullSummaries = Array.Empty<PullSummary>();
     private AnalyzerWorkspaceLoadedPull? loadedPull;
+    private AnalyzerSessionLoaded? loadedSession;
     private CancellationTokenSource? activePullLoadCts;
+    private CancellationTokenSource? activeSessionLoadCts;
     private AnalyzerWorkspaceFFLogsImportController? fflogsImportController;
     private string? loadError;
+    private string? sessionError;
     private string fflogsClientId = string.Empty;
     private string fflogsClientSecret = string.Empty;
     private string fflogsReportCode = string.Empty;
     private long summaryLoadGeneration;
     private long pullLoadGeneration;
+    private long sessionLoadGeneration;
     private bool summaryLoadStarted;
     private bool summariesLoading;
     private bool pullLoading;
+    private bool sessionLoading;
     private int selectedPanelIndex;
     private int selectedFFLogsFightIndex = -1;
     private bool disposed;
@@ -53,6 +61,7 @@ internal sealed class AnalyzerWindow : Window, IAnalyzerWorkspaceNavigation, IDi
         this.recapWindow = recapWindow;
         this.fflogsControllerFactory = fflogsControllerFactory;
         dataController = AnalyzerWorkspaceDataController.CreateDefault(pullStore);
+        sessionController = AnalyzerSessionDataController.CreateDefault(pullStore);
         Size = new Vector2(1200.0f, 700.0f);
         SizeCondition = ImGuiCond.FirstUseEver;
     }
@@ -93,11 +102,6 @@ internal sealed class AnalyzerWindow : Window, IAnalyzerWorkspaceNavigation, IDi
         switch (target)
         {
             case AnalyzerWorkspaceNavigationTarget.LegacyDeaths:
-                if (!recapWindow.FocusLatestPull())
-                {
-                    recapWindow.IsOpen = true;
-                }
-                break;
             case AnalyzerWorkspaceNavigationTarget.LegacyReplay:
                 if (!recapWindow.FocusLatestPull())
                 {
@@ -107,6 +111,13 @@ internal sealed class AnalyzerWindow : Window, IAnalyzerWorkspaceNavigation, IDi
             default:
                 throw new ArgumentOutOfRangeException(nameof(target), target, null);
         }
+    }
+
+    public void OpenEvidence(SessionEvidenceReference evidence)
+    {
+        ArgumentNullException.ThrowIfNull(evidence);
+        selection.SelectPull(evidence.PullId);
+        QueuePullLoad(evidence.PullId, evidence.ResultId);
     }
 
     public void Dispose()
@@ -120,6 +131,10 @@ internal sealed class AnalyzerWindow : Window, IAnalyzerWorkspaceNavigation, IDi
         activePullLoadCts?.Cancel();
         activePullLoadCts?.Dispose();
         activePullLoadCts = null;
+        activeSessionLoadCts?.Cancel();
+        activeSessionLoadCts?.Dispose();
+        activeSessionLoadCts = null;
+        sessionController.InvalidatePendingLoad();
         fflogsImportController?.Dispose();
         fflogsImportController = null;
         fflogsClientSecret = string.Empty;
@@ -134,6 +149,26 @@ internal sealed class AnalyzerWindow : Window, IAnalyzerWorkspaceNavigation, IDi
             QueueSummaryRefresh();
         }
 
+        if (snapshot.LoadedPull is { } loaded)
+        {
+            ImGui.SameLine();
+            var sameSession = snapshot.LoadedSession?.Session.TerritoryId == loaded.Pull.Metadata.TerritoryId;
+            if (snapshot.SessionLoading)
+            {
+                ImGui.BeginDisabled();
+            }
+
+            if (ImGui.Button($"{(sameSession ? "Refresh" : "Load")} session##session-load"))
+            {
+                QueueSessionLoad(loaded.Pull.Metadata.TerritoryId);
+            }
+
+            if (snapshot.SessionLoading)
+            {
+                ImGui.EndDisabled();
+            }
+        }
+
         if (snapshot.SummariesLoading)
         {
             ImGui.SameLine();
@@ -144,10 +179,20 @@ internal sealed class AnalyzerWindow : Window, IAnalyzerWorkspaceNavigation, IDi
             ImGui.SameLine();
             ImGui.TextDisabled("Loading and analyzing selected pull...");
         }
+        else if (snapshot.SessionLoading)
+        {
+            ImGui.SameLine();
+            ImGui.TextDisabled("Loading and analyzing raid session...");
+        }
 
         if (!string.IsNullOrWhiteSpace(snapshot.LoadError))
         {
             ImGui.TextWrapped($"Analyzer workspace load error: {snapshot.LoadError}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(snapshot.SessionError))
+        {
+            ImGui.TextWrapped($"Session analysis error: {snapshot.SessionError}");
         }
     }
 
@@ -353,7 +398,9 @@ internal sealed class AnalyzerWindow : Window, IAnalyzerWorkspaceNavigation, IDi
                 Pull = loaded.Pull,
                 Results = loaded.Results,
                 DeathEvents = loaded.DeathEvents,
+                Session = snapshot.LoadedSession,
                 Navigation = this,
+                SessionNavigation = this,
             };
             panels[Math.Clamp(selectedPanelIndex, 0, panels.Count - 1)].Draw(context);
             return;
@@ -389,9 +436,7 @@ internal sealed class AnalyzerWindow : Window, IAnalyzerWorkspaceNavigation, IDi
         {
             try
             {
-                var summaries = await dataController
-                    .QueryPullsAsync(PullQueryLimit)
-                    .ConfigureAwait(false);
+                var summaries = await dataController.QueryPullsAsync(PullQueryLimit).ConfigureAwait(false);
                 lock (stateLock)
                 {
                     if (generation != summaryLoadGeneration)
@@ -419,7 +464,7 @@ internal sealed class AnalyzerWindow : Window, IAnalyzerWorkspaceNavigation, IDi
         });
     }
 
-    private void QueuePullLoad(PullId pullId)
+    private void QueuePullLoad(PullId pullId, AnalysisResultId? focusResultId = null)
     {
         CancellationTokenSource requestCts;
         long generation;
@@ -451,6 +496,21 @@ internal sealed class AnalyzerWindow : Window, IAnalyzerWorkspaceNavigation, IDi
                     if (loaded is null)
                     {
                         loadError = "The selected canonical pull no longer exists.";
+                        return;
+                    }
+
+                    if (loadedSession?.Session.TerritoryId != loaded.Pull.Metadata.TerritoryId)
+                    {
+                        loadedSession = null;
+                    }
+
+                    if (focusResultId is { } resultId)
+                    {
+                        var result = loaded.Results.FirstOrDefault(item => item.Id == resultId);
+                        if (result is not null)
+                        {
+                            selection.SelectResult(result);
+                        }
                     }
                 }
             }
@@ -485,6 +545,78 @@ internal sealed class AnalyzerWindow : Window, IAnalyzerWorkspaceNavigation, IDi
         });
     }
 
+    private void QueueSessionLoad(uint territoryId)
+    {
+        CancellationTokenSource requestCts;
+        long generation;
+        lock (stateLock)
+        {
+            activeSessionLoadCts?.Cancel();
+            sessionController.InvalidatePendingLoad();
+            requestCts = new CancellationTokenSource();
+            activeSessionLoadCts = requestCts;
+            generation = ++sessionLoadGeneration;
+            sessionLoading = true;
+            sessionError = null;
+        }
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var loaded = await sessionController.LoadAsync(
+                    new AnalyzerSessionRequest
+                    {
+                        TerritoryId = territoryId,
+                        Limit = SessionQueryLimit,
+                    },
+                    cancellationToken: requestCts.Token).ConfigureAwait(false);
+                lock (stateLock)
+                {
+                    if (generation != sessionLoadGeneration || requestCts.IsCancellationRequested)
+                    {
+                        return;
+                    }
+
+                    sessionLoading = false;
+                    loadedSession = loaded;
+                    if (loaded is null)
+                    {
+                        sessionError = "The session load was superseded before it completed.";
+                    }
+                }
+            }
+            catch (OperationCanceledException) when (requestCts.IsCancellationRequested)
+            {
+            }
+            catch (Exception exception)
+            {
+                lock (stateLock)
+                {
+                    if (generation != sessionLoadGeneration)
+                    {
+                        return;
+                    }
+
+                    sessionLoading = false;
+                    sessionError = exception.Message;
+                }
+            }
+            finally
+            {
+                lock (stateLock)
+                {
+                    if (ReferenceEquals(activeSessionLoadCts, requestCts))
+                    {
+                        activeSessionLoadCts = null;
+                    }
+                }
+
+                requestCts.Dispose();
+            }
+        });
+    }
+
     private WorkspaceSnapshot CaptureSnapshot()
     {
         lock (stateLock)
@@ -492,9 +624,12 @@ internal sealed class AnalyzerWindow : Window, IAnalyzerWorkspaceNavigation, IDi
             return new WorkspaceSnapshot(
                 pullSummaries,
                 loadedPull,
+                loadedSession,
                 summariesLoading,
                 pullLoading,
-                loadError);
+                sessionLoading,
+                loadError,
+                sessionError);
         }
     }
 
@@ -506,7 +641,10 @@ internal sealed class AnalyzerWindow : Window, IAnalyzerWorkspaceNavigation, IDi
     private sealed record WorkspaceSnapshot(
         IReadOnlyList<PullSummary> PullSummaries,
         AnalyzerWorkspaceLoadedPull? LoadedPull,
+        AnalyzerSessionLoaded? LoadedSession,
         bool SummariesLoading,
         bool PullLoading,
-        string? LoadError);
+        bool SessionLoading,
+        string? LoadError,
+        string? SessionError);
 }
