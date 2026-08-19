@@ -66,14 +66,14 @@ internal sealed class AnalyzerExportPanel : IAnalyzerWorkspacePanel
             ImGui.EndDisabled();
         }
 
-        if (pull is null)
-        {
-            ImGui.TextDisabled("Select a pull to export.");
-        }
-        else if (isExporting)
+        if (isExporting)
         {
             ImGui.SameLine();
             ImGui.TextDisabled("Exporting...");
+        }
+        else if (pull is null)
+        {
+            ImGui.TextDisabled("Select a pull to export.");
         }
 
         if (!string.IsNullOrWhiteSpace(currentStatus))
