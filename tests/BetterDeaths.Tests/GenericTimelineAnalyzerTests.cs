@@ -209,7 +209,7 @@ public sealed class GenericTimelineAnalyzerTests
             TargetActorId = Boss,
             Provenance = Provenance(),
             ActionId = actionId,
-            CastTime = TimeSpan.FromSeconds(2),
+            CastDuration = TimeSpan.FromSeconds(2),
         };
     }
 
