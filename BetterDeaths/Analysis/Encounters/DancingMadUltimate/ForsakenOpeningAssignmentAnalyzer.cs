@@ -11,6 +11,9 @@ using System.Threading.Tasks;
 internal sealed class ForsakenOpeningAssignmentAnalyzer : IAnalyzerModule
 {
     public const string AnalyzerId = "encounter.dmu.forsaken-opening";
+    public const string ResolvedAssignmentRuleKey = "opening-assignment.resolved";
+    public const string AmbiguousAssignmentRuleKey = "opening-assignment.ambiguous";
+    public const string IncompatibleAssignmentRuleKey = "opening-assignment.incompatible";
 
     private static readonly TimeSpan OpeningBatchWindow = TimeSpan.FromSeconds(3);
 
@@ -244,6 +247,7 @@ internal sealed class ForsakenOpeningAssignmentAnalyzer : IAnalyzerModule
                     pairRange,
                     $"resolved:{Math.Min(pair.First.Actor.Id.Value, pair.Second.Actor.Id.Value)}:{Math.Max(pair.First.Actor.Id.Value, pair.Second.Actor.Id.Value)}:{pair.Group}"),
                 AnalyzerId = AnalyzerId,
+                RuleKey = ResolvedAssignmentRuleKey,
                 Severity = AnalysisSeverity.Info,
                 Category = AnalysisCategory.Mechanic,
                 Title = $"Forsaken {groupName}: {pair.First.Actor.Name} ↔ {pair.Second.Actor.Name}",
@@ -298,6 +302,7 @@ internal sealed class ForsakenOpeningAssignmentAnalyzer : IAnalyzerModule
                 range,
                 $"ambiguous:{compatibleLayoutCount}"),
             AnalyzerId = AnalyzerId,
+            RuleKey = AmbiguousAssignmentRuleKey,
             Severity = AnalysisSeverity.Info,
             Category = AnalysisCategory.Mechanic,
             Title = "Forsaken opening partner assignment remains ambiguous",
@@ -351,6 +356,7 @@ internal sealed class ForsakenOpeningAssignmentAnalyzer : IAnalyzerModule
                 range,
                 "incompatible-opening-layout"),
             AnalyzerId = AnalyzerId,
+            RuleKey = IncompatibleAssignmentRuleKey,
             Severity = AnalysisSeverity.Warning,
             Category = AnalysisCategory.Mechanic,
             Title = "Forsaken opening debuffs do not admit a Kroxy-Rinon partner layout",
