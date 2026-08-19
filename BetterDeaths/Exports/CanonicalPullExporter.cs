@@ -89,9 +89,9 @@ internal static class CanonicalPullExporter
             })
             .ToArray();
 
-        return pull with
+        var sanitized = pull with
         {
-            Id = CreateAnonymizedPullId(pull.Id),
+            Id = new PullId(Guid.Empty),
             Metadata = pull.Metadata with { StartedAt = null },
             Actors = actors,
             Events = events,
@@ -99,6 +99,8 @@ internal static class CanonicalPullExporter
             WorldMarkers = markers,
             Provenance = Sanitize(pull.Provenance),
         };
+
+        return sanitized with { Id = CreateAnonymizedPullId(sanitized) };
     }
 
     private static IReadOnlyDictionary<ActorId, string> BuildAnonymizedActorNames(IReadOnlyList<ActorRecord> actors)
@@ -138,9 +140,11 @@ internal static class CanonicalPullExporter
         return provenance with { SourceReference = null };
     }
 
-    private static PullId CreateAnonymizedPullId(PullId original)
+    private static PullId CreateAnonymizedPullId(RecordedPull sanitizedPull)
     {
-        var material = Encoding.UTF8.GetBytes($"better-deaths:canonical-export:v{CurrentExportPolicyVersion}:{original.Value:N}");
+        var canonicalSanitizedPayload = CanonicalPullSerializer.Serialize(sanitizedPull);
+        var material = Encoding.UTF8.GetBytes(
+            $"better-deaths:canonical-export:v{CurrentExportPolicyVersion}:{canonicalSanitizedPayload}");
         var hash = SHA256.HashData(material);
         var guidBytes = hash.AsSpan(0, 16).ToArray();
 
