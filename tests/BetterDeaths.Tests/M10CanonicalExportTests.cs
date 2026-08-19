@@ -3,6 +3,7 @@ namespace BetterDeaths;
 using BetterDeaths.Domain;
 using BetterDeaths.Exports;
 using BetterDeaths.Persistence;
+using System.Reflection;
 
 public sealed class M10CanonicalExportTests
 {
@@ -71,6 +72,7 @@ public sealed class M10CanonicalExportTests
         Assert.DoesNotContain("Mystery Alice", export.Payload, StringComparison.Ordinal);
         Assert.DoesNotContain(SourceReference, export.Payload, StringComparison.Ordinal);
         Assert.DoesNotContain("Alice custom marker", export.Payload, StringComparison.Ordinal);
+        Assert.DoesNotContain(pull.Id.Value.ToString(), export.Payload, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -117,10 +119,49 @@ public sealed class M10CanonicalExportTests
         Assert.Equal(first.Payload, second.Payload);
         Assert.Equal(originalId, pull.Id);
         Assert.Equal(originalStartedAt, pull.Metadata.StartedAt);
-        Assert.Equal(originalNames, pull.Actors.Select(actor => actor.Name));
+        Assert.Equal(originalNames, pull.Actors.Select(actor => actor.Name).ToArray());
         Assert.Equal(originalSourceReference, pull.Provenance.SourceReference);
         Assert.Equal(originalObservedAt, pull.Events[0].ObservedAt);
         Assert.Equal("Alice custom marker", pull.WorldMarkers[0].Label);
+    }
+
+    [Fact]
+    public void AnonymizedPullIdentityIsDerivedOnlyFromSanitizedCanonicalContent()
+    {
+        var firstPull = CreatePull();
+        var secondPull = firstPull with
+        {
+            Id = new PullId(Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")),
+            Metadata = firstPull.Metadata with { StartedAt = StartedAt.AddDays(7) },
+            Actors = firstPull.Actors.Select(actor => actor.Kind switch
+            {
+                ActorKind.Player => actor with { Name = $"Changed Player {actor.Id.Value}" },
+                ActorKind.Pet => actor with { Name = "Changed Pet" },
+                ActorKind.Unknown => actor with { Name = "Changed Unknown" },
+                _ => actor,
+            }).ToArray(),
+            Events = firstPull.Events.Select(evt => evt with
+            {
+                ObservedAt = evt.ObservedAt?.AddDays(7),
+                Provenance = evt.Provenance with { SourceReference = "fflogs:report:DifferentCode:fight:999" },
+            }).ToArray(),
+            Positions = firstPull.Positions.Select(sample => sample with
+            {
+                Provenance = sample.Provenance with { SourceReference = "local:different-position-source" },
+            }).ToArray(),
+            WorldMarkers = firstPull.WorldMarkers.Select(sample => sample with
+            {
+                Label = "Different custom marker",
+                Provenance = sample.Provenance with { SourceReference = "local:different-marker-source" },
+            }).ToArray(),
+            Provenance = firstPull.Provenance with { SourceReference = "fflogs:report:DifferentCode:fight:999" },
+        };
+
+        var first = ExportAnonymized(firstPull);
+        var second = ExportAnonymized(secondPull);
+
+        Assert.Equal(first.ExportedPullId, second.ExportedPullId);
+        Assert.Equal(first.Payload, second.Payload);
     }
 
     [Fact]
@@ -170,16 +211,73 @@ public sealed class M10CanonicalExportTests
             WorldMarkers = [],
         };
 
-        var export = CanonicalPullExporter.Export(new CanonicalPullExportRequest
-        {
-            Pull = pull,
-            Options = new CanonicalPullExportOptions { Mode = CanonicalPullExportMode.Anonymized },
-        });
+        var export = ExportAnonymized(pull);
 
         Assert.DoesNotContain(clientId, export.Payload, StringComparison.Ordinal);
         Assert.DoesNotContain(clientSecret, export.Payload, StringComparison.Ordinal);
         Assert.DoesNotContain(accessToken, export.Payload, StringComparison.Ordinal);
         Assert.DoesNotContain(authorizationHeader, export.Payload, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ExportBoundaryAcceptsCanonicalDataOnlyAndHasNoSourceOrUiContractTypes()
+    {
+        var protectedTypes = new[]
+        {
+            typeof(CanonicalPullExportOptions),
+            typeof(CanonicalPullExportRequest),
+            typeof(CanonicalPullExportResult),
+            typeof(CanonicalPullExporter),
+        };
+
+        foreach (var type in protectedTypes)
+        {
+            Assert.Equal("BetterDeaths.Exports", type.Namespace);
+            foreach (var memberType in GetContractMemberTypes(type))
+            {
+                var description = memberType.ToString();
+                Assert.DoesNotContain("BetterDeaths.Sources", description, StringComparison.Ordinal);
+                Assert.DoesNotContain("BetterDeaths.Windows", description, StringComparison.Ordinal);
+                Assert.DoesNotContain("Dalamud", description, StringComparison.Ordinal);
+                Assert.DoesNotContain("ImGui", description, StringComparison.Ordinal);
+            }
+        }
+
+        Assert.Equal(
+            [typeof(RecordedPull), typeof(CanonicalPullExportOptions)],
+            typeof(CanonicalPullExportRequest)
+                .GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                .Select(property => property.PropertyType)
+                .ToArray());
+    }
+
+    private static CanonicalPullExportResult ExportAnonymized(RecordedPull pull) =>
+        CanonicalPullExporter.Export(new CanonicalPullExportRequest
+        {
+            Pull = pull,
+            Options = new CanonicalPullExportOptions { Mode = CanonicalPullExportMode.Anonymized },
+        });
+
+    private static IEnumerable<Type> GetContractMemberTypes(Type type)
+    {
+        foreach (var property in type.GetProperties(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static))
+        {
+            yield return property.PropertyType;
+        }
+
+        foreach (var field in type.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static))
+        {
+            yield return field.FieldType;
+        }
+
+        foreach (var method in type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly))
+        {
+            yield return method.ReturnType;
+            foreach (var parameter in method.GetParameters())
+            {
+                yield return parameter.ParameterType;
+            }
+        }
     }
 
     private static readonly DateTimeOffset StartedAt = new(2026, 8, 19, 18, 0, 0, TimeSpan.Zero);
