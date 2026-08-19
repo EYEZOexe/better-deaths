@@ -1,6 +1,7 @@
 namespace BetterDeaths;
 
 using BetterDeaths.Analysis.Generic;
+using BetterDeaths.Analysis.Jobs.Dancer;
 using BetterDeaths.Domain;
 using BetterDeaths.Persistence;
 using BetterDeaths.Windows.Analyzer;
@@ -42,6 +43,8 @@ public sealed class AnalyzerWorkspaceDataControllerTests
         Assert.Empty(loaded.Failures);
         Assert.Contains(loaded.Skipped, skip => skip.AnalyzerId == HealingActivityAnalyzer.AnalyzerId);
         Assert.Contains(loaded.Skipped, skip => skip.AnalyzerId == TargetabilityAwareUptimeAnalyzer.AnalyzerId);
+        Assert.Contains(loaded.Skipped, skip => skip.AnalyzerId == DancerCoreExecutionAnalyzer.AnalyzerId);
+        Assert.Contains(loaded.Skipped, skip => skip.AnalyzerId == DancerBurstAndUptimeAnalyzer.AnalyzerId);
     }
 
     [Fact]
@@ -57,10 +60,77 @@ public sealed class AnalyzerWorkspaceDataControllerTests
         Assert.Empty(loaded.DeathEvents);
         Assert.Empty(loaded.Results);
         Assert.Empty(loaded.Failures);
-        Assert.Equal(3, loaded.Skipped.Count);
+        Assert.Equal(5, loaded.Skipped.Count);
         Assert.Contains(loaded.Skipped, skip => skip.AnalyzerId == DeathRaiseContextAnalyzer.AnalyzerId);
         Assert.Contains(loaded.Skipped, skip => skip.AnalyzerId == HealingActivityAnalyzer.AnalyzerId);
         Assert.Contains(loaded.Skipped, skip => skip.AnalyzerId == TargetabilityAwareUptimeAnalyzer.AnalyzerId);
+        Assert.Contains(loaded.Skipped, skip => skip.AnalyzerId == DancerCoreExecutionAnalyzer.AnalyzerId);
+        Assert.Contains(loaded.Skipped, skip => skip.AnalyzerId == DancerBurstAndUptimeAnalyzer.AnalyzerId);
+    }
+
+    [Fact]
+    public async Task DefaultWorkspaceRunsDancerJobAnalyzersThroughSameEngineComposition()
+    {
+        var baseline = CreatePull(includeDeath: false);
+        var player = baseline.Actors.Single(actor => actor.Kind == ActorKind.Player);
+        var boss = baseline.Actors.Single(actor => actor.Kind == ActorKind.Enemy);
+        var provenance = new EventProvenance
+        {
+            SourceKind = PullDataSourceKind.DalamudLive,
+            SourceReference = "workspace-dnc-test",
+            Fidelity = CaptureFidelity.Exact,
+            Confidence = 1.0f,
+        };
+        var pull = baseline with
+        {
+            Actors = baseline.Actors.Select(actor => actor.Id == player.Id
+                ? actor with { JobAbbreviation = "DNC" }
+                : actor).ToArray(),
+            Events =
+            [
+                new ActionUseEvent
+                {
+                    Id = new EventId(1),
+                    Sequence = 1,
+                    PullTime = TimeSpan.FromSeconds(5),
+                    SourceActorId = player.Id,
+                    TargetActorId = boss.Id,
+                    Provenance = provenance,
+                    ActionId = 15997,
+                },
+                new ActionUseEvent
+                {
+                    Id = new EventId(2),
+                    Sequence = 2,
+                    PullTime = TimeSpan.FromSeconds(6),
+                    SourceActorId = player.Id,
+                    TargetActorId = boss.Id,
+                    Provenance = provenance,
+                    ActionId = 15999,
+                },
+                new ActionUseEvent
+                {
+                    Id = new EventId(3),
+                    Sequence = 3,
+                    PullTime = TimeSpan.FromSeconds(7),
+                    SourceActorId = player.Id,
+                    TargetActorId = boss.Id,
+                    Provenance = provenance,
+                    ActionId = 16191,
+                },
+            ],
+        };
+        var controller = AnalyzerWorkspaceDataController.CreateDefault(new FakePullStore(pull));
+
+        var loaded = await controller.LoadPullAsync(pull.Id);
+
+        Assert.NotNull(loaded);
+        var jobResult = Assert.Single(loaded.Results, result => result.AnalyzerId == DancerCoreExecutionAnalyzer.AnalyzerId);
+        Assert.Equal(AnalysisCategory.Job, jobResult.Category);
+        Assert.Equal(player.Id, jobResult.Actors[0]);
+        Assert.NotEmpty(jobResult.Evidence.SelectMany(evidence => evidence.EventIds));
+        Assert.DoesNotContain(loaded.Skipped, skip => skip.AnalyzerId == DancerCoreExecutionAnalyzer.AnalyzerId);
+        Assert.DoesNotContain(loaded.Skipped, skip => skip.AnalyzerId == DancerBurstAndUptimeAnalyzer.AnalyzerId);
     }
 
     [Fact]

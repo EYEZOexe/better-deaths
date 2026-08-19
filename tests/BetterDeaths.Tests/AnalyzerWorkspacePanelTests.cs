@@ -47,14 +47,17 @@ public sealed class AnalyzerWorkspacePanelTests
         var selection = new AnalyzerWorkspaceSelection();
         var context = new AnalyzerWorkspacePanelContext { Selection = selection };
         var timeline = new CapturingPanel("timeline");
+        var jobs = new CapturingPanel("jobs");
         var deaths = new CapturingPanel("deaths");
         var replay = new CapturingPanel("replay");
 
         timeline.Draw(context);
+        jobs.Draw(context);
         deaths.Draw(context);
         replay.Draw(context);
 
         Assert.Same(selection, timeline.SeenSelection);
+        Assert.Same(selection, jobs.SeenSelection);
         Assert.Same(selection, deaths.SeenSelection);
         Assert.Same(selection, replay.SeenSelection);
     }
@@ -86,29 +89,53 @@ public sealed class AnalyzerWorkspacePanelTests
     {
         var overview = ReadRepositoryFile("BetterDeaths/Windows/Analyzer/Panels/AnalyzerOverviewPanel.cs");
         var timeline = ReadRepositoryFile("BetterDeaths/Windows/Analyzer/Panels/AnalyzerTimelinePanel.cs");
+        var jobs = ReadRepositoryFile("BetterDeaths/Windows/Analyzer/Panels/AnalyzerJobsPanel.cs");
         var deaths = ReadRepositoryFile("BetterDeaths/Windows/Analyzer/Panels/AnalyzerDeathsPanel.cs");
         var replay = ReadRepositoryFile("BetterDeaths/Windows/Analyzer/Panels/AnalyzerReplayPanel.cs");
+        var catalog = ReadRepositoryFile("BetterDeaths/Windows/Analyzer/Panels/AnalyzerWorkspacePanelCatalog.cs");
         var recap = ReadRepositoryFile("BetterDeaths/Windows/RecapWindow.cs");
 
         Assert.Contains("context.Selection", overview, StringComparison.Ordinal);
         Assert.Contains("context.Selection", timeline, StringComparison.Ordinal);
+        Assert.Contains("context.Selection", jobs, StringComparison.Ordinal);
         Assert.Contains("context.Selection", deaths, StringComparison.Ordinal);
         Assert.Contains("context.Selection", replay, StringComparison.Ordinal);
+        Assert.Contains("AnalysisCategory.Job", jobs, StringComparison.Ordinal);
+        Assert.Contains("context.Selection.SelectResult(result)", jobs, StringComparison.Ordinal);
+        Assert.Contains("new AnalyzerJobsPanel()", catalog, StringComparison.Ordinal);
         Assert.Contains("context.DeathEvents", deaths, StringComparison.Ordinal);
         Assert.DoesNotContain("pull.Events.OfType", deaths, StringComparison.Ordinal);
         Assert.Contains("AnalyzerWorkspaceNavigationTarget.LegacyDeaths", deaths, StringComparison.Ordinal);
         Assert.Contains("AnalyzerWorkspaceNavigationTarget.LegacyReplay", replay, StringComparison.Ordinal);
 
-        foreach (var source in new[] { overview, timeline, deaths, replay })
+        foreach (var source in new[] { overview, timeline, jobs, deaths, replay })
         {
             Assert.DoesNotContain("AnalyzerEngine", source, StringComparison.Ordinal);
             Assert.DoesNotContain("IPullStore", source, StringComparison.Ordinal);
             Assert.DoesNotContain("RecapWindow", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("FFLogs", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("Dancer", source, StringComparison.Ordinal);
         }
 
         Assert.DoesNotContain("AnalyzerWorkspaceSelection", recap, StringComparison.Ordinal);
         Assert.DoesNotContain("AnalyzerOverviewPanel", recap, StringComparison.Ordinal);
         Assert.DoesNotContain("AnalyzerTimelinePanel", recap, StringComparison.Ordinal);
+        Assert.DoesNotContain("AnalyzerJobsPanel", recap, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void JobsPanelUsesStructuredJobResultsAndPrimaryActorConventionGenerically()
+    {
+        var jobs = ReadRepositoryFile("BetterDeaths/Windows/Analyzer/Panels/AnalyzerJobsPanel.cs");
+
+        Assert.Contains("result.Category == AnalysisCategory.Job", jobs, StringComparison.Ordinal);
+        Assert.Contains("result.Actors[0]", jobs, StringComparison.Ordinal);
+        Assert.Contains("result.Evidence", jobs, StringComparison.Ordinal);
+        Assert.Contains("result.Confidence", jobs, StringComparison.Ordinal);
+        Assert.DoesNotContain("job.dnc", jobs, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("DancerJobDefinition", jobs, StringComparison.Ordinal);
+        Assert.DoesNotContain("DancerCoreExecutionAnalyzer", jobs, StringComparison.Ordinal);
+        Assert.DoesNotContain("DancerBurstAndUptimeAnalyzer", jobs, StringComparison.Ordinal);
     }
 
     private static AnalysisResult Result(int id, int actorId, double startSeconds, double endSeconds)

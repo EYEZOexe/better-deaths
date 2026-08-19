@@ -2,6 +2,7 @@ namespace BetterDeaths.Windows.Analyzer;
 
 using BetterDeaths.Analysis.Engine;
 using BetterDeaths.Analysis.Generic;
+using BetterDeaths.Analysis.Jobs.Dancer;
 using BetterDeaths.Domain;
 using BetterDeaths.Persistence;
 using System;
@@ -41,13 +42,13 @@ internal sealed class AnalyzerWorkspaceDataController
         ArgumentNullException.ThrowIfNull(pullStore);
         var registry = new AnalyzerRegistry();
 
-        // M3's DeathEventAnalyzer was deliberately a minimal vertical slice. M5 replaces it in
-        // the default workspace composition with the richer evidence-first death/raise context
-        // analyzer and adds only analyzers that need no source/job/encounter-specific semantic
-        // catalog. Configured mitigation and buff/cooldown definitions remain explicit inputs.
+        // Generic analyzers remain source/job/encounter agnostic. Job modules are registered through
+        // the same engine composition seam and still consume only canonical pull/index contracts.
         registry.Register(new DeathRaiseContextAnalyzer());
         registry.Register(new HealingActivityAnalyzer());
         registry.Register(new TargetabilityAwareUptimeAnalyzer());
+        registry.Register(new DancerCoreExecutionAnalyzer());
+        registry.Register(new DancerBurstAndUptimeAnalyzer());
 
         return new AnalyzerWorkspaceDataController(pullStore, new AnalyzerEngine(registry));
     }

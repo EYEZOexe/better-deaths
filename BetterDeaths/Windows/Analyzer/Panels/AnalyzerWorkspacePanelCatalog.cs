@@ -10,6 +10,7 @@ internal static class AnalyzerWorkspacePanelCatalog
         [
             new AnalyzerOverviewPanel(),
             new AnalyzerTimelinePanel(),
+            new AnalyzerJobsPanel(),
             new AnalyzerDeathsPanel(),
             new AnalyzerReplayPanel(),
         ];
