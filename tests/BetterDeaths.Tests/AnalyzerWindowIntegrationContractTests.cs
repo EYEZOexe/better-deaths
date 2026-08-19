@@ -14,12 +14,15 @@ public sealed class AnalyzerWindowIntegrationContractTests
         Assert.Contains("LoadPullAsync(pullId, requestCts.Token)", source, StringComparison.Ordinal);
         Assert.Contains("AnalyzerWorkspacePanelCatalog.CreateDefault", source, StringComparison.Ordinal);
         Assert.Contains("DeathEvents = loaded.DeathEvents", source, StringComparison.Ordinal);
+        Assert.Contains("controller.LoadReportAsync(reportCode)", source, StringComparison.Ordinal);
+        Assert.Contains("controller.ImportFightAsync(reportCode, fightId)", source, StringComparison.Ordinal);
 
         Assert.DoesNotContain(".Wait(", source, StringComparison.Ordinal);
         Assert.DoesNotContain("GetAwaiter().GetResult", source, StringComparison.Ordinal);
         Assert.DoesNotContain("QueryPullsAsync(PullQueryLimit).Result", source, StringComparison.Ordinal);
         Assert.DoesNotContain("LoadPullAsync(pullId, requestCts.Token).Result", source, StringComparison.Ordinal);
         Assert.DoesNotContain("FileCanonicalPullStore", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("FFLogsGraphQlClient", source, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -28,7 +31,8 @@ public sealed class AnalyzerWindowIntegrationContractTests
         var pluginIntegration = ReadRepositoryFile("BetterDeaths/Plugin.AnalyzerWorkspace.cs");
         var widget = ReadRepositoryFile("BetterDeaths/Windows/CurrentPullWidgetWindow.cs");
 
-        Assert.Contains("new AnalyzerWindow(GetCanonicalPullStore(), recapWindow)", pluginIntegration, StringComparison.Ordinal);
+        Assert.Contains("new AnalyzerWindow(", pluginIntegration, StringComparison.Ordinal);
+        Assert.Contains("CreateFFLogsWorkspaceImportController", pluginIntegration, StringComparison.Ordinal);
         Assert.Contains("windowSystem.AddWindow(analyzerWindow)", pluginIntegration, StringComparison.Ordinal);
         Assert.Contains("EnsureAnalyzerWorkspaceRegistered", widget, StringComparison.Ordinal);
         Assert.Contains("Analyzer Workspace", widget, StringComparison.Ordinal);
@@ -44,6 +48,7 @@ public sealed class AnalyzerWindowIntegrationContractTests
         Assert.DoesNotContain("AnalyzerWindow", recap, StringComparison.Ordinal);
         Assert.DoesNotContain("AnalyzerWorkspaceSelection", recap, StringComparison.Ordinal);
         Assert.DoesNotContain("AnalyzerWorkspaceDataController", recap, StringComparison.Ordinal);
+        Assert.DoesNotContain("FFLogs", recap, StringComparison.Ordinal);
 
         Assert.Contains("RecapWindow", analyzer, StringComparison.Ordinal);
         Assert.Contains("FocusLatestPull", analyzer, StringComparison.Ordinal);

@@ -11,7 +11,7 @@ using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
 
-internal sealed class AnalyzerWindow : Window, IAnalyzerWorkspaceNavigation
+internal sealed class AnalyzerWindow : Window, IAnalyzerWorkspaceNavigation, IDisposable
 {
     private const int PullQueryLimit = 100;
     private const float PullBrowserMinWidth = 220.0f;
@@ -22,24 +22,36 @@ internal sealed class AnalyzerWindow : Window, IAnalyzerWorkspaceNavigation
     private readonly AnalyzerWorkspaceDataController dataController;
     private readonly AnalyzerWorkspaceSelection selection = new();
     private readonly IReadOnlyList<IAnalyzerWorkspacePanel> panels = AnalyzerWorkspacePanelCatalog.CreateDefault();
+    private readonly Func<string, string, AnalyzerWorkspaceFFLogsImportController> fflogsControllerFactory;
 
     private IReadOnlyList<PullSummary> pullSummaries = Array.Empty<PullSummary>();
     private AnalyzerWorkspaceLoadedPull? loadedPull;
     private CancellationTokenSource? activePullLoadCts;
+    private AnalyzerWorkspaceFFLogsImportController? fflogsImportController;
     private string? loadError;
+    private string fflogsClientId = string.Empty;
+    private string fflogsClientSecret = string.Empty;
+    private string fflogsReportCode = string.Empty;
     private long summaryLoadGeneration;
     private long pullLoadGeneration;
     private bool summaryLoadStarted;
     private bool summariesLoading;
     private bool pullLoading;
     private int selectedPanelIndex;
+    private int selectedFFLogsFightIndex = -1;
+    private bool disposed;
 
-    public AnalyzerWindow(IPullStore pullStore, RecapWindow recapWindow)
+    public AnalyzerWindow(
+        IPullStore pullStore,
+        RecapWindow recapWindow,
+        Func<string, string, AnalyzerWorkspaceFFLogsImportController> fflogsControllerFactory)
         : base("Better Deaths Analyzer###BetterDeathsAnalyzer")
     {
         ArgumentNullException.ThrowIfNull(pullStore);
         ArgumentNullException.ThrowIfNull(recapWindow);
+        ArgumentNullException.ThrowIfNull(fflogsControllerFactory);
         this.recapWindow = recapWindow;
+        this.fflogsControllerFactory = fflogsControllerFactory;
         dataController = AnalyzerWorkspaceDataController.CreateDefault(pullStore);
         Size = new Vector2(1200.0f, 700.0f);
         SizeCondition = ImGuiCond.FirstUseEver;
@@ -47,6 +59,11 @@ internal sealed class AnalyzerWindow : Window, IAnalyzerWorkspaceNavigation
 
     public override void Draw()
     {
+        if (disposed)
+        {
+            return;
+        }
+
         EnsureSummaryLoadStarted();
         var snapshot = CaptureSnapshot();
 
@@ -57,6 +74,8 @@ internal sealed class AnalyzerWindow : Window, IAnalyzerWorkspaceNavigation
         var browserWidth = Math.Clamp(available.X * 0.25f, PullBrowserMinWidth, PullBrowserMaxWidth);
         if (ImGui.BeginChild("##AnalyzerPullBrowser", new Vector2(browserWidth, 0.0f), true))
         {
+            DrawFFLogsImport();
+            ImGui.Separator();
             DrawPullBrowser(snapshot);
         }
         ImGui.EndChild();
@@ -80,9 +99,6 @@ internal sealed class AnalyzerWindow : Window, IAnalyzerWorkspaceNavigation
                 }
                 break;
             case AnalyzerWorkspaceNavigationTarget.LegacyReplay:
-                // The existing replay targeting API is private and death-centric. M4 keeps the
-                // bridge additive: open the latest legacy pull review and let the existing UI own
-                // replay navigation until that renderer is extracted behind a public bridge.
                 if (!recapWindow.FocusLatestPull())
                 {
                     recapWindow.IsOpen = true;
@@ -91,6 +107,22 @@ internal sealed class AnalyzerWindow : Window, IAnalyzerWorkspaceNavigation
             default:
                 throw new ArgumentOutOfRangeException(nameof(target), target, null);
         }
+    }
+
+    public void Dispose()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        activePullLoadCts?.Cancel();
+        activePullLoadCts?.Dispose();
+        activePullLoadCts = null;
+        fflogsImportController?.Dispose();
+        fflogsImportController = null;
+        fflogsClientSecret = string.Empty;
     }
 
     private void DrawHeader(WorkspaceSnapshot snapshot)
@@ -119,10 +151,152 @@ internal sealed class AnalyzerWindow : Window, IAnalyzerWorkspaceNavigation
         }
     }
 
+    private void DrawFFLogsImport()
+    {
+        ImGui.Text("FFLogs import");
+        ImGui.TextDisabled("Public reports use your FFLogs API client credentials.");
+        ImGui.SetNextItemWidth(-1.0f);
+        ImGui.InputText("##FFLogsClientId", ref fflogsClientId, 256);
+        if (string.IsNullOrEmpty(fflogsClientId))
+        {
+            ImGui.TextDisabled("Client ID");
+        }
+
+        ImGui.SetNextItemWidth(-1.0f);
+        ImGui.InputText("##FFLogsClientSecret", ref fflogsClientSecret, 512, ImGuiInputTextFlags.Password);
+        if (string.IsNullOrEmpty(fflogsClientSecret))
+        {
+            ImGui.TextDisabled("Client secret (not saved)");
+        }
+
+        ImGui.SetNextItemWidth(-1.0f);
+        ImGui.InputText("##FFLogsReportCode", ref fflogsReportCode, 128);
+        if (string.IsNullOrEmpty(fflogsReportCode))
+        {
+            ImGui.TextDisabled("Report code");
+        }
+
+        var importSnapshot = fflogsImportController?.Snapshot;
+        var canLoad = !string.IsNullOrWhiteSpace(fflogsClientId) &&
+                      !string.IsNullOrWhiteSpace(fflogsClientSecret) &&
+                      !string.IsNullOrWhiteSpace(fflogsReportCode) &&
+                      importSnapshot?.IsBusy != true;
+        if (!canLoad)
+        {
+            ImGui.BeginDisabled();
+        }
+
+        if (ImGui.Button("Load fights"))
+        {
+            QueueFFLogsReportLoad();
+        }
+
+        if (!canLoad)
+        {
+            ImGui.EndDisabled();
+        }
+
+        importSnapshot = fflogsImportController?.Snapshot;
+        if (importSnapshot?.IsBusy == true)
+        {
+            ImGui.SameLine();
+            ImGui.TextDisabled("Loading...");
+        }
+
+        if (importSnapshot?.Error is { } error)
+        {
+            ImGui.TextWrapped($"FFLogs: {error.SafeMessage}");
+        }
+
+        if (importSnapshot?.Report is not { } report)
+        {
+            return;
+        }
+
+        ImGui.TextDisabled($"{report.Fights.Count} fight(s)");
+        var fights = report.Fights;
+        if (selectedFFLogsFightIndex >= fights.Count)
+        {
+            selectedFFLogsFightIndex = -1;
+        }
+
+        for (var index = 0; index < fights.Count; index++)
+        {
+            var fight = fights[index];
+            var label = $"#{fight.FightId} {fight.Name} ({FormatDuration(fight.Duration)})##fflogs-fight-{fight.FightId}";
+            if (ImGui.Selectable(label, selectedFFLogsFightIndex == index))
+            {
+                selectedFFLogsFightIndex = index;
+            }
+        }
+
+        var canImport = selectedFFLogsFightIndex >= 0 &&
+                        selectedFFLogsFightIndex < fights.Count &&
+                        importSnapshot.IsBusy == false;
+        if (!canImport)
+        {
+            ImGui.BeginDisabled();
+        }
+
+        if (ImGui.Button("Import selected fight"))
+        {
+            QueueFFLogsFightImport(report.ReportCode, fights[selectedFFLogsFightIndex].FightId);
+        }
+
+        if (!canImport)
+        {
+            ImGui.EndDisabled();
+        }
+    }
+
+    private void QueueFFLogsReportLoad()
+    {
+        try
+        {
+            fflogsImportController?.Dispose();
+            fflogsImportController = fflogsControllerFactory(fflogsClientId.Trim(), fflogsClientSecret);
+            fflogsClientSecret = string.Empty;
+            selectedFFLogsFightIndex = -1;
+            var controller = fflogsImportController;
+            var reportCode = fflogsReportCode.Trim();
+            _ = Task.Run(async () =>
+            {
+                await controller.LoadReportAsync(reportCode).ConfigureAwait(false);
+            });
+        }
+        catch (Exception)
+        {
+            fflogsClientSecret = string.Empty;
+            loadError = "FFLogs credentials could not be initialized.";
+        }
+    }
+
+    private void QueueFFLogsFightImport(string reportCode, int fightId)
+    {
+        var controller = fflogsImportController;
+        if (controller is null)
+        {
+            return;
+        }
+
+        _ = Task.Run(async () =>
+        {
+            var result = await controller.ImportFightAsync(reportCode, fightId).ConfigureAwait(false);
+            if (!result.Applied || result.Snapshot.ImportedPullId is not { } pullId)
+            {
+                return;
+            }
+
+            selection.SelectPull(pullId);
+            QueueSummaryRefresh();
+            QueuePullLoad(pullId);
+        });
+    }
+
     private void DrawPullBrowser(WorkspaceSnapshot snapshot)
     {
         ImGui.Text("Canonical pulls");
-        ImGui.TextDisabled($"Showing up to {PullQueryLimit} locally recorded pulls.");
+        ImGui.TextDisabled($"Showing up to {PullQueryLimit} locally stored pulls.");
         ImGui.Separator();
 
         if (snapshot.PullSummaries.Count == 0)
