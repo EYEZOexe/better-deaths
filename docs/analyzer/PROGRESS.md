@@ -17,14 +17,25 @@ Encounter knowledge/reference repository: `EYEZOexe/wtfdig`
 
 ## Current milestone
 
-### M7 — First Job Analyzer: Dancer
+### M8 — First Encounter Pack
 
-**Status:** `APPROVED FOR MERGE`
+**Status:** `AUTHORIZED`
 
-**Parent issue:** #82  
-**Integration/sign-off issue:** #87  
-**Sign-off PR:** #92  
+**Gate opened by:** M7 Dancer Job Analyzer approval and merge `eae228476c1683b7a267c9391aa79484263cb0ef`.
+
+M8 may now begin. The first encounter package must add reusable encounter-definition/phase/assignment/geometry abstractions and one deterministic encounter-specific mechanic analyzer while keeping encounter rules isolated from core capture/engine code. WTFDiG may be audited and selectively ported now, but any direct code/data reuse must record exact upstream file + commit provenance and preserve the MIT notice in `THIRD_PARTY_NOTICES.md`.
+
+The Technical Design v0.2 example is UMAD Forsaken; choose the first mechanic only after auditing the current WTFDiG data and the canonical evidence actually available for reliable pass/fail classification.
+
+## Completed milestone: M7 — First Job Analyzer: Dancer
+
+**Status:** `APPROVED`
+
+**Parent issue:** #82 — completed  
+**Integration/sign-off issue:** #87 — completed  
+**Sign-off PR:** #92 — merged as `eae228476c1683b7a267c9391aa79484263cb0ef`  
 **Combined CI:** `32230435195`  
+**Final PR-head CI:** `32230698017`  
 **Detailed review:** `docs/analyzer/M7_DANCER_SIGNOFF.md`
 
 M7 proves the first xivanalysis-style Job analyzer vertical slice using Dancer. Job modules consume only canonical pull/event/index contracts plus explicit job definitions, emit structured evidence-backed results, and render through one generic Jobs panel. No DNC-specific UI architecture or source-specific analyzer dependency was introduced.
@@ -97,9 +108,11 @@ Evidence:
 
 #### M7-E — Combined fixtures/review/sign-off
 
-**Status:** `APPROVED FOR MERGE`  
+**Status:** `APPROVED`  
 **Issue / PR:** #87 / #92  
-**Combined CI:** `32230435195`
+**Merged commit:** `eae228476c1683b7a267c9391aa79484263cb0ef`  
+**Combined CI:** `32230435195`  
+**Final PR-head CI:** `32230698017`
 
 Combined evidence:
 - both DNC analyzers execute together over the same canonical pull;
@@ -108,10 +121,10 @@ Combined evidence:
 - clean DNC fixture produces no invented findings;
 - equivalent local/FFLogs canonical facts produce equivalent combined DNC semantics;
 - explicit gauge events do not create fabricated Esprit/feather resource verdicts;
-- M8 encounter/WTFDiG implementation has not leaked into M7;
-- CI `32230435195` passed restore, formatting, all tests, and plugin/package build before final sign-off documentation.
+- M8 encounter/WTFDiG implementation did not leak into M7;
+- combined and final-head CI both passed restore, formatting, all tests, and plugin/package build.
 
-**Decision:** M7 is approved for merge. After PR #92's final documentation head remains green and merges, close #87/#82 and authorize M8 — First Encounter Pack.
+**Decision:** M7 is approved and complete. M8 — First Encounter Pack — is authorized from current `main`.
 
 ## Completed milestone: M6 — FFLogs Integration
 
@@ -267,7 +280,8 @@ Characterized lifecycle/archive/reset, death-gated legacy snapshots, persistence
 9. Analyzer modules do not make network calls, render UI, mutate pulls or depend on hidden global state.
 10. New analyzer UI remains outside the monolithic legacy `RecapWindow`.
 11. Heuristic/source-limited conclusions expose confidence/fidelity and remain unknown when evidence is insufficient.
-12. WTFDiG code/data is not ported until M8 and requires exact-path/commit provenance plus MIT attribution.
+12. WTFDiG direct reuse begins no earlier than M8 and requires exact-path/commit provenance plus MIT attribution.
+13. Job analyzers remain generic-engine modules; missing resource/source evidence stays unknown rather than being reconstructed silently.
 
 ## Milestone roadmap
 
@@ -280,8 +294,8 @@ Characterized lifecycle/archive/reset, death-gated legacy snapshots, persistence
 | M4 New workspace shell | APPROVED | Complete |
 | M5 Generic hardcore analysis | APPROVED | Complete |
 | M6 FFLogs integration | APPROVED | Complete |
-| M7 First job analyzer | APPROVED FOR MERGE | Final PR #92 head green + merge |
-| M8 First encounter pack | AUTHORIZED AFTER M7 MERGE | M7 approved/merged |
+| M7 First job analyzer | APPROVED | Complete |
+| M8 First encounter pack | AUTHORIZED | M7 approved |
 | M9 Session intelligence | NOT STARTED | M8 approved |
 | M10 Hardening/extraction review | NOT STARTED | M9 approved |
 
@@ -295,7 +309,7 @@ Verified later-use surfaces:
 - `src/lib/arena.ts` — role/group matching, waymarks, arena/player/boss/AoE/tether/arrow/polygon concepts;
 - `src/routes/ultimates/umad/data.ts` — phase/mechanic scaffolding and role/light-party strategy assignment data.
 
-Do not port WTFDiG until M8. Record exact upstream path + commit and update `THIRD_PARTY_NOTICES.md` when direct reuse first lands.
+M8 may now audit and selectively port WTFDiG. Record the exact upstream path + commit for every direct reuse and update `THIRD_PARTY_NOTICES.md` when copied/derived code or data first lands.
 
 ## Review ledger
 
@@ -319,7 +333,7 @@ Do not port WTFDiG until M8. Record exact upstream path + commit and update `THI
 | 2026-08-19 | M7-B / PR #89 | APPROVED | Evidence-first DNC dance/proc/partner analyzer; CI `32228178813`; merge `7f6988b7fc4cdbcdbda38dae1d2075f8524446b1`. |
 | 2026-08-19 | M7-C / PR #90 | APPROVED | DNC burst/cooldown/targetable GCD analyzer; corrected CI `32229549949`; merge `e1ff044611574cb7d021fb20193b3817066caf90`. |
 | 2026-08-19 | M7-D / PR #91 | APPROVED | Generic Jobs panel/workspace composition; CI `32230088925`; merge `13072911fab1254e294f42904db75fdf1092c3c0`. |
-| 2026-08-19 | M7-E / PR #92 | APPROVED FOR MERGE | Combined DNC fixtures/review; CI `32230435195` green before final sign-off docs. |
+| 2026-08-19 | M7-E / PR #92 | APPROVED | Combined DNC fixtures/review; CI `32230435195`, final-head CI `32230698017`; merge `eae228476c1683b7a267c9391aa79484263cb0ef`. |
 
 ## Agent return format
 
