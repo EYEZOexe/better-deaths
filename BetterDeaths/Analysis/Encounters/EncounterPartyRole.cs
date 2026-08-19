@@ -2,6 +2,7 @@ namespace BetterDeaths.Analysis.Encounters;
 
 using BetterDeaths.Domain;
 using System;
+using System.Linq;
 
 internal enum EncounterPartyRole
 {
