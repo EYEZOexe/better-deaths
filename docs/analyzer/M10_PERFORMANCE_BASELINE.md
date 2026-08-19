@@ -1,9 +1,10 @@
 # M10 performance baseline
 
-Status: **M10-A baseline fixture — awaiting CI measurements**
+Status: **M10-A baseline fixture — VALIDATED**
 
 Parent: #118  
-Work package: #119
+Work package: #119  
+Validation CI: `32259455682`
 
 ## Purpose
 
@@ -44,6 +45,8 @@ The M9 combined suite separately retains the progression-night session gate of 5
 | `FileCanonicalPullStore` save/query/reload | 20 × 1k-event pulls | 20 s | current split index/detail file backend remains usable at a multi-pull volume and exercises real atomic/recovery-aware store code |
 | Session Intelligence | 500 pulls | existing M9 5 s pure / 10 s orchestration gates | progression-night cross-pull aggregation/loading remains guarded after M10 changes |
 
+CI `32259455682` passed all four new M10-A regression gates together with the existing M0–M9 suite, formatting, and plugin/package build. Because the CI test runner does not retain successful per-test stopwatch output as durable benchmark telemetry, the evidence recorded here is the verified upper-bound gate rather than fabricated exact timings.
+
 ## Capture/finalization interpretation
 
 The recorder fixture measures the pure append-only recorder plus canonical model finalization, not plugin/Dalamud hook cost and not disk serialization. This separation is deliberate: the design requires expensive serialization/analysis to stay off the render/game thread, and combining all work into one timing number would hide which boundary regressed.
@@ -72,7 +75,7 @@ Default decision in the absence of measured failure: keep the existing replaceab
 - [x] Current file store save/query/load path measured.
 - [x] Current default Analyzer Engine composition measured on a long stream.
 - [x] Existing M9 500-pull Session gates remain the cross-pull performance baseline.
-- [ ] Full CI green on the M10-A branch.
-- [ ] Exact CI run recorded after validation.
+- [x] Full CI green on the M10-A branch.
+- [x] Exact CI run `32259455682` recorded after validation.
 
 No production behavior or persistence architecture changes are included in M10-A.
