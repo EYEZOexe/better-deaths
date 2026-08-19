@@ -74,6 +74,11 @@ internal sealed record FFLogsFightImportData
     public required FFLogsFightMetadata Fight { get; init; }
 
     public required IReadOnlyList<FFLogsEventEnvelope> Events { get; init; }
+
+    // M6-C may receive a master-data actor directory from fixtures or a future client query.
+    // Empty means the normalizer must preserve referenced actors as source-ID placeholders rather
+    // than inventing names, jobs, or ownership.
+    public IReadOnlyList<FFLogsReportActor> Actors { get; init; } = Array.Empty<FFLogsReportActor>();
 }
 
 internal sealed record FFLogsApiResult<T>
