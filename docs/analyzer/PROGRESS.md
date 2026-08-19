@@ -19,10 +19,11 @@ Encounter knowledge/reference repository: `EYEZOexe/wtfdig`
 
 ### M5 — Generic Hardcore Analysis
 
-**Status:** `READY FOR REVIEW`
+**Status:** `APPROVED`
 
 **Parent issue:** #51
 **Integration/sign-off issue:** #58
+**Combined-state CI:** `32216593552`
 **Detailed review:** `docs/analyzer/M5_SIGNOFF.md`
 
 M5 establishes source-agnostic generic raid analysis over canonical `RecordedPull` data while preserving evidence-first uncertainty and keeping FFLogs/job/encounter semantics out of the generic layer.
@@ -111,9 +112,9 @@ Evidence:
 
 ### M5-G — Combined fixture pack, workspace integration, and sign-off
 
-**Status:** `READY FOR REVIEW`
+**Status:** `APPROVED`
 
-Current combined-review evidence:
+Combined-review evidence:
 - [x] representative fixture runs death/raise, healing, targetability-aware uptime, mitigation, and explicit timelines together;
 - [x] clean no-evidence fixture produces no invented findings;
 - [x] deterministic result identities are checked across repeated runs;
@@ -123,9 +124,11 @@ Current combined-review evidence:
 - [x] death context remains distinct from blame and links raise evidence downstream;
 - [x] default Analyzer Workspace replaces the M3 vertical-slice `DeathEventAnalyzer` with `DeathRaiseContextAnalyzer` and also registers `HealingActivityAnalyzer` + `TargetabilityAwareUptimeAnalyzer`;
 - [x] configured mitigation and generic buff/cooldown analyzers remain definition-driven rather than silently inventing a global FFXIV semantic catalog;
-- [ ] combined M5-G branch CI must pass before final approval and M6 authorization.
+- [x] combined M5-G branch CI `32216593552` passed restore, formatting, all tests, and plugin/package build.
 
 **Runtime validation note:** CI cannot launch FFXIV/Dalamud. Live status/targetability enrichment and Analyzer Workspace presentation remain explicit manual smoke items.
+
+**Decision:** M5 is approved. M6 — FFLogs Integration — is authorized after the M5 sign-off PR is merged.
 
 ## Completed milestone: M4 — New Workspace Shell
 
@@ -189,8 +192,8 @@ Characterized lifecycle/archive/reset, death-gated legacy snapshots, persistence
 | M2 Full-pull live recorder | APPROVED | Complete |
 | M3 Analyzer engine | APPROVED | Complete |
 | M4 New workspace shell | APPROVED | Complete |
-| M5 Generic hardcore analysis | READY FOR REVIEW | Combined M5-G CI |
-| M6 FFLogs integration | BLOCKED | M5 approved |
+| M5 Generic hardcore analysis | APPROVED | Complete after sign-off PR merge |
+| M6 FFLogs integration | AUTHORIZED | M5 approved |
 | M7 First job analyzer | NOT STARTED | M6 approved |
 | M8 First encounter pack | NOT STARTED | M7 approved |
 | M9 Session intelligence | NOT STARTED | M8 approved |
@@ -226,7 +229,7 @@ Do not port WTFDiG until M8. Record exact upstream path + commit and update `THI
 | 2026-08-18 | M5-F healing PR #63 | APPROVED | Neutral raw-healing context. |
 | 2026-08-19 | M5-E PR #64 | APPROVED | Mitigation scope correction + CI `32215987673`; merge `1145ad3ee5678499d32b77d7f25223634f62df0c`. |
 | 2026-08-19 | M5-F timeline PR #65 | APPROVED | Per-actor fallback + canonical CastDuration correction; CI `32216083596`; merge `2e3c65fe298d2dd4d13ba481d79a58dfcffd30cb`. |
-| 2026-08-19 | M5-G / #58 | READY FOR REVIEW | Combined fixture/workspace/sign-off branch awaiting CI. |
+| 2026-08-19 | M5-G / PR #66 | APPROVED | Combined fixture/workspace/sign-off CI `32216593552`; M6 authorized after merge. |
 
 ## Agent return format
 
