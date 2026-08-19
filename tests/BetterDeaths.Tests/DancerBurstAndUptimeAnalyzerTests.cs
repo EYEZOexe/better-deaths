@@ -43,24 +43,40 @@ public sealed class DancerBurstAndUptimeAnalyzerTests
     }
 
     [Fact]
-    public async Task ExactDevilmentWithoutObservedTechnicalWindowProducesWarning()
+    public async Task MissingPrecedingTechnicalFinishDoesNotBecomeAlignmentMistake()
     {
         var pull = Pull(durationSeconds: 30, Action(1, 25.0, 16011));
+
+        var run = await Analyze(pull);
+
+        Assert.Empty(run.Results);
+    }
+
+    [Fact]
+    public async Task DevilmentAfterObservedTechnicalWindowProducesWarning()
+    {
+        var pull = Pull(
+            durationSeconds: 30,
+            Action(1, 1.0, 16196),
+            Action(2, 25.0, 16011));
 
         var result = Assert.Single((await Analyze(pull)).Results);
 
         Assert.Equal(AnalysisSeverity.Warning, result.Severity);
-        Assert.Contains("outside an observed Technical Finish window", result.Title, StringComparison.Ordinal);
-        Assert.Equal(0d, result.Metrics["technicalFinishObserved"]);
-        Assert.NotEmpty(Assert.Single(result.Evidence).EventIds);
+        Assert.Contains("after the observed Technical Finish window", result.Title, StringComparison.Ordinal);
+        Assert.Equal(1d, result.Metrics["technicalFinishObserved"]);
+        Assert.Equal(24d, result.Metrics["devilmentDelaySeconds"]);
+        Assert.Equal(new[] { new EventId(1), new EventId(2) }, Assert.Single(result.Evidence).EventIds);
+        Assert.Equal(new TimeRange(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(25)), result.TimeRange);
     }
 
     [Fact]
-    public async Task NonExactDevilmentDoesNotUseMissingTechnicalAsProof()
+    public async Task NonExactBoundaryDoesNotProveOutsideTechnicalAlignment()
     {
         var pull = Pull(
             durationSeconds: 30,
-            Action(1, 25.0, 16011, fidelity: CaptureFidelity.Sampled));
+            Action(1, 1.0, 16196),
+            Action(2, 25.0, 16011, fidelity: CaptureFidelity.Sampled));
 
         var run = await Analyze(pull);
 
