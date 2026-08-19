@@ -22,6 +22,15 @@ internal sealed class FFLogsGraphQlClient
               startTime
               endTime
               revision
+              masterData(translate: false) {
+                actors {
+                  id
+                  name
+                  type
+                  subType
+                  petOwner
+                }
+              }
               fights {
                 id
                 encounterID
@@ -208,6 +217,7 @@ internal sealed class FFLogsGraphQlClient
             ReportDocument = reportDocument,
             Fight = fight,
             Events = events,
+            Actors = reportDocument.Actors,
         });
     }
 
@@ -368,6 +378,31 @@ internal sealed class FFLogsGraphQlClient
             Revision = RequireInt32(report, "revision"),
         };
 
+        var actors = new List<FFLogsReportActor>();
+        if (report.TryGetProperty("masterData", out var masterData) &&
+            masterData.ValueKind == JsonValueKind.Object &&
+            masterData.TryGetProperty("actors", out var actorsElement) &&
+            actorsElement.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var actor in actorsElement.EnumerateArray())
+            {
+                var actorId = OptionalInt32(actor, "id");
+                if (actorId is not > 0)
+                {
+                    continue;
+                }
+
+                actors.Add(new FFLogsReportActor
+                {
+                    Id = actorId.Value,
+                    Name = OptionalString(actor, "name") ?? string.Empty,
+                    Type = OptionalString(actor, "type") ?? string.Empty,
+                    SubType = OptionalString(actor, "subType"),
+                    PetOwnerId = OptionalInt32(actor, "petOwner"),
+                });
+            }
+        }
+
         var fights = new List<FFLogsFightMetadata>();
         if (report.TryGetProperty("fights", out var fightsElement) && fightsElement.ValueKind == JsonValueKind.Array)
         {
@@ -400,6 +435,7 @@ internal sealed class FFLogsGraphQlClient
         {
             Report = metadata,
             Fights = fights,
+            Actors = actors,
         };
     }
 
@@ -560,6 +596,15 @@ internal sealed class FFLogsGraphQlClient
         }
 
         return value;
+    }
+
+    private static int? OptionalInt32(JsonElement element, string propertyName)
+    {
+        return element.TryGetProperty(propertyName, out var property) &&
+            property.ValueKind == JsonValueKind.Number &&
+            property.TryGetInt32(out var value)
+            ? value
+            : null;
     }
 
     private static string? OptionalString(JsonElement element, string propertyName)

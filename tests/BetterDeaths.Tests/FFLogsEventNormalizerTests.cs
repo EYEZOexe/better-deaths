@@ -15,13 +15,13 @@ public sealed class FFLogsEventNormalizerTests
             [
                 new FFLogsReportActor { Id = 10, Name = "Player One", Type = "Player", SubType = "Dancer" },
                 new FFLogsReportActor { Id = 20, Name = "Pet One", Type = "Pet", PetOwnerId = 10 },
-                new FFLogsReportActor { Id = 30, Name = "Boss", Type = "Boss" },
+                new FFLogsReportActor { Id = 30, Name = "Boss", Type = "NPC", SubType = "Boss" },
             ],
             Events:
             [
                 Event(1300, "heal", """{"sourceID":10,"targetID":10,"abilityGameID":200,"amount":5000}"""),
                 Event(1100, "damage", """{"sourceID":30,"targetID":10,"abilityGameID":100,"amount":12000,"critical":true}"""),
-                Event(1200, "cast", """{"sourceID":10,"targetID":30,"abilityGameID":300}"""),
+                Event(1200, "cast", """{"sourceID":20,"targetID":30,"abilityGameID":300}"""),
                 Event(1400, "applybuff", """{"sourceID":10,"targetID":10,"abilityGameID":400,"duration":15000,"stack":2}"""),
                 Event(1500, "removebuff", """{"sourceID":10,"targetID":10,"abilityGameID":400}"""),
                 Event(1600, "death", """{"sourceID":30,"targetID":10}"""),
@@ -66,6 +66,7 @@ public sealed class FFLogsEventNormalizerTests
 
         var action = Assert.IsType<ActionUseEvent>(pull.Events[1]);
         Assert.Equal((uint)300, action.ActionId);
+        Assert.Equal(pet.Id, action.SourceActorId);
         var heal = Assert.IsType<HealEvent>(pull.Events[2]);
         Assert.Equal(5000, heal.Amount);
         var apply = Assert.IsType<StatusApplyEvent>(pull.Events[3]);
@@ -77,6 +78,61 @@ public sealed class FFLogsEventNormalizerTests
         Assert.IsType<RaiseEvent>(pull.Events[6]);
         Assert.False(Assert.IsType<TargetabilityEvent>(pull.Events[7]).IsTargetable);
         Assert.All(pull.Events, evt => Assert.Equal(PullDataSourceKind.FFLogs, evt.Provenance.SourceKind));
+    }
+
+    [Fact]
+    public void DistinctNpcInstancesRemainDistinctWhilePlayerInstanceNoiseCollapsesToOneActor()
+    {
+        var result = FFLogsEventNormalizer.Normalize(
+            Fight(
+                Actors:
+                [
+                    new FFLogsReportActor { Id = 10, Name = "Player One", Type = "Player", SubType = "Dancer" },
+                    new FFLogsReportActor { Id = 30, Name = "Twin Add", Type = "NPC", SubType = "NPC" },
+                ],
+                Events:
+                [
+                    Event(1100, "damage", """{"sourceID":30,"sourceInstanceID":1,"targetID":10,"targetInstanceID":1,"abilityGameID":1,"amount":100}"""),
+                    Event(1200, "damage", """{"sourceID":30,"sourceInstanceID":2,"targetID":10,"targetInstanceID":2,"abilityGameID":2,"amount":200}"""),
+                    Event(1300, "heal", """{"sourceID":10,"sourceInstanceId":1,"targetID":10,"targetInstance":7,"abilityGameID":3,"amount":50}"""),
+                ]),
+            new PullSchemaVersion(1));
+
+        var player = Assert.Single(result.Pull.Actors, actor => actor.Kind == ActorKind.Player);
+        var adds = result.Pull.Actors.Where(actor => actor.Name == "Twin Add").ToArray();
+        Assert.Equal(2, adds.Length);
+        Assert.NotEqual(adds[0].Id, adds[1].Id);
+
+        var firstDamage = Assert.IsType<DamageEvent>(result.Pull.Events[0]);
+        var secondDamage = Assert.IsType<DamageEvent>(result.Pull.Events[1]);
+        Assert.NotEqual(firstDamage.SourceActorId, secondDamage.SourceActorId);
+        Assert.Equal(player.Id, firstDamage.TargetActorId);
+        Assert.Equal(player.Id, secondDamage.TargetActorId);
+
+        var heal = Assert.IsType<HealEvent>(result.Pull.Events[2]);
+        Assert.Equal(player.Id, heal.SourceActorId);
+        Assert.Equal(player.Id, heal.TargetActorId);
+    }
+
+    [Fact]
+    public void UnreferencedReportActorsDoNotBloatSelectedFightActorDirectory()
+    {
+        var result = FFLogsEventNormalizer.Normalize(
+            Fight(
+                Actors:
+                [
+                    new FFLogsReportActor { Id = 10, Name = "Player One", Type = "Player", SubType = "Dancer" },
+                    new FFLogsReportActor { Id = 30, Name = "Boss", Type = "NPC", SubType = "Boss" },
+                    new FFLogsReportActor { Id = 99, Name = "Other Fight NPC", Type = "NPC", SubType = "NPC" },
+                ],
+                Events:
+                [
+                    Event(1200, "damage", """{"sourceID":30,"sourceInstanceID":1,"targetID":10,"abilityGameID":1,"amount":100}"""),
+                ]),
+            new PullSchemaVersion(1));
+
+        Assert.Equal(2, result.Pull.Actors.Count);
+        Assert.DoesNotContain(result.Pull.Actors, actor => actor.Name == "Other Fight NPC");
     }
 
     [Fact]
@@ -96,6 +152,7 @@ public sealed class FFLogsEventNormalizerTests
         Assert.Equal(first.Events.Select(evt => evt.GetType()), second.Events.Select(evt => evt.GetType()));
         Assert.Equal(new uint?[] { 2, 3, 1 }, first.Events.Select(ActionId));
         Assert.Equal(first.Events.Select(evt => evt.Id), second.Events.Select(evt => evt.Id));
+        Assert.Equal(first.Events.Select(evt => evt.SourceActorId), second.Events.Select(evt => evt.SourceActorId));
     }
 
     [Fact]
@@ -218,7 +275,7 @@ public sealed class FFLogsEventNormalizerTests
             Actors = Actors ??
             [
                 new FFLogsReportActor { Id = 10, Name = "Player One", Type = "Player", SubType = "Dancer" },
-                new FFLogsReportActor { Id = 30, Name = "Boss", Type = "Boss" },
+                new FFLogsReportActor { Id = 30, Name = "Boss", Type = "NPC", SubType = "Boss" },
             ],
             Events = Events ?? Array.Empty<FFLogsEventEnvelope>(),
         };

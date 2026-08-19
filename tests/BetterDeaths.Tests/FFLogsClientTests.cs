@@ -55,7 +55,7 @@ public sealed class FFLogsClientTests
     }
 
     [Fact]
-    public async Task ReportMetadataParsesAndUsesShortLivedCredentialFreeCache()
+    public async Task ReportMetadataParsesMasterActorsAndUsesShortLivedCredentialFreeCache()
     {
         var handler = new QueueHttpMessageHandler(ReportResponse());
         using var httpClient = new HttpClient(handler);
@@ -73,10 +73,24 @@ public sealed class FFLogsClientTests
         Assert.Equal(1234, fight.EncounterId);
         Assert.Equal(777d, fight.GameZoneId);
         Assert.Equal("Test Zone", fight.GameZoneName);
+
+        Assert.Equal(3, first.Value.Actors.Count);
+        var player = Assert.Single(first.Value.Actors, actor => actor.Id == 10);
+        var pet = Assert.Single(first.Value.Actors, actor => actor.Id == 20);
+        var boss = Assert.Single(first.Value.Actors, actor => actor.Id == 30);
+        Assert.Equal("Player One", player.Name);
+        Assert.Equal("Player", player.Type);
+        Assert.Equal("Dancer", player.SubType);
+        Assert.Equal(10, pet.PetOwnerId);
+        Assert.Equal("NPC", boss.Type);
+        Assert.Equal("Boss", boss.SubType);
+
         Assert.Single(handler.Requests);
         Assert.Equal("https://www.fflogs.com/api/v2/client", handler.Requests[0].Uri.ToString());
         Assert.Equal("Bearer", handler.Requests[0].AuthorizationScheme);
         Assert.Contains("AnalyzerReportMetadata", handler.Requests[0].Body, StringComparison.Ordinal);
+        Assert.Contains("masterData(translate: false)", handler.Requests[0].Body, StringComparison.Ordinal);
+        Assert.Contains("petOwner", handler.Requests[0].Body, StringComparison.Ordinal);
 
         var cacheKey = FFLogsReportCacheKey.Create("REPORT123", FFLogsApiAccessKind.PublicClient);
         Assert.DoesNotContain("REPORT123", cacheKey.ReportHash, StringComparison.Ordinal);
@@ -84,7 +98,7 @@ public sealed class FFLogsClientTests
     }
 
     [Fact]
-    public async Task FightImportFollowsStrictlyAdvancingPaginationAndCachesPagesByRevision()
+    public async Task FightImportFollowsStrictlyAdvancingPaginationAndCarriesMasterActorsByRevision()
     {
         var handler = new QueueHttpMessageHandler(
             ReportResponse(),
@@ -103,6 +117,7 @@ public sealed class FFLogsClientTests
         Assert.True(first.IsSuccess);
         Assert.True(second.IsSuccess);
         Assert.Equal(2, first.Value?.Events.Count);
+        Assert.Equal(3, first.Value?.Actors.Count);
         Assert.Equal(new[] { "damage", "heal" }, first.Value!.Events.Select(evt => evt.Type));
         Assert.Equal(new[] { 1100d, 1600d }, first.Value.Events.Select(evt => evt.TimestampMilliseconds));
         Assert.Equal(3, handler.Requests.Count);
@@ -228,6 +243,13 @@ public sealed class FFLogsClientTests
                     "startTime": 100000,
                     "endTime": 200000,
                     "revision": 7,
+                    "masterData": {
+                      "actors": [
+                        { "id": 10, "name": "Player One", "type": "Player", "subType": "Dancer", "petOwner": null },
+                        { "id": 20, "name": "Pet One", "type": "Pet", "subType": "Pet", "petOwner": 10 },
+                        { "id": 30, "name": "Test Boss", "type": "NPC", "subType": "Boss", "petOwner": null }
+                      ]
+                    },
                     "fights": [
                       {
                         "id": 42,
