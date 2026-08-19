@@ -1,12 +1,13 @@
 # M6 FFLogs integration sign-off
 
-Status: **APPROVED FOR MERGE**
+Status: **APPROVED**
 
-Parent: #67  
-Sign-off package: #73  
-Actor-fidelity blocker: #79  
-Sign-off PR: #80  
-Implementation/sign-off CI: `32225159132`
+Parent: #67 — completed  
+Sign-off package: #73 — completed  
+Actor-fidelity blocker: #79 — completed  
+Sign-off PR: #80 — merged as `1f600fc6f91800f2b64ce9e035d05014d4c0cd2b`  
+Implementation/sign-off CI: `32225159132`  
+Final PR-head CI: `32225505916`
 
 ## Reviewed boundary
 
@@ -31,7 +32,7 @@ These source-specific fields stay inside `BetterDeaths/Sources/FFLogs` and are p
 
 The combined review rejected the first M6 state because actor metadata was supported by fixtures but not propagated by the production GraphQL client, and because actor identity used report actor ID alone. That could collapse distinct NPC/pet instances into one canonical actor.
 
-PR #80 corrects that by:
+PR #80 corrected that by:
 
 - retrieving and parsing report `masterData.actors`;
 - propagating report actors into `FFLogsFightImportData`;
@@ -62,11 +63,12 @@ PR #80 corrects that by:
 - [x] Domain and Analysis contain no FFLogs DTO/client/auth dependencies.
 - [x] No M7 job-specific or M8 encounter/WTFDiG implementation was pulled into M6.
 - [x] CI `32225159132` passed restore, formatting, all tests, and plugin/package build on the reviewed implementation/sign-off state.
+- [x] Final PR-head CI `32225505916` passed restore, formatting, all tests, and plugin/package build before merge.
 
 ## Lead-integrator decision
 
-**APPROVED FOR MERGE.**
+**APPROVED.**
 
-The changed-file review for PR #80 is limited to the FFLogs source/client boundary, FFLogs fixtures, and M6 documentation. Domain, Analysis, and `RecapWindow` are unchanged. The #79 fidelity defect is covered by deterministic same-report-ID/different-instance fixtures and production master-actor propagation.
+The changed-file review for PR #80 was limited to the FFLogs source/client boundary, FFLogs fixtures, and M6 documentation. Domain, Analysis, and `RecapWindow` were unchanged. The #79 fidelity defect is covered by deterministic same-report-ID/different-instance fixtures and production master-actor propagation.
 
-The final documentation-only PR head must remain green before merge. Once PR #80 is merged, #79/#73/#67 may close and M7 — First Job Analyzer — becomes authorized from the resulting `main` commit.
+PR #80 merged to `main`; #79, #73 and #67 are complete. M7 — First Job Analyzer — is authorized from merge commit `1f600fc6f91800f2b64ce9e035d05014d4c0cd2b`.
