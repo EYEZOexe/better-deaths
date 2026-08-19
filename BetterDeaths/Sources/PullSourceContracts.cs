@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 internal abstract record PullSourceRequest;
 
-internal enum PullImportErrorCategory
+public enum PullImportErrorCategory
 {
     InvalidRequest,
     Authentication,
