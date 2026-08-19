@@ -37,7 +37,7 @@ CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-## xivanalysis — Dancer action/status definitions
+## xivanalysis — Dancer definitions and burst-rule reference
 
 The Dancer job definition in
 `BetterDeaths/Analysis/Jobs/Dancer/DancerJobDefinition.cs` derives action IDs,
@@ -45,13 +45,17 @@ status IDs, cooldowns, and status durations from
 [xivanalysis](https://github.com/xivanalysis/xivanalysis), revision
 `f90bfac9ad9984354437b83e529f5dd709346413` on the `dawntrail` branch.
 
-Upstream data paths:
+The M7 Dancer burst analyzer also uses xivanalysis's documented semantic rule
+that Devilment should be used immediately after Technical Finish as a
+behavioral reference. The C# analyzer uses its own canonical-event/evidence
+implementation and does not copy xivanalysis's TypeScript analyzer/UI
+architecture.
+
+Upstream reference paths:
 
 - `src/data/ACTIONS/root/DNC.ts`
 - `src/data/STATUSES/root/DNC.ts`
-
-Only data needed by the source-agnostic C# analyzer is reproduced; the
-xivanalysis TypeScript analyzer/UI architecture is not copied.
+- `src/parser/jobs/dnc/modules/evaluators/TimelyDevilmentEvaluator.tsx`
 
 MIT License
 
