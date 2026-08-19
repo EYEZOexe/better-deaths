@@ -12,6 +12,11 @@ using System.Threading.Tasks;
 internal sealed class DancerCoreExecutionAnalyzer : IAnalyzerModule
 {
     public const string AnalyzerId = "job.dnc.core";
+    public const string StandardDanceUnderstepRuleKey = "dance.standard.understepped";
+    public const string TechnicalDanceUnderstepRuleKey = "dance.technical.understepped";
+    public const string UnusedProcRuleKeyPrefix = "proc.expired-unused";
+    public const string PartnerObservedRuleKey = "partner.assignment.observed";
+    public const string PartnerConflictRuleKey = "partner.assignment.conflict";
 
     private static readonly TimeSpan DanceSequenceLimit = TimeSpan.FromSeconds(15);
 
@@ -185,6 +190,9 @@ internal sealed class DancerCoreExecutionAnalyzer : IAnalyzerModule
         evidenceEvents.Add(finish);
         var range = new TimeRange(start.PullTime, finish.PullTime);
         var observedStepCount = observedStepEvents.Count;
+        var ruleKey = start.ActionId == ActionId(DancerJobDefinition.StandardStep)
+            ? StandardDanceUnderstepRuleKey
+            : TechnicalDanceUnderstepRuleKey;
 
         results.Add(new AnalysisResult
         {
@@ -195,6 +203,7 @@ internal sealed class DancerCoreExecutionAnalyzer : IAnalyzerModule
                 range,
                 $"dance-understep:{start.Id.Value}:{finish.Id.Value}"),
             AnalyzerId = AnalyzerId,
+            RuleKey = ruleKey,
             Severity = AnalysisSeverity.Warning,
             Category = AnalysisCategory.Job,
             Title = $"{dancer.Name}: incomplete {danceName}",
@@ -269,6 +278,7 @@ internal sealed class DancerCoreExecutionAnalyzer : IAnalyzerModule
                         range,
                         $"proc-expired:{definition.StatusId}:{interval.Start.Ticks}"),
                     AnalyzerId = AnalyzerId,
+                    RuleKey = $"{UnusedProcRuleKeyPrefix}.{definition.StatusId}",
                     Severity = AnalysisSeverity.Warning,
                     Category = AnalysisCategory.Job,
                     Title = $"{dancer.Name}: {definition.Name} expired unused",
@@ -346,6 +356,7 @@ internal sealed class DancerCoreExecutionAnalyzer : IAnalyzerModule
                     range,
                     $"partner-observed:{target.Id.Value}"),
                 AnalyzerId = AnalyzerId,
+                RuleKey = PartnerObservedRuleKey,
                 Severity = AnalysisSeverity.Info,
                 Category = AnalysisCategory.Job,
                 Title = $"{dancer.Name}: Dance Partner observed on {target.Name}",
@@ -432,6 +443,7 @@ internal sealed class DancerCoreExecutionAnalyzer : IAnalyzerModule
                         range,
                         $"partner-overlap:{orderedTargets[0].Id.Value}:{orderedTargets[1].Id.Value}"),
                     AnalyzerId = AnalyzerId,
+                    RuleKey = PartnerConflictRuleKey,
                     Severity = AnalysisSeverity.Warning,
                     Category = AnalysisCategory.Job,
                     Title = $"{dancer.Name}: conflicting Dance Partner evidence",
