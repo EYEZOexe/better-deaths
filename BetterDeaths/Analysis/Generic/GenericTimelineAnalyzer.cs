@@ -124,6 +124,7 @@ internal sealed class GenericTimelineAnalyzer : IAnalyzerModule
                     : $"{actorName}: {definition.Name} timeline",
                 Summary =
                     $"Observed {events.Length:N0} explicit {evidenceKind} record(s) for configured action {definition.Name} ({definition.ReferenceId}). " +
+                    "Fallback is chosen independently per source actor, so one actor's ActionUse evidence cannot hide another actor's CastStart evidence. " +
                     "This timeline does not infer expected uses, cooldown availability, alignment quality, or missed usage; those require job/encounter semantics or explicit availability evidence.",
                 TimeRange = range,
                 Actors = [actorId],
@@ -135,7 +136,7 @@ internal sealed class GenericTimelineAnalyzer : IAnalyzerModule
                         ActorIds = [actorId],
                         TimeRange = range,
                         Explanation =
-                            "Only explicit canonical action-use evidence is counted; CastStartEvent is used only when no ActionUseEvent exists for this configured action. Damage/heal packets are not reinterpreted as extra uses.",
+                            "Only explicit canonical action-use evidence is counted per actor; CastStartEvent is used for an actor only when that actor has no ActionUseEvent for the configured action. Damage/heal packets are not reinterpreted as extra uses.",
                     },
                 ],
                 Confidence = confidence,
@@ -230,21 +231,32 @@ internal sealed class GenericTimelineAnalyzer : IAnalyzerModule
 
     private static IReadOnlyList<NormalizedEvent> GetExplicitActionEvidence(AnalyzerContext context, uint actionId)
     {
-        var actionUses = context.Events.ByAction(actionId)
-            .OfType<ActionUseEvent>()
-            .Cast<NormalizedEvent>()
-            .OrderBy(evt => evt.Sequence)
-            .ToArray();
-        if (actionUses.Length > 0)
+        var explicitEvidence = context.Events.ByAction(actionId)
+            .Where(evt => evt.SourceActorId is not null && evt is ActionUseEvent or CastStartEvent)
+            .GroupBy(evt => evt.SourceActorId!.Value)
+            .OrderBy(group => group.Key.Value);
+        var selected = new List<NormalizedEvent>();
+
+        foreach (var group in explicitEvidence)
         {
-            return actionUses;
+            var actionUses = group
+                .OfType<ActionUseEvent>()
+                .Cast<NormalizedEvent>()
+                .OrderBy(evt => evt.Sequence)
+                .ToArray();
+            if (actionUses.Length > 0)
+            {
+                selected.AddRange(actionUses);
+                continue;
+            }
+
+            selected.AddRange(group
+                .OfType<CastStartEvent>()
+                .Cast<NormalizedEvent>()
+                .OrderBy(evt => evt.Sequence));
         }
 
-        return context.Events.ByAction(actionId)
-            .OfType<CastStartEvent>()
-            .Cast<NormalizedEvent>()
-            .OrderBy(evt => evt.Sequence)
-            .ToArray();
+        return selected.OrderBy(evt => evt.Sequence).ToArray();
     }
 
     private static bool HasExplicitActionEvidence(AnalyzerContext context, uint actionId)
