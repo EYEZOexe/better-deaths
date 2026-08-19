@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json.Nodes;
 
 internal enum CanonicalPullExportMode
 {
@@ -59,7 +60,7 @@ internal static class CanonicalPullExporter
             ExportPolicyVersion = CurrentExportPolicyVersion,
             Mode = request.Options.Mode,
             ExportedPullId = exportedPull.Id,
-            Payload = CanonicalPullSerializer.Serialize(exportedPull),
+            Payload = SerializeExportPayload(exportedPull, request.Options.Mode),
         };
     }
 
@@ -138,6 +139,19 @@ internal static class CanonicalPullExporter
     private static EventProvenance Sanitize(EventProvenance provenance)
     {
         return provenance with { SourceReference = null };
+    }
+
+    private static string SerializeExportPayload(RecordedPull pull, CanonicalPullExportMode mode)
+    {
+        var root = JsonNode.Parse(CanonicalPullSerializer.Serialize(pull))!.AsObject();
+        root["ExportPolicyVersion"] = CurrentExportPolicyVersion;
+        root["ExportMode"] = mode switch
+        {
+            CanonicalPullExportMode.Canonical => "canonical",
+            CanonicalPullExportMode.Anonymized => "anonymized",
+            _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, "Unsupported canonical export mode."),
+        };
+        return root.ToJsonString();
     }
 
     private static PullId CreateAnonymizedPullId(RecordedPull sanitizedPull)
