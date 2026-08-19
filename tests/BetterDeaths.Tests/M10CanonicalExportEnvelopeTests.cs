@@ -8,12 +8,13 @@ using System.Text.Json.Nodes;
 public sealed class M10CanonicalExportEnvelopeTests
 {
     [Theory]
-    [InlineData(CanonicalPullExportMode.Canonical, "canonical")]
-    [InlineData(CanonicalPullExportMode.Anonymized, "anonymized")]
+    [InlineData(0, "canonical")]
+    [InlineData(1, "anonymized")]
     public void ExportPayloadCarriesExplicitPolicyVersionAndMode(
-        CanonicalPullExportMode mode,
+        int modeValue,
         string expectedMode)
     {
+        var mode = (CanonicalPullExportMode)modeValue;
         var export = CanonicalPullExporter.Export(new CanonicalPullExportRequest
         {
             Pull = MinimalPull(),
