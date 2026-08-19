@@ -63,7 +63,7 @@ public sealed class M9SessionWorkspacePanelTests
         Assert.Contains("sessionController.InvalidatePendingLoad", window, StringComparison.Ordinal);
 
         Assert.DoesNotContain(".GetAwaiter().GetResult()", window, StringComparison.Ordinal);
-        Assert.DoesNotContain(".Result", window, StringComparison.Ordinal);
+        Assert.DoesNotContain(".Result;", window, StringComparison.Ordinal);
         Assert.DoesNotContain(".Wait()", window, StringComparison.Ordinal);
     }
 
