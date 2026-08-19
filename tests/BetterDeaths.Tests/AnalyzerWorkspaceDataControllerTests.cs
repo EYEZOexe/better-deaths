@@ -94,7 +94,7 @@ public sealed class AnalyzerWorkspaceDataControllerTests
         var healing = Assert.Single(loaded.Results, result => result.AnalyzerId == HealingActivityAnalyzer.AnalyzerId);
         Assert.Equal(AnalysisSeverity.Info, healing.Severity);
         Assert.Equal(AnalysisCategory.Healing, healing.Category);
-        Assert.Contains("not an overheal or waste judgment", healing.Summary, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("neutral activity summary—not an overheal/waste judgment", healing.Summary, StringComparison.Ordinal);
     }
 
     [Fact]
