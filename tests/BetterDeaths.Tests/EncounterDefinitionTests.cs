@@ -35,53 +35,58 @@ public sealed class EncounterDefinitionTests
     }
 
     [Theory]
-    [InlineData(ForsakenDebuffKind.Stack, ForsakenDebuffKind.Cone, ForsakenPairGroup.GroupA)]
-    [InlineData(ForsakenDebuffKind.Spread, ForsakenDebuffKind.Stack, ForsakenPairGroup.GroupA)]
-    [InlineData(ForsakenDebuffKind.Stack, ForsakenDebuffKind.Stack, ForsakenPairGroup.GroupB)]
-    [InlineData(ForsakenDebuffKind.Cone, ForsakenDebuffKind.Cone, ForsakenPairGroup.GroupB)]
-    [InlineData(ForsakenDebuffKind.Spread, ForsakenDebuffKind.Spread, ForsakenPairGroup.GroupB)]
-    [InlineData(ForsakenDebuffKind.Cone, ForsakenDebuffKind.Spread, ForsakenPairGroup.Incompatible)]
-    [InlineData(ForsakenDebuffKind.Unknown, ForsakenDebuffKind.Stack, ForsakenPairGroup.Unknown)]
+    [InlineData(1, 3, 1)]
+    [InlineData(2, 1, 1)]
+    [InlineData(1, 1, 2)]
+    [InlineData(3, 3, 2)]
+    [InlineData(2, 2, 2)]
+    [InlineData(3, 2, 3)]
+    [InlineData(0, 1, 0)]
     public void ForsakenOpeningPairClassificationMatchesAuditedStrategyRule(
-        ForsakenDebuffKind first,
-        ForsakenDebuffKind second,
-        ForsakenPairGroup expected)
+        int firstValue,
+        int secondValue,
+        int expectedValue)
     {
+        var first = (ForsakenDebuffKind)firstValue;
+        var second = (ForsakenDebuffKind)secondValue;
+        var expected = (ForsakenPairGroup)expectedValue;
         Assert.Equal(expected, ForsakenDefinition.ClassifyOpeningPair(first, second));
     }
 
     [Theory]
-    [InlineData(EncounterPartyRole.Tank, EncounterPartyRole.Healer, true)]
-    [InlineData(EncounterPartyRole.Healer, EncounterPartyRole.Tank, true)]
-    [InlineData(EncounterPartyRole.Melee, EncounterPartyRole.Ranged, true)]
-    [InlineData(EncounterPartyRole.Ranged, EncounterPartyRole.Melee, true)]
-    [InlineData(EncounterPartyRole.Tank, EncounterPartyRole.Melee, false)]
-    [InlineData(EncounterPartyRole.Healer, EncounterPartyRole.Ranged, false)]
+    [InlineData(1, 2, true)]
+    [InlineData(2, 1, true)]
+    [InlineData(3, 4, true)]
+    [InlineData(4, 3, true)]
+    [InlineData(1, 3, false)]
+    [InlineData(2, 4, false)]
     public void ForsakenPartnerRoleCompatibilityIsExplicit(
-        EncounterPartyRole first,
-        EncounterPartyRole second,
+        int firstValue,
+        int secondValue,
         bool expected)
     {
+        var first = (EncounterPartyRole)firstValue;
+        var second = (EncounterPartyRole)secondValue;
         Assert.Equal(expected, ForsakenDefinition.ArePartnerRolesCompatible(first, second));
     }
 
     [Theory]
-    [InlineData("PLD", EncounterPartyRole.Tank)]
-    [InlineData("Gunbreaker", EncounterPartyRole.Tank)]
-    [InlineData("WHM", EncounterPartyRole.Healer)]
-    [InlineData("Sage", EncounterPartyRole.Healer)]
-    [InlineData("DRG", EncounterPartyRole.Melee)]
-    [InlineData("Viper", EncounterPartyRole.Melee)]
-    [InlineData("DNC", EncounterPartyRole.Ranged)]
-    [InlineData("Black Mage", EncounterPartyRole.Ranged)]
-    [InlineData("PCT", EncounterPartyRole.Ranged)]
-    [InlineData("BLU", EncounterPartyRole.Unknown)]
-    [InlineData(null, EncounterPartyRole.Unknown)]
+    [InlineData("PLD", 1)]
+    [InlineData("Gunbreaker", 1)]
+    [InlineData("WHM", 2)]
+    [InlineData("Sage", 2)]
+    [InlineData("DRG", 3)]
+    [InlineData("Viper", 3)]
+    [InlineData("DNC", 4)]
+    [InlineData("Black Mage", 4)]
+    [InlineData("PCT", 4)]
+    [InlineData("BLU", 0)]
+    [InlineData(null, 0)]
     public void PartyRoleResolverMapsCanonicalJobAbbreviationsDeterministically(
         string? job,
-        EncounterPartyRole expected)
+        int expectedValue)
     {
-        Assert.Equal(expected, EncounterPartyRoleResolver.Resolve(job));
+        Assert.Equal((EncounterPartyRole)expectedValue, EncounterPartyRoleResolver.Resolve(job));
     }
 
     [Fact]
