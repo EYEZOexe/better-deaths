@@ -21,7 +21,7 @@ public sealed class AnalyzerSessionDataControllerTests
 
         Assert.NotNull(loaded);
         Assert.Equal("query", store.Operations[0]);
-        Assert.Equal(new[] { "load:1", "load:2", "load:3" }, store.Operations.Skip(1));
+        Assert.Equal(new[] { "load:2", "load:3", "load:4" }, store.Operations.Skip(1));
         Assert.Equal(1, store.MaxConcurrentLoads);
         Assert.Equal(25, store.LastQueryLimit);
         Assert.Equal((uint)777, store.LastQueryTerritoryId);
@@ -65,8 +65,8 @@ public sealed class AnalyzerSessionDataControllerTests
         var pulls = new[] { BasicPull(1, 777), BasicPull(2, 777), BasicPull(3, 777) };
         var store = new TrackingPullStore(pulls)
         {
-            MissingPullIds = [pulls[1].Id],
-            ThrowingPullIds = [pulls[2].Id],
+            MissingPullIds = new HashSet<PullId> { pulls[1].Id },
+            ThrowingPullIds = new HashSet<PullId> { pulls[2].Id },
         };
         var controller = new AnalyzerSessionDataController(store, EmptyEngine());
 
@@ -190,7 +190,7 @@ public sealed class AnalyzerSessionDataControllerTests
         await store.FirstLoadStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
         var secondTask = controller.LoadAsync(request);
         await store.SecondLoadCompleted.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        store.ReleaseFirstLoad.TrySetResult();
+        store.ReleaseFirstLoad.TrySetResult(true);
 
         var first = await firstTask;
         var second = await secondTask;
@@ -209,7 +209,7 @@ public sealed class AnalyzerSessionDataControllerTests
         await store.FirstLoadStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         controller.InvalidatePendingLoad();
-        store.ReleaseFirstLoad.TrySetResult();
+        store.ReleaseFirstLoad.TrySetResult(true);
 
         Assert.Null(await task);
     }
@@ -427,11 +427,11 @@ public sealed class AnalyzerSessionDataControllerTests
     {
         private int loadCount;
 
-        public TaskCompletionSource FirstLoadStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<bool> FirstLoadStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public TaskCompletionSource ReleaseFirstLoad { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<bool> ReleaseFirstLoad { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public TaskCompletionSource SecondLoadCompleted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<bool> SecondLoadCompleted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public Task SaveAsync(RecordedPull savedPull, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
@@ -441,12 +441,12 @@ public sealed class AnalyzerSessionDataControllerTests
             var call = Interlocked.Increment(ref loadCount);
             if (call == 1)
             {
-                FirstLoadStarted.TrySetResult();
+                FirstLoadStarted.TrySetResult(true);
                 await ReleaseFirstLoad.Task.WaitAsync(cancellationToken);
             }
             else
             {
-                SecondLoadCompleted.TrySetResult();
+                SecondLoadCompleted.TrySetResult(true);
             }
 
             return pull;
