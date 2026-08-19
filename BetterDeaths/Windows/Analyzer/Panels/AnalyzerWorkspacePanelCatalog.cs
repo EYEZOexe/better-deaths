@@ -15,6 +15,7 @@ internal static class AnalyzerWorkspacePanelCatalog
             new AnalyzerDeathsPanel(),
             new AnalyzerReplayPanel(),
             new AnalyzerSessionPanel(),
+            new AnalyzerExportPanel(),
         ];
     }
 }
