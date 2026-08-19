@@ -30,9 +30,10 @@ internal sealed record FFLogsReportMetadata
 {
     public required string Code { get; init; }
 
-    public required long StartTimeUnixMilliseconds { get; init; }
+    // The FFLogs GraphQL schema exposes report timestamps as Float milliseconds.
+    public required double StartTimeUnixMilliseconds { get; init; }
 
-    public required long EndTimeUnixMilliseconds { get; init; }
+    public required double EndTimeUnixMilliseconds { get; init; }
 
     public required int Revision { get; init; }
 }
@@ -53,7 +54,8 @@ internal sealed record FFLogsFightMetadata
 
     public bool? InProgress { get; init; }
 
-    public long? GameZoneId { get; init; }
+    // GameZone.id is currently exposed as GraphQL Float; normalization validates/converts later.
+    public double? GameZoneId { get; init; }
 
     public string? GameZoneName { get; init; }
 }
