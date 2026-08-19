@@ -95,13 +95,17 @@ internal sealed class MitigationCoverageAnalyzer : IAnalyzerModule
                 ? EstimateWithoutModeledReduction(damage.Amount, reduction)
                 : null;
             var confidence = GetConfidence(context, damage, active);
-            var mitigationNames = string.Join(", ", active.Select(entry => entry.Definition.Name));
+            var mitigationNames = string.Join(
+                ", ",
+                active.Select(entry => $"{entry.Definition.Name} ({GetScopeLabel(entry.Definition.ScopeKind)})"));
             var targetLabel = string.IsNullOrWhiteSpace(targetName) ? "target" : targetName;
             var sourceLabel = string.IsNullOrWhiteSpace(sourceName) ? "damage source" : sourceName;
 
             var summary = overlap
                 ? $"Observed {active.Count} configured mitigation effect(s) overlapping this {damage.Amount:N0} damage event on {targetLabel}: {mitigationNames}. Overlap is coverage evidence, not automatically waste."
                 : $"Observed configured mitigation coverage on this {damage.Amount:N0} damage event on {targetLabel}: {mitigationNames}.";
+            summary +=
+                " Scope is retained from the configured mitigation definition; target-status evidence does not collapse personal, targeted, and party-wide semantics into one meaning.";
             summary +=
                 " This finding does not claim that an absent mitigation was available, that this coverage was optimal, or that a cooldown was missed.";
             if (estimate is not null)
@@ -118,6 +122,7 @@ internal sealed class MitigationCoverageAnalyzer : IAnalyzerModule
                 ["availabilityKnown"] = 0,
                 ["missedUseClaimed"] = 0,
             };
+            AddScopeMetrics(metrics, active);
             if (configuredReduction is { } combinedReduction)
             {
                 metrics["configuredCombinedReductionFraction"] = combinedReduction;
@@ -154,7 +159,7 @@ internal sealed class MitigationCoverageAnalyzer : IAnalyzerModule
                         ActorIds = actors,
                         TimeRange = new TimeRange(damage.PullTime, damage.PullTime),
                         Explanation =
-                            "The damage event plus evidence-supported active status intervals establish configured mitigation coverage at this timestamp. Absence/availability is not inferred from this evidence.",
+                            "The damage event plus evidence-supported active status intervals establish configured mitigation coverage at this timestamp. Configured scope/effect semantics are retained separately from where the status evidence is observed. Absence/availability is not inferred from this evidence.",
                     },
                 ],
                 Confidence = confidence,
@@ -193,6 +198,30 @@ internal sealed class MitigationCoverageAnalyzer : IAnalyzerModule
         }
 
         return active;
+    }
+
+    private static void AddScopeMetrics(
+        IDictionary<string, double> metrics,
+        IReadOnlyList<ActiveMitigation> active)
+    {
+        metrics["activePersonalMitigationCount"] = active.Count(entry => entry.Definition.ScopeKind == MitigationScopeKind.Personal);
+        metrics["activeTargetedMitigationCount"] = active.Count(entry => entry.Definition.ScopeKind == MitigationScopeKind.Targeted);
+        metrics["activePartyWideMitigationCount"] = active.Count(entry => entry.Definition.ScopeKind == MitigationScopeKind.PartyWide);
+        metrics["activeDamageSourceDebuffCount"] = active.Count(entry => entry.Definition.ScopeKind == MitigationScopeKind.DamageSourceDebuff);
+        metrics["activeOtherScopeMitigationCount"] = active.Count(entry => entry.Definition.ScopeKind == MitigationScopeKind.Other);
+    }
+
+    private static string GetScopeLabel(MitigationScopeKind scope)
+    {
+        return scope switch
+        {
+            MitigationScopeKind.Personal => "personal",
+            MitigationScopeKind.Targeted => "targeted",
+            MitigationScopeKind.PartyWide => "party-wide",
+            MitigationScopeKind.DamageSourceDebuff => "damage-source debuff",
+            MitigationScopeKind.Other => "other scope",
+            _ => scope.ToString(),
+        };
     }
 
     private static double? GetConfiguredCombinedReduction(IReadOnlyList<ActiveMitigation> active)
