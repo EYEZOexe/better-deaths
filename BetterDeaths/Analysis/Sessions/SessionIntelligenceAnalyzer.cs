@@ -270,7 +270,7 @@ internal static class SessionIntelligenceAnalyzer
         foreach (var result in pull.Results)
         {
             ArgumentNullException.ThrowIfNull(result);
-            if (result.Severity < ActionableSeverity)
+            if ((int)result.Severity < (int)ActionableSeverity)
             {
                 continue;
             }
@@ -285,7 +285,8 @@ internal static class SessionIntelligenceAnalyzer
             var key = new SessionRecurrenceKey(findingKey, participantKey);
             var occurrence = GetOrCreate(facts, key);
             occurrence.FindingCount++;
-            occurrence.HighestSeverity = occurrence.HighestSeverity is { } severity && severity > result.Severity
+            occurrence.HighestSeverity = occurrence.HighestSeverity is { } severity &&
+                                         (int)severity > (int)result.Severity
                 ? severity
                 : result.Severity;
             occurrence.Evidence.Add(ToEvidenceReference(pull, result, findingKey, participantKey));
@@ -341,7 +342,7 @@ internal static class SessionIntelligenceAnalyzer
                 combined.EvaluableOpportunities += occurrence.EvaluableOpportunities;
                 combined.UnknownOpportunities += occurrence.UnknownOpportunities;
                 if (occurrence.HighestSeverity is { } severity &&
-                    (combined.HighestSeverity is null || severity > combined.HighestSeverity))
+                    (combined.HighestSeverity is null || (int)severity > (int)combined.HighestSeverity.Value))
                 {
                     combined.HighestSeverity = severity;
                 }
@@ -393,9 +394,9 @@ internal static class SessionIntelligenceAnalyzer
                 continue;
             }
 
-            var cause = pull.Results.SingleOrDefault(result => result.Id == causeResultId);
+            var cause = pull.Results.FirstOrDefault(result => result.Id == causeResultId);
             if (cause is null ||
-                cause.Severity < AnalysisSeverity.Warning ||
+                (int)cause.Severity < (int)AnalysisSeverity.Warning ||
                 !SessionFindingKey.TryCreate(cause, out var findingKey))
             {
                 invalidCauseReferences++;
