@@ -11,6 +11,7 @@ internal static class DancerJobDefinition
 {
     public const string JobKey = "dnc";
     public const string JobAbbreviation = "DNC";
+    public const string StandardStepCooldownGroup = "standard-step-group";
 
     public const string Cascade = "cascade";
     public const string Fountain = "fountain";
@@ -22,10 +23,21 @@ internal static class DancerJobDefinition
     public const string Bloodshower = "bloodshower";
     public const string StandardStep = "standard-step";
     public const string TechnicalStep = "technical-step";
+    public const string Emboite = "emboite";
+    public const string Entrechat = "entrechat";
+    public const string Jete = "jete";
+    public const string Pirouette = "pirouette";
+    public const string StandardFinish = "standard-finish";
+    public const string SingleStandardFinish = "single-standard-finish";
     public const string DoubleStandardFinish = "double-standard-finish";
+    public const string TechnicalFinish = "technical-finish";
+    public const string SingleTechnicalFinish = "single-technical-finish";
+    public const string DoubleTechnicalFinish = "double-technical-finish";
+    public const string TripleTechnicalFinish = "triple-technical-finish";
     public const string QuadrupleTechnicalFinish = "quadruple-technical-finish";
     public const string SaberDance = "saber-dance";
     public const string ClosedPosition = "closed-position";
+    public const string Ending = "ending";
     public const string Devilment = "devilment";
     public const string Flourish = "flourish";
     public const string Tillana = "tillana";
@@ -69,12 +81,23 @@ internal static class DancerJobDefinition
             Gcd(Bladeshower, 15994),
             Gcd(RisingWindmill, 15995),
             Gcd(Bloodshower, 15996),
-            Gcd(StandardStep, 15997, TimeSpan.FromSeconds(30)),
+            Gcd(StandardStep, 15997, TimeSpan.FromSeconds(30), StandardStepCooldownGroup),
             Gcd(TechnicalStep, 15998, TimeSpan.FromSeconds(120)),
+            Gcd(Emboite, 15999),
+            Gcd(Entrechat, 16000),
+            Gcd(Jete, 16001),
+            Gcd(Pirouette, 16002),
+            Gcd(StandardFinish, 16003),
+            Gcd(SingleStandardFinish, 16191),
             Gcd(DoubleStandardFinish, 16192),
+            Gcd(TechnicalFinish, 16004),
+            Gcd(SingleTechnicalFinish, 16193),
+            Gcd(DoubleTechnicalFinish, 16194),
+            Gcd(TripleTechnicalFinish, 16195),
             Gcd(QuadrupleTechnicalFinish, 16196),
             Gcd(SaberDance, 16005),
             Ogcd(ClosedPosition, 16006, TimeSpan.FromSeconds(30)),
+            Ogcd(Ending, 18073, TimeSpan.FromSeconds(1)),
             Ogcd(Devilment, 16011, TimeSpan.FromSeconds(120)),
             Ogcd(Flourish, 16013, TimeSpan.FromSeconds(60)),
             Gcd(Tillana, 25790),
@@ -82,7 +105,7 @@ internal static class DancerJobDefinition
             Ogcd(FanDanceIV, 25791, TimeSpan.FromSeconds(1)),
             Gcd(StarfallDance, 25792),
             Gcd(LastDance, 36983),
-            Gcd(FinishingMove, 36984, TimeSpan.FromSeconds(30)),
+            Gcd(FinishingMove, 36984, TimeSpan.FromSeconds(30), StandardStepCooldownGroup),
             Gcd(DanceOfTheDawn, 36985),
         ],
         statuses:
@@ -107,7 +130,11 @@ internal static class DancerJobDefinition
             Status(DanceOfTheDawnReady, 3869, TimeSpan.FromSeconds(30)),
         ]);
 
-    private static JobActionDefinition Gcd(string key, uint actionId, TimeSpan? cooldown = null)
+    private static JobActionDefinition Gcd(
+        string key,
+        uint actionId,
+        TimeSpan? cooldown = null,
+        string? cooldownGroupKey = null)
     {
         return new JobActionDefinition
         {
@@ -115,10 +142,15 @@ internal static class DancerJobDefinition
             ActionId = actionId,
             IsGcd = true,
             Cooldown = cooldown,
+            CooldownGroupKey = cooldownGroupKey,
         };
     }
 
-    private static JobActionDefinition Ogcd(string key, uint actionId, TimeSpan? cooldown = null)
+    private static JobActionDefinition Ogcd(
+        string key,
+        uint actionId,
+        TimeSpan? cooldown = null,
+        string? cooldownGroupKey = null)
     {
         return new JobActionDefinition
         {
@@ -126,6 +158,7 @@ internal static class DancerJobDefinition
             ActionId = actionId,
             IsGcd = false,
             Cooldown = cooldown,
+            CooldownGroupKey = cooldownGroupKey,
         };
     }
 
