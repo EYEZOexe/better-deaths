@@ -146,6 +146,33 @@ internal sealed record SessionParticipant
     public string? JobAbbreviation { get; init; }
 }
 
+internal enum SessionPullOutcomeKind
+{
+    Unknown,
+    Wipe,
+    Kill,
+}
+
+internal sealed record SessionPullOutcome
+{
+    public required SessionPullOutcomeKind Kind { get; init; }
+
+    /// <summary>
+    /// Optional result explicitly established by upstream analysis/orchestration as the pull-ending
+    /// cause. Session analysis never substitutes the last damage/death/result for a missing cause.
+    /// </summary>
+    public AnalysisResultId? CauseResultId { get; init; }
+}
+
+internal sealed record SessionProgressObservation
+{
+    public required string PhaseKey { get; init; }
+
+    public required int PhaseOrder { get; init; }
+
+    public TimeSpan? ReachedAt { get; init; }
+}
+
 internal sealed record SessionPullAnalysis
 {
     public required PullId PullId { get; init; }
@@ -163,6 +190,10 @@ internal sealed record SessionPullAnalysis
     public IReadOnlyList<AnalysisResult> Results { get; init; } = [];
 
     public IReadOnlyList<SessionRuleOpportunity> Opportunities { get; init; } = [];
+
+    public IReadOnlyList<SessionProgressObservation> Progress { get; init; } = [];
+
+    public SessionPullOutcome Outcome { get; init; } = new() { Kind = SessionPullOutcomeKind.Unknown };
 
     /// <summary>
     /// Optional mapping from pull-local actor identities to stable session participant identities.
