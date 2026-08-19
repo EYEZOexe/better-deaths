@@ -1,6 +1,5 @@
 namespace BetterDeaths;
 
-using BetterDeaths.Analysis.Engine;
 using BetterDeaths.Domain;
 using BetterDeaths.Sources;
 using BetterDeaths.Sources.FFLogs;
@@ -160,6 +159,8 @@ public sealed class FFLogsSourceBoundaryTests
                 Duration = TimeSpan.FromSeconds(10),
             },
             SchemaVersion = new PullSchemaVersion(1),
+            Actors = Array.Empty<ActorRecord>(),
+            Events = Array.Empty<NormalizedEvent>(),
             Provenance = new PullProvenance
             {
                 SourceKind = PullDataSourceKind.FFLogs,
