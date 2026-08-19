@@ -49,7 +49,7 @@ public sealed class GenericTimelinePerActorFallbackTests
                     TargetActorId = boss,
                     Provenance = Provenance(),
                     ActionId = 100,
-                    CastTime = TimeSpan.FromSeconds(2),
+                    CastDuration = TimeSpan.FromSeconds(2),
                 },
             ],
             Provenance = new PullProvenance
@@ -73,9 +73,11 @@ public sealed class GenericTimelinePerActorFallbackTests
 
         var run = await new AnalyzerEngine(registry).AnalyzeAsync(pull);
 
+        Assert.Empty(run.Failures);
         Assert.Equal(2, run.Results.Count);
         Assert.Equal("Player A: Test Cooldown timeline", run.Results[0].Title);
         Assert.Equal(new[] { new EventId(1) }, Assert.Single(run.Results[0].Evidence).EventIds);
+        Assert.Contains("ActionUseEvent", run.Results[0].Summary, StringComparison.Ordinal);
         Assert.Equal("Player B: Test Cooldown timeline", run.Results[1].Title);
         Assert.Equal(new[] { new EventId(2) }, Assert.Single(run.Results[1].Evidence).EventIds);
         Assert.Contains("CastStartEvent fallback", run.Results[1].Summary, StringComparison.Ordinal);
