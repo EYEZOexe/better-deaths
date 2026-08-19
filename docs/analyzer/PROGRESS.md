@@ -17,15 +17,95 @@ Encounter knowledge/reference repository: `EYEZOexe/wtfdig`
 
 ## Current milestone
 
-### M8 — First Encounter Pack
+### M9 — Session Intelligence
 
 **Status:** `AUTHORIZED`
 
-**Gate opened by:** M7 Dancer Job Analyzer approval and merge `eae228476c1683b7a267c9391aa79484263cb0ef`.
+**Gate opened by:** M8 First Encounter Pack approval and merge `9b47183fe5fbaf03bd45ac73dfe31af6739f79db`.
 
-M8 may now begin. The first encounter package must add reusable encounter-definition/phase/assignment/geometry abstractions and one deterministic encounter-specific mechanic analyzer while keeping encounter rules isolated from core capture/engine code. WTFDiG may be audited and selectively ported now, but any direct code/data reuse must record exact upstream file + commit provenance and preserve the MIT notice in `THIRD_PARTY_NOTICES.md`.
+M9 may now begin. The milestone must aggregate structured pull-level analysis into raid-session summaries, stable recurrence/opportunity keys, phase progression, wipe-cause distributions, player/mechanic recurrence, mitigation/job consistency, and recent trend signals. Session logic consumes canonical pull summaries and structured analyzer results rather than scraping rendered UI prose.
 
-The Technical Design v0.2 example is UMAD Forsaken; choose the first mechanic only after auditing the current WTFDiG data and the canonical evidence actually available for reliable pass/fail classification.
+The M9 acceptance gate is the ability to answer questions such as “what repeatedly wipes us?” with occurrence/opportunity counts and inspectable evidence while remaining responsive over a realistic progression night. M10 must not begin until M9 is independently reviewed and approved.
+
+## Completed milestone: M8 — First Encounter Pack: Dancing Mad Ultimate / Forsaken
+
+**Status:** `APPROVED`
+
+**Parent issue:** #94 — completed  
+**Integration/sign-off issue:** #98 — completed  
+**Sign-off PR:** #102 — merged as `9b47183fe5fbaf03bd45ac73dfe31af6739f79db`  
+**Combined fixture CI:** `32240800389`  
+**Final PR-head CI:** `32241136029`  
+**Detailed review:** `docs/analyzer/M8_FORSAKEN_SIGNOFF.md`
+
+M8 proves the first encounter-analysis vertical slice using Dancing Mad Ultimate P2 Forsaken opening partner/group assignment. Encounter definitions and rules remain isolated from capture/engine/UI code, the analyzer consumes canonical actor/job/status evidence only, uncertainty never becomes a fabricated failure, and one generic Mechanics panel renders Encounter results through the shared workspace selection model.
+
+### M8 work packages
+
+#### M8-A — WTFDiG audit, encounter-definition boundary and Forsaken data
+
+**Status:** `APPROVED`  
+**Issue / PR:** #95 / #99  
+**Merged commit:** `5ad919105ab35c5b206983fb89ab175e76c41b94`
+
+Evidence:
+- reusable pure `EncounterDefinition`, `EncounterPhaseDefinition`, `AssignmentRule`, `ArenaGeometry`, and party-role classification contracts;
+- deterministic canonical job -> Tank/Healer/Melee/Ranged resolution;
+- DMU territory/arena/phase and Forsaken status semantics required by the slice;
+- WTFDiG strategy/role semantics pinned to `EYEZOexe/wtfdig@73a2ffa959b8f57bfbe7a1a75d5e43383ae2ea81` and exact upstream paths;
+- `docs/analyzer/M8_WTFDIG_AUDIT.md` records reused versus deferred data;
+- WTFDiG MIT attribution added to `THIRD_PARTY_NOTICES.md` at first direct/derived reuse;
+- later tower/South Adjust/Future-Past geometry deliberately deferred until canonical evidence can support it.
+
+#### M8-B — Forsaken opening partner/group analyzer
+
+**Status:** `APPROVED`  
+**Issue / PR:** #96 / #100  
+**Merged commit:** `a3c6f81c541f1b328107cd0c5aeda037f66d4d80`
+
+Evidence:
+- analyzer is `AnalyzerScope.Encounter` and consumes canonical actor/job/status/index evidence only;
+- bounded opening-status batch and complete participant/status requirements prevent absence-based false certainty;
+- all Tank↔Healer and Melee↔Ranged full-party layouts are evaluated without manufacturing MT/OT/H1/H2/M1/M2/R1/R2 identities from ActorId ordering;
+- unique compatible layouts emit neutral Group A/B assignments with actor/event/time evidence;
+- multiple compatible layouts remain explicitly ambiguous;
+- incomplete, duplicate or sampled evidence cannot become an actionable failure;
+- complete exact incompatible evidence emits one structured non-blaming Warning with expected/observed/cause/consequence/confidence;
+- equivalent local and FFLogs canonical facts produce equivalent encounter semantics.
+
+#### M8-C — Generic Mechanics panel and workspace composition
+
+**Status:** `APPROVED`  
+**Issue / PR:** #97 / #101  
+**Merged commit:** `0f3d27d3b5ce23b4cca808c639e9a42956b29f25`  
+**CI:** `32240327553`
+
+Evidence:
+- one generic `AnalyzerMechanicsPanel` renders structured `AnalysisCategory.Mechanic` results;
+- selecting a mechanic result uses `AnalyzerWorkspaceSelection.SelectResult` and therefore shared actor/time/result navigation;
+- Forsaken registers through the existing default Analyzer Engine registry rather than rendering code;
+- workspace integration fixture surfaces Forsaken findings through the real default engine path;
+- panel boundary tests reject Analyzer Engine, persistence, FFLogs, Dancer, Forsaken and legacy replay coupling;
+- `RecapWindow.cs` remains untouched.
+
+#### M8-D — Combined fixtures/review/sign-off
+
+**Status:** `APPROVED`  
+**Issue / PR:** #98 / #102  
+**Merged commit:** `9b47183fe5fbaf03bd45ac73dfe31af6739f79db`  
+**Combined fixture CI:** `32240800389`  
+**Final PR-head CI:** `32241136029`
+
+Combined evidence:
+- known compatible exact opening produces four evidence-backed neutral assignments;
+- known incompatible complete exact opening produces one non-blaming Warning with complete party evidence;
+- ambiguous, incomplete and sampled fixtures do not invent actionable failures;
+- local/FFLogs canonical parity is preserved;
+- WTFDiG exact-path/commit provenance and MIT notice are retained;
+- no M9 session logic leaked into M8;
+- final CI passed restore, formatting, all tests and plugin/package build.
+
+**Decision:** M8 is approved and complete. M9 — Session Intelligence — is authorized from current `main`.
 
 ## Completed milestone: M7 — First Job Analyzer: Dancer
 
@@ -280,8 +360,10 @@ Characterized lifecycle/archive/reset, death-gated legacy snapshots, persistence
 9. Analyzer modules do not make network calls, render UI, mutate pulls or depend on hidden global state.
 10. New analyzer UI remains outside the monolithic legacy `RecapWindow`.
 11. Heuristic/source-limited conclusions expose confidence/fidelity and remain unknown when evidence is insufficient.
-12. WTFDiG direct reuse begins no earlier than M8 and requires exact-path/commit provenance plus MIT attribution.
+12. WTFDiG direct reuse requires exact-path/commit provenance plus MIT attribution; strategy knowledge is translated behind source-agnostic encounter abstractions rather than copied into the canonical pull model.
 13. Job analyzers remain generic-engine modules; missing resource/source evidence stays unknown rather than being reconstructed silently.
+14. Encounter analyzers consume canonical evidence plus explicit encounter definitions, do not fabricate static assignment identities, and keep insufficient/ambiguous evidence non-actionable.
+15. Mechanics UI remains generic and downstream of structured Encounter results; encounter-specific analysis never lives in rendering code or `RecapWindow`.
 
 ## Milestone roadmap
 
@@ -295,8 +377,8 @@ Characterized lifecycle/archive/reset, death-gated legacy snapshots, persistence
 | M5 Generic hardcore analysis | APPROVED | Complete |
 | M6 FFLogs integration | APPROVED | Complete |
 | M7 First job analyzer | APPROVED | Complete |
-| M8 First encounter pack | AUTHORIZED | M7 approved |
-| M9 Session intelligence | NOT STARTED | M8 approved |
+| M8 First encounter pack | APPROVED | Complete |
+| M9 Session intelligence | AUTHORIZED | M8 approved |
 | M10 Hardening/extraction review | NOT STARTED | M9 approved |
 
 ## WTFDiG provenance baseline
@@ -305,11 +387,11 @@ Fork inspected: `EYEZOexe/wtfdig`
 Baseline commit observed: `73a2ffa959b8f57bfbe7a1a75d5e43383ae2ea81`  
 License: MIT, copyright 2024 Matthew Czubakowski.
 
-Verified later-use surfaces:
+Verified reusable surfaces:
 - `src/lib/arena.ts` — role/group matching, waymarks, arena/player/boss/AoE/tether/arrow/polygon concepts;
 - `src/routes/ultimates/umad/data.ts` — phase/mechanic scaffolding and role/light-party strategy assignment data.
 
-M8 may now audit and selectively port WTFDiG. Record the exact upstream path + commit for every direct reuse and update `THIRD_PARTY_NOTICES.md` when copied/derived code or data first lands.
+M8 directly/derivatively reused only the audited Forsaken strategy/role semantics required by the first slice, translated behind C# encounter definitions. Exact path + commit provenance is recorded in `docs/analyzer/M8_WTFDIG_AUDIT.md`, and `THIRD_PARTY_NOTICES.md` now retains the WTFDiG MIT notice. Later encounter reuse must continue to record its own exact upstream provenance.
 
 ## Review ledger
 
@@ -334,6 +416,10 @@ M8 may now audit and selectively port WTFDiG. Record the exact upstream path + c
 | 2026-08-19 | M7-C / PR #90 | APPROVED | DNC burst/cooldown/targetable GCD analyzer; corrected CI `32229549949`; merge `e1ff044611574cb7d021fb20193b3817066caf90`. |
 | 2026-08-19 | M7-D / PR #91 | APPROVED | Generic Jobs panel/workspace composition; CI `32230088925`; merge `13072911fab1254e294f42904db75fdf1092c3c0`. |
 | 2026-08-19 | M7-E / PR #92 | APPROVED | Combined DNC fixtures/review; CI `32230435195`, final-head CI `32230698017`; merge `eae228476c1683b7a267c9391aa79484263cb0ef`. |
+| 2026-08-19 | M8-A / PR #99 | APPROVED | Encounter-definition boundary, WTFDiG audit/provenance and Forsaken definition; merge `5ad919105ab35c5b206983fb89ab175e76c41b94`. |
+| 2026-08-19 | M8-B / PR #100 | APPROVED | Canonical Forsaken opening assignment analyzer with explicit ambiguity/insufficient-evidence behavior; merge `a3c6f81c541f1b328107cd0c5aeda037f66d4d80`. |
+| 2026-08-19 | M8-C / PR #101 | APPROVED | Generic Mechanics panel + default workspace composition; CI `32240327553`; merge `0f3d27d3b5ce23b4cca808c639e9a42956b29f25`. |
+| 2026-08-19 | M8-D / PR #102 | APPROVED | Combined Forsaken fixtures/review; CI `32240800389`, final-head CI `32241136029`; merge `9b47183fe5fbaf03bd45ac73dfe31af6739f79db`. |
 
 ## Agent return format
 
