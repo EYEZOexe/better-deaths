@@ -168,13 +168,16 @@ internal sealed class FFLogsClientCredentialsTokenProvider : IFFLogsAccessTokenP
                     throw new FFLogsIntegrationException(FFLogsIntegrationErrors.ProtocolFailure(FFLogsOperation.Authenticate));
                 }
 
-                var expiresInSeconds = root.TryGetProperty("expires_in", out var expiresElement) &&
-                    expiresElement.TryGetDouble(out var parsedExpires)
-                    ? parsedExpires
-                    : 3600.0;
-                if (!double.IsFinite(expiresInSeconds) || expiresInSeconds <= 0.0)
+                var expiresInSeconds = 3600.0;
+                if (root.TryGetProperty("expires_in", out var expiresElement))
                 {
-                    throw new FFLogsIntegrationException(FFLogsIntegrationErrors.ProtocolFailure(FFLogsOperation.Authenticate));
+                    if (expiresElement.ValueKind != JsonValueKind.Number ||
+                        !expiresElement.TryGetDouble(out expiresInSeconds) ||
+                        !double.IsFinite(expiresInSeconds) ||
+                        expiresInSeconds <= 0.0)
+                    {
+                        throw new FFLogsIntegrationException(FFLogsIntegrationErrors.ProtocolFailure(FFLogsOperation.Authenticate));
+                    }
                 }
 
                 var token = new FFLogsAccessToken(accessTokenElement.GetString()!);
