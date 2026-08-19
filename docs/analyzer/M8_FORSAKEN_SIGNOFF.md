@@ -7,7 +7,8 @@ M8-A: #95 / PR #99
 M8-B: #96 / PR #100  
 M8-C: #97 / PR #101  
 M8-D: #98 / PR #102  
-Combined PR-head CI: `32240800389`
+Combined fixture CI: `32240800389`  
+Final documentation-head CI: `32240967773`
 
 ## Selected vertical slice
 
@@ -86,7 +87,8 @@ Combined sign-off evidence:
 - [x] generic Mechanics panel uses shared selection and no encounter-specific UI class;
 - [x] WTFDiG attribution/provenance is exact and retained;
 - [x] no M9 session-intelligence logic is included in M8;
-- [x] final M8-D PR-head CI `32240800389` passed restore, format, tests and plugin/package build;
+- [x] combined fixture CI `32240800389` passed restore, format, tests and plugin/package build;
+- [x] final documentation-head CI `32240967773` passed the complete validation pipeline;
 - [x] lead-integrator final diff review completed.
 
 ## Uncertainty boundary
