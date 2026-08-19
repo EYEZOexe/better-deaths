@@ -1,9 +1,10 @@
 # M5 — Generic Hardcore Analysis Sign-off
 
-Status: **READY FOR REVIEW**
+Status: **APPROVED**
 Governing design: Technical Design v0.2
 Parent issue: #51
 Integration issue: #58
+Combined-state CI: `32216593552`
 
 ## Scope reviewed
 
@@ -73,9 +74,9 @@ Mitigation and buff/cooldown analyzers intentionally remain definition-driven. T
 
 A clean no-evidence pull is also required to produce no invented findings.
 
-## Remaining gate
+## Final validation
 
-The combined M5-G branch must pass repository CI: restore, formatting verification, all automated tests, and plugin/package build. Only after that succeeds may this document be changed to **APPROVED**, #51/#58 be closed, and M6 — FFLogs Integration — be authorized.
+Combined-state CI `32216593552` passed restore, formatting verification, all automated tests, and plugin/package build after the M5-G workspace/fixture integration. M5 is therefore approved and M6 — FFLogs Integration — is authorized once the sign-off PR is merged.
 
 ## Manual runtime note
 
