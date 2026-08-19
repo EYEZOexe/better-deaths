@@ -1,9 +1,6 @@
 namespace BetterDeaths.Windows.Analyzer;
 
-using BetterDeaths.Analysis.Encounters.DancingMadUltimate;
 using BetterDeaths.Analysis.Engine;
-using BetterDeaths.Analysis.Generic;
-using BetterDeaths.Analysis.Jobs.Dancer;
 using BetterDeaths.Domain;
 using BetterDeaths.Persistence;
 using System;
@@ -41,18 +38,7 @@ internal sealed class AnalyzerWorkspaceDataController
     public static AnalyzerWorkspaceDataController CreateDefault(IPullStore pullStore)
     {
         ArgumentNullException.ThrowIfNull(pullStore);
-        var registry = new AnalyzerRegistry();
-
-        // Generic, job and encounter modules all compose through the same engine seam and consume
-        // canonical pull/index contracts. Rendering remains downstream of structured results.
-        registry.Register(new DeathRaiseContextAnalyzer());
-        registry.Register(new HealingActivityAnalyzer());
-        registry.Register(new TargetabilityAwareUptimeAnalyzer());
-        registry.Register(new DancerCoreExecutionAnalyzer());
-        registry.Register(new DancerBurstAndUptimeAnalyzer());
-        registry.Register(new ForsakenOpeningAssignmentAnalyzer());
-
-        return new AnalyzerWorkspaceDataController(pullStore, new AnalyzerEngine(registry));
+        return new AnalyzerWorkspaceDataController(pullStore, AnalyzerWorkspaceEngineComposition.CreateDefault());
     }
 
     public Task<IReadOnlyList<PullSummary>> QueryPullsAsync(
