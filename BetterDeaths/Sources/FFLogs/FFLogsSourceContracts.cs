@@ -38,6 +38,19 @@ internal sealed record FFLogsReportMetadata
     public required int Revision { get; init; }
 }
 
+internal sealed record FFLogsReportActor
+{
+    public required int Id { get; init; }
+
+    public required string Name { get; init; }
+
+    public required string Type { get; init; }
+
+    public string? SubType { get; init; }
+
+    public int? PetOwnerId { get; init; }
+}
+
 internal sealed record FFLogsFightMetadata
 {
     public required int Id { get; init; }
