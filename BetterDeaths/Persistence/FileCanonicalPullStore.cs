@@ -212,7 +212,12 @@ internal sealed class FileCanonicalPullStore : IPullStore, IDisposable
         foreach (var detailPath in Directory.EnumerateFiles(detailsDirectory, "*.json", SearchOption.TopDirectoryOnly))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var pull = await TryLoadPullFileAsync(detailPath, expectedId: null, cancellationToken).ConfigureAwait(false);
+            if (!TryGetDetailPullId(detailPath, out var expectedId))
+            {
+                continue;
+            }
+
+            var pull = await TryLoadPullFileAsync(detailPath, expectedId, cancellationToken).ConfigureAwait(false);
             if (pull is not null)
             {
                 summaries.Add(CreateSummary(pull));
@@ -305,6 +310,19 @@ internal sealed class FileCanonicalPullStore : IPullStore, IDisposable
                 ? timeComparison
                 : left.Id.Value.CompareTo(right.Id.Value);
         });
+    }
+
+    private static bool TryGetDetailPullId(string detailPath, out PullId id)
+    {
+        var fileName = Path.GetFileNameWithoutExtension(detailPath);
+        if (Guid.TryParseExact(fileName, "N", out var value))
+        {
+            id = new PullId(value);
+            return true;
+        }
+
+        id = default;
+        return false;
     }
 
     private static void DeleteIfExists(string path)
