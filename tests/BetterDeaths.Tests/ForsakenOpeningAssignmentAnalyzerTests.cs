@@ -123,7 +123,7 @@ public sealed class ForsakenOpeningAssignmentAnalyzerTests
         Assert.Contains("remains ambiguous", result.Title, StringComparison.Ordinal);
         Assert.Equal(4d, result.Metrics["compatibleLayoutCount"]);
         Assert.Equal(0d, result.Metrics["assignmentUnique"]);
-        Assert.Contains("does not contain static slot labels", result.Summary, StringComparison.Ordinal);
+        Assert.Contains("do not contain static slot labels", result.Summary, StringComparison.Ordinal);
         Assert.DoesNotContain("MT", result.Summary, StringComparison.Ordinal);
         Assert.DoesNotContain("H1", result.Summary, StringComparison.Ordinal);
     }
