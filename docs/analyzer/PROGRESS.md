@@ -17,15 +17,26 @@ Encounter knowledge/reference repository: `EYEZOexe/wtfdig`
 
 ## Current milestone
 
-### M6 — FFLogs Integration
+### M7 — First Job Analyzer
 
-**Status:** `APPROVED FOR MERGE`
+**Status:** `AUTHORIZED`
 
-**Parent issue:** #67  
-**Integration/sign-off issue:** #73  
-**Actor-fidelity blocker:** #79  
-**Sign-off PR:** #80  
+**Gate opened by:** M6 FFLogs Integration approval and merge `1f600fc6f91800f2b64ce9e035d05014d4c0cd2b`.
+
+M7 is now permitted to begin. The first job implementation must remain a source-agnostic analyzer over canonical data, with explicit job definitions/rules and evidence-backed findings. FFLogs, Dalamud, ImGui, networking and persistence details must not enter the job analyzer contract.
+
+Before implementation, create bounded M7 work packages and choose the first job using the Technical Design v0.2 milestone scope. Do not pull M8 encounter/WTFDiG work forward.
+
+## Completed milestone: M6 — FFLogs Integration
+
+**Status:** `APPROVED`
+
+**Parent issue:** #67 — completed  
+**Integration/sign-off issue:** #73 — completed  
+**Actor-fidelity blocker:** #79 — completed  
+**Sign-off PR:** #80 — merged as `1f600fc6f91800f2b64ce9e035d05014d4c0cd2b`  
 **Reviewed implementation/sign-off CI:** `32225159132`  
+**Final PR-head CI:** `32225505916`  
 **Detailed review:** `docs/analyzer/M6_FFLOGS_SIGNOFF.md`
 
 M6 establishes an FFLogs-specific OAuth/GraphQL/import boundary that normalizes report/fight data into the same canonical `RecordedPull` model used by live capture. FFLogs DTOs, credentials, pagination and source identity remain outside Domain/Analysis. Imported pulls persist through `IPullStore` and execute through the same Analyzer Engine/Workspace as local pulls.
@@ -95,7 +106,7 @@ Evidence:
 
 #### M6-F — Combined review and actor-fidelity correction
 
-**Status:** `APPROVED FOR MERGE`  
+**Status:** `APPROVED`  
 **Issues / PR:** #73 + blocker #79 / #80
 
 Lead review found and rejected a fidelity gap before milestone sign-off: production report master actors were not reaching normalization, and report actor ID alone could merge distinct NPC/pet instances.
@@ -109,12 +120,12 @@ Correction evidence:
 - only selected-fight referenced actors plus required owners enter the canonical pull;
 - missing source master data remains explicit unknown placeholders;
 - deterministic fixtures prove same-report-ID/different-instance NPCs remain distinct;
-- PR #80 changed-file review touches only `BetterDeaths/Sources/FFLogs/**`, FFLogs tests, and M6 documentation; Domain, Analysis and `RecapWindow` are unchanged;
-- CI `32225159132` passed restore, formatting, all tests, and plugin/package build on the reviewed implementation/sign-off state.
+- PR #80 changed-file review touched only `BetterDeaths/Sources/FFLogs/**`, FFLogs tests and M6/progress documentation; Domain, Analysis and `RecapWindow` were unchanged;
+- CI `32225159132` passed the reviewed implementation/sign-off state and final PR-head CI `32225505916` passed before merge.
 
-**Decision:** M6 is approved for merge. After PR #80's final documentation-only head remains green and merges, close #79/#73/#67 and authorize M7 — First Job Analyzer.
+**Decision:** M6 is approved and complete. M7 — First Job Analyzer — is authorized from current `main`.
 
-## Completed milestone summaries
+## Earlier completed milestone summaries
 
 ### M5 — Generic Hardcore Analysis
 
@@ -182,8 +193,8 @@ Characterized lifecycle/archive/reset, death-gated legacy snapshots, persistence
 | M3 Analyzer engine | APPROVED | Complete |
 | M4 New workspace shell | APPROVED | Complete |
 | M5 Generic hardcore analysis | APPROVED | Complete |
-| M6 FFLogs integration | APPROVED FOR MERGE | Final PR #80 head green + merge |
-| M7 First job analyzer | AUTHORIZED AFTER M6 MERGE | M6 approved/merged |
+| M6 FFLogs integration | APPROVED | Complete |
+| M7 First job analyzer | AUTHORIZED | M6 approved |
 | M8 First encounter pack | NOT STARTED | M7 approved |
 | M9 Session intelligence | NOT STARTED | M8 approved |
 | M10 Hardening/extraction review | NOT STARTED | M9 approved |
@@ -217,7 +228,7 @@ Do not port WTFDiG until M8. Record exact upstream path + commit and update `THI
 | 2026-08-19 | M6-C / PR #76 | APPROVED | Canonical FFLogs normalization. |
 | 2026-08-19 | M6-D / PR #77 | APPROVED | Local/FFLogs analyzer parity. |
 | 2026-08-19 | M6-E / PR #78 | APPROVED | Async Analyzer Workspace import flow. |
-| 2026-08-19 | M6-F / PR #80 | APPROVED FOR MERGE | Lead review caught #79 actor-fidelity gap; corrected implementation/sign-off CI `32225159132` green. |
+| 2026-08-19 | M6-F / PR #80 | APPROVED | #79 fidelity correction; CI `32225159132` and final-head CI `32225505916`; merge `1f600fc6f91800f2b64ce9e035d05014d4c0cd2b`. |
 
 ## Agent return format
 
