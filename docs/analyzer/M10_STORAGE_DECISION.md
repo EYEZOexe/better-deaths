@@ -1,10 +1,11 @@
 # M10 storage, recovery, and migration decision
 
-Status: **M10-B decision — READY FOR VALIDATION**
+Status: **M10-B decision — READY FOR REVIEW**
 
 Parent: #118  
 Work package: #120  
-Depends on: M10-A / #119
+Depends on: M10-A / #119  
+M10-B validation CI: `32265065533`
 
 ## Decision
 
@@ -22,7 +23,7 @@ M10-A established repeatable regression fixtures rather than synthetic microbenc
 - the default Analyzer Engine composition processes the 50,000-event pull under its 10-second regression ceiling;
 - the M9 progression-night gates remain active for 500-pull Session Intelligence aggregation and 500 sequential full-pull loads.
 
-Validation CI recorded by `M10_PERFORMANCE_BASELINE.md`: `32259455682`.
+M10-A validation CI recorded by `M10_PERFORMANCE_BASELINE.md`: `32259455682`. M10-B validation CI `32265065533` passed formatting, the complete automated test suite including the new recovery fixtures, and plugin/package build on the implementation head before this documentation-only reconciliation.
 
 These are intentionally upper-bound regression gates. Hosted CI does not provide stable benchmark telemetry, so this decision does not invent exact latency or allocation numbers that were not durably measured. The current evidence demonstrates no order-of-magnitude storage/query/load blocker requiring a v1 database migration.
 
@@ -44,6 +45,7 @@ M10-B adds/locks the remaining recovery edge cases:
 
 - corrupt primary index with a valid backup uses the valid backup deterministically;
 - stale `.tmp` detail/index files are ignored by normal reads and index rebuilds;
+- an interrupted/stale detail temp file does not replace the last known-good primary;
 - unsupported canonical pull schema is explicitly rejected during deserialization, not only during serialization;
 - direct detail load rejects a payload whose `PullId` does not match the requested detail identity and can recover from a matching backup;
 - detail-driven index rebuild now derives the expected `PullId` from the canonical detail filename and ignores a payload whose embedded identity disagrees with that filename.
@@ -69,7 +71,7 @@ Costs / known limitations:
 - updating the summary index rewrites the index file;
 - detail and index replacement are individually crash-resistant but are not one database transaction;
 - only one previous generation is retained as `.bak`;
-- a process/power loss after a new detail primary is installed but before the corresponding index replacement can leave an otherwise-valid older index that does not yet reference that detail. A later successful save/rebuild can reconcile it, but the current store does not proactively scan for such an orphan while a valid index exists.
+- a process/power loss after a new detail primary is installed but before the corresponding index replacement can leave an otherwise-valid older index that does not yet reference that detail. A retry of the interrupted save for that pull or a later index rebuild can reconcile it, but the current store does not proactively scan for such an orphan while a valid index exists.
 
 None of those costs has produced a measured v1 blocker in the M9/M10 fixtures. The crash window is therefore documented as a residual risk rather than used to justify an unmeasured database rewrite.
 
@@ -134,13 +136,13 @@ At that point, implement the smallest new `IPullStore` compatible with the exist
 ## M10-B acceptance mapping
 
 - [x] Primary/backup/rebuild corruption behavior has deterministic fixtures.
-- [x] Stale temporary files are explicitly covered.
+- [x] Stale temporary files and preservation of the last known-good primary are explicitly covered.
 - [x] Detail identity mismatches are covered for direct load and index rebuild.
 - [x] Unsupported file, pull, and index schemas fail explicitly rather than being silently reinterpreted.
 - [x] Existing mutation-safety fixtures protect detail state when an incompatible index is encountered.
 - [x] Migration semantics are documented before any canonical schema bump.
 - [x] Backend decision uses M9/M10 measurement evidence and does not introduce an unmeasured database dependency.
 - [x] `IPullStore` remains the storage boundary; Domain/analyzers remain backend-agnostic.
-- [ ] Full branch CI/build/format validation green.
+- [x] Full branch CI/build/format validation green on implementation head `b1b1ff9be1338e766f4ecc57e9fdf82c217436af` (`32265065533`).
 
-Final M10-B approval is contingent on the branch CI/build/format gates passing and independent review of the implementation diff.
+Final M10-B approval remains contingent on independent review of the implementation diff and green CI on the final PR head.
