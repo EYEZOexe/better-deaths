@@ -1,5 +1,8 @@
 namespace BetterDeaths;
 
+using BetterDeaths.Domain;
+using BetterDeaths.Persistence;
+using BetterDeaths.Sources.FFLogs;
 using BetterDeaths.Windows.Analyzer;
 
 public sealed partial class Plugin
@@ -13,7 +16,10 @@ public sealed partial class Plugin
             return;
         }
 
-        analyzerWindow = new AnalyzerWindow(GetCanonicalPullStore(), recapWindow)
+        analyzerWindow = new AnalyzerWindow(
+            GetCanonicalPullStore(),
+            recapWindow,
+            CreateFFLogsWorkspaceImportController)
         {
             IsOpen = false,
         };
@@ -30,5 +36,25 @@ public sealed partial class Plugin
     {
         EnsureAnalyzerWorkspaceRegistered();
         analyzerWindow!.IsOpen = true;
+    }
+
+    internal void DisposeAnalyzerWorkspace()
+    {
+        analyzerWindow?.Dispose();
+        analyzerWindow = null;
+    }
+
+    private AnalyzerWorkspaceFFLogsImportController CreateFFLogsWorkspaceImportController(
+        string clientId,
+        string clientSecret)
+    {
+        var session = FFLogsPublicImportSession.Create(
+            clientId,
+            clientSecret,
+            new PullSchemaVersion(CanonicalPullSerializer.CurrentPullSchemaVersion));
+        return new AnalyzerWorkspaceFFLogsImportController(
+            session,
+            GetCanonicalPullStore(),
+            session);
     }
 }
