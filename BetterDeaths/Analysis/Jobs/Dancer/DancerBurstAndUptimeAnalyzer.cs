@@ -97,56 +97,60 @@ internal sealed class DancerBurstAndUptimeAnalyzer : IAnalyzerModule
         {
             var finish = finishes
                 .Where(candidate => candidate.PullTime <= devilment.PullTime)
-                .Where(candidate => devilment.PullTime - candidate.PullTime <= TechnicalWindowDuration)
                 .OrderByDescending(candidate => candidate.PullTime)
                 .ThenByDescending(candidate => candidate.Sequence)
                 .FirstOrDefault();
 
+            // Without an observed preceding finish we cannot distinguish a true alignment error from
+            // a pull/source boundary that omitted the relevant Technical Finish.
             if (finish is null)
             {
-                if (!CanUseActionAbsenceAsEvidence(context, devilment))
+                continue;
+            }
+
+            var elapsed = devilment.PullTime - finish.PullTime;
+            if (elapsed > TechnicalWindowDuration)
+            {
+                if (!CanUseActionAbsenceAsEvidence(context, finish, devilment))
                 {
                     continue;
                 }
 
-                var rangeStart = devilment.PullTime > TechnicalWindowDuration
-                    ? devilment.PullTime - TechnicalWindowDuration
-                    : TimeSpan.Zero;
-                var range = new TimeRange(rangeStart, devilment.PullTime);
+                var outsideRange = new TimeRange(finish.PullTime, devilment.PullTime);
                 results.Add(new AnalysisResult
                 {
                     Id = StableAnalysisResultIdentity.ForActorWindow(
                         context.Pull.Id,
                         AnalyzerId,
                         dancer.Id,
-                        range,
-                        $"devilment-outside-technical:{devilment.Id.Value}"),
+                        outsideRange,
+                        $"devilment-outside-technical:{finish.Id.Value}:{devilment.Id.Value}"),
                     AnalyzerId = AnalyzerId,
                     Severity = AnalysisSeverity.Warning,
                     Category = AnalysisCategory.Job,
-                    Title = $"{dancer.Name}: Devilment outside an observed Technical Finish window",
+                    Title = $"{dancer.Name}: Devilment after the observed Technical Finish window",
                     Summary =
-                        "An exact Devilment use has no preceding Dancer Technical Finish action within the 20-second Technical Finish window. " +
-                        "This check is disabled when pull/action fidelity is not exact, so missing source evidence is not treated as an alignment mistake.",
-                    TimeRange = range,
+                        $"Devilment occurred {elapsed.TotalSeconds:F1}s after an observed Technical Finish, beyond its configured {TechnicalWindowDuration.TotalSeconds:F0}s window. " +
+                        "Both boundary actions and the pull are exact. If no preceding Technical Finish is observed at all, this analyzer stays silent rather than using missing boundary evidence as proof.",
+                    TimeRange = outsideRange,
                     Actors = [dancer.Id],
                     Evidence =
                     [
                         new AnalysisEvidence
                         {
-                            EventIds = [devilment.Id],
+                            EventIds = [finish.Id, devilment.Id],
                             ActorIds = [dancer.Id],
-                            TimeRange = range,
+                            TimeRange = outsideRange,
                             Explanation =
-                                "The Devilment ActionUseEvent is exact and the exact canonical action stream contains no Technical Finish action in its preceding 20-second alignment window.",
+                                "An explicit Technical Finish and later explicit Devilment bound the alignment error; the elapsed time exceeds the defined Technical Finish duration.",
                         },
                     ],
-                    Confidence = ClampConfidence(devilment.Provenance.Confidence),
+                    Confidence = EvidenceConfidence([finish, devilment]),
                     Metrics = new Dictionary<string, double>
                     {
-                        ["devilmentActionId"] = devilmentActionId,
-                        ["technicalFinishObserved"] = 0,
                         ["technicalWindowSeconds"] = TechnicalWindowDuration.TotalSeconds,
+                        ["devilmentDelaySeconds"] = elapsed.TotalSeconds,
+                        ["technicalFinishObserved"] = 1,
                     },
                 });
                 continue;
@@ -164,14 +168,14 @@ internal sealed class DancerBurstAndUptimeAnalyzer : IAnalyzerModule
             var evidenceEvents = new List<NormalizedEvent> { finish };
             evidenceEvents.AddRange(interveningActions);
             evidenceEvents.Add(devilment);
-            var range = new TimeRange(finish.PullTime, devilment.PullTime);
+            var delayedRange = new TimeRange(finish.PullTime, devilment.PullTime);
             results.Add(new AnalysisResult
             {
                 Id = StableAnalysisResultIdentity.ForActorWindow(
                     context.Pull.Id,
                     AnalyzerId,
                     dancer.Id,
-                    range,
+                    delayedRange,
                     $"devilment-delayed:{finish.Id.Value}:{devilment.Id.Value}"),
                 AnalyzerId = AnalyzerId,
                 Severity = AnalysisSeverity.Optimization,
@@ -181,7 +185,7 @@ internal sealed class DancerBurstAndUptimeAnalyzer : IAnalyzerModule
                     $"Devilment was used after {interveningActions.Length:N0} other Dancer action(s) following the observed Technical Finish. " +
                     "The Dancer reference rule is to use Devilment immediately after Technical Finish so its 20-second buff overlaps the Technical window as fully as possible. " +
                     "This finding compares explicit action ordering rather than estimating animation-lock or network timing.",
-                TimeRange = range,
+                TimeRange = delayedRange,
                 Actors = [dancer.Id],
                 Evidence =
                 [
@@ -189,7 +193,7 @@ internal sealed class DancerBurstAndUptimeAnalyzer : IAnalyzerModule
                     {
                         EventIds = evidenceEvents.Select(evt => evt.Id).ToArray(),
                         ActorIds = [dancer.Id],
-                        TimeRange = range,
+                        TimeRange = delayedRange,
                         Explanation =
                             "Technical Finish is followed by one or more explicit Dancer actions before the explicit Devilment use.",
                     },
@@ -198,7 +202,7 @@ internal sealed class DancerBurstAndUptimeAnalyzer : IAnalyzerModule
                 Metrics = new Dictionary<string, double>
                 {
                     ["interveningActionCount"] = interveningActions.Length,
-                    ["devilmentDelaySeconds"] = (devilment.PullTime - finish.PullTime).TotalSeconds,
+                    ["devilmentDelaySeconds"] = elapsed.TotalSeconds,
                     ["technicalFinishActionId"] = finish.ActionId,
                 },
             });
@@ -508,10 +512,11 @@ internal sealed class DancerBurstAndUptimeAnalyzer : IAnalyzerModule
             .Any(death => death.PullTime >= range.Start && death.PullTime <= range.End);
     }
 
-    private static bool CanUseActionAbsenceAsEvidence(AnalyzerContext context, NormalizedEvent anchor)
+    private static bool CanUseActionAbsenceAsEvidence(AnalyzerContext context, params NormalizedEvent[] anchors)
     {
         return context.Pull.Provenance.Fidelity == CaptureFidelity.Exact &&
-               anchor.Provenance.Fidelity == CaptureFidelity.Exact;
+               anchors.Length > 0 &&
+               anchors.All(anchor => anchor.Provenance.Fidelity == CaptureFidelity.Exact);
     }
 
     private static IReadOnlyList<NormalizedEvent> ResolveEvidenceEvents(
@@ -529,13 +534,8 @@ internal sealed class DancerBurstAndUptimeAnalyzer : IAnalyzerModule
 
     private static float EvidenceConfidence(IEnumerable<NormalizedEvent> evidence)
     {
-        var values = evidence.Select(evt => ClampConfidence(evt.Provenance.Confidence)).ToArray();
+        var values = evidence.Select(evt => Math.Clamp(evt.Provenance.Confidence, 0.0f, 1.0f)).ToArray();
         return values.Length == 0 ? 0.0f : values.Min();
-    }
-
-    private static float ClampConfidence(float value)
-    {
-        return Math.Clamp(value, 0.0f, 1.0f);
     }
 
     private static bool IsDancer(ActorRecord actor)
