@@ -145,7 +145,7 @@ internal sealed class FFLogsPullSource : IFFLogsImportSource
         }
         catch (Exception)
         {
-            return PullImportResult.Failure(FFLogsIntegrationErrors.ProtocolFailure(FFLogsOperation.LoadFight));
+            return PullImportResult.Failure(FFLogsIntegrationErrors.ProtocolFailure(FFLogsOperation.LoadFightEvents));
         }
     }
 }
