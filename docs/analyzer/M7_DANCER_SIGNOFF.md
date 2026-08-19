@@ -1,11 +1,12 @@
 # M7 Dancer job-analyzer sign-off
 
-Status: **APPROVED FOR MERGE**
+Status: **APPROVED**
 
-Parent: #82  
-Sign-off package: #87  
-Sign-off PR: #92  
-Combined CI: `32230435195`
+Parent: #82 — completed  
+Sign-off package: #87 — completed  
+Sign-off PR: #92 — merged as `eae228476c1683b7a267c9391aa79484263cb0ef`  
+Combined CI: `32230435195`  
+Final PR-head CI: `32230698017`
 
 ## Selected vertical slice
 
@@ -87,6 +88,7 @@ Evidence:
 - [x] No M8 encounter/WTFDiG implementation was pulled into M7.
 - [x] Combined M7-E fixture pack passed.
 - [x] Combined CI `32230435195` passed restore, formatting, all tests, and plugin/package build.
+- [x] Final PR-head CI `32230698017` passed the complete validation pipeline before merge.
 
 ## Combined fixture evidence
 
@@ -98,8 +100,8 @@ Automated CI validates deterministic canonical analysis, workspace composition c
 
 ## Lead-integrator decision
 
-**APPROVED FOR MERGE.**
+**APPROVED.**
 
 M7 satisfies the first-job vertical-slice acceptance criteria without introducing job-specific UI architecture or source-specific analyzer dependencies. The remaining resource limitation is explicit: Esprit/feather overcap/underuse cannot be judged until canonical source evidence defines those gauge semantics reliably.
 
-M8 — First Encounter Pack — may be authorized only after PR #92's final head remains green and the M7 sign-off merge lands on `main`.
+PR #92 merged to `main`; #87 and #82 are completed. M8 — First Encounter Pack — is authorized from merge commit `eae228476c1683b7a267c9391aa79484263cb0ef`.
