@@ -40,7 +40,15 @@ internal sealed class AnalyzerWorkspaceDataController
     {
         ArgumentNullException.ThrowIfNull(pullStore);
         var registry = new AnalyzerRegistry();
-        registry.Register(new DeathEventAnalyzer());
+
+        // M3's DeathEventAnalyzer was deliberately a minimal vertical slice. M5 replaces it in
+        // the default workspace composition with the richer evidence-first death/raise context
+        // analyzer and adds only analyzers that need no source/job/encounter-specific semantic
+        // catalog. Configured mitigation and buff/cooldown definitions remain explicit inputs.
+        registry.Register(new DeathRaiseContextAnalyzer());
+        registry.Register(new HealingActivityAnalyzer());
+        registry.Register(new TargetabilityAwareUptimeAnalyzer());
+
         return new AnalyzerWorkspaceDataController(pullStore, new AnalyzerEngine(registry));
     }
 
