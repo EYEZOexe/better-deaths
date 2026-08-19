@@ -16,6 +16,10 @@ internal sealed record JobActionDefinition
     public TimeSpan? Cooldown { get; init; }
 
     public int Charges { get; init; } = 1;
+
+    public string? CooldownGroupKey { get; init; }
+
+    public string EffectiveCooldownGroupKey => CooldownGroupKey ?? Key;
 }
 
 internal sealed record JobStatusDefinition
@@ -119,6 +123,11 @@ internal sealed class JobDefinition
             if (action.Charges <= 0)
             {
                 throw new ArgumentOutOfRangeException(nameof(actions), $"Charges for '{action.Key}' must be positive.");
+            }
+
+            if (action.CooldownGroupKey is { } cooldownGroupKey && string.IsNullOrWhiteSpace(cooldownGroupKey))
+            {
+                throw new ArgumentException($"Cooldown group for '{action.Key}' cannot be blank.", nameof(actions));
             }
         }
     }
