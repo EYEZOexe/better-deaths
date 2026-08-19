@@ -15,12 +15,21 @@ public sealed class JobDefinitionTests
         Assert.Equal("Dancer", definition.DisplayName);
         Assert.Equal("DNC", definition.JobAbbreviation);
 
-        Assert.Equal((uint)15997, definition.Action(DancerJobDefinition.StandardStep).ActionId);
-        Assert.Equal(TimeSpan.FromSeconds(30), definition.Action(DancerJobDefinition.StandardStep).Cooldown);
-        Assert.True(definition.Action(DancerJobDefinition.StandardStep).IsGcd);
+        var standard = definition.Action(DancerJobDefinition.StandardStep);
+        var finishingMove = definition.Action(DancerJobDefinition.FinishingMove);
+        Assert.Equal((uint)15997, standard.ActionId);
+        Assert.Equal(TimeSpan.FromSeconds(30), standard.Cooldown);
+        Assert.True(standard.IsGcd);
+        Assert.Equal(DancerJobDefinition.StandardStepCooldownGroup, standard.EffectiveCooldownGroupKey);
+        Assert.Equal(DancerJobDefinition.StandardStepCooldownGroup, finishingMove.EffectiveCooldownGroupKey);
 
         Assert.Equal((uint)15998, definition.Action(DancerJobDefinition.TechnicalStep).ActionId);
         Assert.Equal(TimeSpan.FromSeconds(120), definition.Action(DancerJobDefinition.TechnicalStep).Cooldown);
+        Assert.Equal((uint)15999, definition.Action(DancerJobDefinition.Emboite).ActionId);
+        Assert.Equal((uint)16002, definition.Action(DancerJobDefinition.Pirouette).ActionId);
+        Assert.Equal((uint)16192, definition.Action(DancerJobDefinition.DoubleStandardFinish).ActionId);
+        Assert.Equal((uint)16196, definition.Action(DancerJobDefinition.QuadrupleTechnicalFinish).ActionId);
+
         Assert.Equal((uint)16011, definition.Action(DancerJobDefinition.Devilment).ActionId);
         Assert.False(definition.Action(DancerJobDefinition.Devilment).IsGcd);
         Assert.Equal((uint)16013, definition.Action(DancerJobDefinition.Flourish).ActionId);
@@ -44,6 +53,7 @@ public sealed class JobDefinitionTests
             [new JobStatusDefinition { Key = "status", StatusId = 2 }]);
 
         Assert.Equal("DNC", definition.JobAbbreviation);
+        Assert.Equal("action", definition.Action("action").EffectiveCooldownGroupKey);
         Assert.Throws<KeyNotFoundException>(() => definition.Action("missing"));
         Assert.Throws<KeyNotFoundException>(() => definition.Status("missing"));
     }
@@ -97,7 +107,7 @@ public sealed class JobDefinitionTests
     }
 
     [Fact]
-    public void DefinitionRejectsInvalidCooldownDurationAndCharges()
+    public void DefinitionRejectsInvalidCooldownDurationChargesAndGroup()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => new JobDefinition(
             "example",
@@ -122,6 +132,19 @@ public sealed class JobDefinitionTests
                 ActionId = 1,
                 IsGcd = true,
                 Charges = 0,
+            }],
+            []));
+
+        Assert.Throws<ArgumentException>(() => new JobDefinition(
+            "example",
+            "Example",
+            "EX",
+            [new JobActionDefinition
+            {
+                Key = "action",
+                ActionId = 1,
+                IsGcd = true,
+                CooldownGroupKey = "   ",
             }],
             []));
 
