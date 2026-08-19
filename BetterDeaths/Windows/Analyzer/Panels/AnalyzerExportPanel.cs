@@ -35,6 +35,7 @@ internal sealed class AnalyzerExportPanel : IAnalyzerWorkspacePanel
         ImGui.InputText("##AnalyzerExportDirectory", ref exportDirectory, 1024);
         ImGui.TextDisabled("Export directory");
 
+        var pull = context.Pull;
         bool isExporting;
         string? currentStatus;
         lock (stateLock)
@@ -43,27 +44,36 @@ internal sealed class AnalyzerExportPanel : IAnalyzerWorkspacePanel
             currentStatus = status;
         }
 
-        if (isExporting)
+        var buttonsDisabled = isExporting || pull is null;
+        if (buttonsDisabled)
         {
             ImGui.BeginDisabled();
         }
 
-        if (ImGui.Button("Export canonical"))
+        if (ImGui.Button("Export canonical") && pull is not null)
         {
-            QueueExport(context.Pull, CanonicalPullExportMode.Canonical);
+            QueueExport(pull, CanonicalPullExportMode.Canonical);
         }
 
         ImGui.SameLine();
-        if (ImGui.Button("Export anonymized"))
+        if (ImGui.Button("Export anonymized") && pull is not null)
         {
-            QueueExport(context.Pull, CanonicalPullExportMode.Anonymized);
+            QueueExport(pull, CanonicalPullExportMode.Anonymized);
+        }
+
+        if (buttonsDisabled)
+        {
+            ImGui.EndDisabled();
         }
 
         if (isExporting)
         {
-            ImGui.EndDisabled();
             ImGui.SameLine();
             ImGui.TextDisabled("Exporting...");
+        }
+        else if (pull is null)
+        {
+            ImGui.TextDisabled("Select a pull to export.");
         }
 
         if (!string.IsNullOrWhiteSpace(currentStatus))
