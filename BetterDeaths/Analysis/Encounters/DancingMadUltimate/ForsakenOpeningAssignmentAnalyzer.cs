@@ -79,13 +79,13 @@ internal sealed class ForsakenOpeningAssignmentAnalyzer : IAnalyzerModule
 
         if (compatible.Length > 1)
         {
-            AddAmbiguousLayoutResult(context, participants, observations, range, layouts.Length, compatible.Length, results);
+            AddAmbiguousLayoutResult(context, participants, observations, range, layouts.Count, compatible.Length, results);
             return ValueTask.CompletedTask;
         }
 
         if (CanUseCompleteAbsenceAsFailureEvidence(context, observations))
         {
-            AddIncompatibleLayoutResult(context, participants, observations, range, layouts.Length, results);
+            AddIncompatibleLayoutResult(context, participants, observations, range, layouts.Count, results);
         }
 
         return ValueTask.CompletedTask;
@@ -196,10 +196,20 @@ internal sealed class ForsakenOpeningAssignmentAnalyzer : IAnalyzerModule
     {
         var firstObservation = observations[first.Actor.Id];
         var secondObservation = observations[second.Actor.Id];
-        return new ClassifiedPair(
-            first,
-            second,
-            ForsakenDefinition.ClassifyOpeningPair(firstObservation.Debuff, secondObservation.Debuff));
+
+        // The opening rule is defined by the actual observed status IDs. Keeping this comparison at
+        // the source fact removes any possibility of an enum/display mapping accidentally changing
+        // strategy compatibility: same status => Group B; different with Stack => Group A;
+        // different without Stack => incompatible.
+        var firstStatusId = firstObservation.Event.StatusId;
+        var secondStatusId = secondObservation.Event.StatusId;
+        var group = firstStatusId == secondStatusId
+            ? ForsakenPairGroup.GroupB
+            : firstStatusId == ForsakenDefinition.StackStatusId || secondStatusId == ForsakenDefinition.StackStatusId
+                ? ForsakenPairGroup.GroupA
+                : ForsakenPairGroup.Incompatible;
+
+        return new ClassifiedPair(first, second, group);
     }
 
     private static void AddResolvedLayoutResults(
