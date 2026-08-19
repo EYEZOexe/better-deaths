@@ -1,18 +1,20 @@
 # M6 FFLogs integration sign-off
 
-Status: **PENDING CI / combined review**
+Status: **APPROVED FOR MERGE**
 
 Parent: #67  
 Sign-off package: #73  
-Actor-fidelity blocker: #79
+Actor-fidelity blocker: #79  
+Sign-off PR: #80  
+Implementation/sign-off CI: `32225159132`
 
 ## Reviewed boundary
 
-M6 is reviewed as one end-to-end path:
+M6 was reviewed as one end-to-end path:
 
 `FFLogs OAuth/client -> report/fight metadata + paginated events -> FFLogs normalization -> canonical RecordedPull -> IPullStore -> Analyzer Engine -> Analyzer Workspace`
 
-The review is intentionally stricter than the individual implementation PRs. A green component PR is not sufficient if information is lost between components.
+The review was intentionally stricter than the individual implementation PRs. A green component PR was not sufficient where information could be lost between components.
 
 ## Official FFLogs schema evidence used by the review
 
@@ -25,20 +27,20 @@ Verified against the FFLogs v2 GraphQL schema before implementing the #79 fix:
 
 These source-specific fields stay inside `BetterDeaths/Sources/FFLogs` and are projected into pull-local canonical `ActorId` values before analyzer exposure.
 
-## #79 actor-fidelity fix
+## #79 actor-fidelity correction
 
-The combined review found that the first M6 implementation supported actor metadata in fixtures but did not carry report master actors through the production GraphQL client. It also keyed canonical actors only by report actor ID, which could merge multiple NPC/pet instances.
+The combined review rejected the first M6 state because actor metadata was supported by fixtures but not propagated by the production GraphQL client, and because actor identity used report actor ID alone. That could collapse distinct NPC/pet instances into one canonical actor.
 
-The sign-off fix therefore requires and now implements:
+PR #80 corrects that by:
 
-- report `masterData.actors` retrieval and parsing;
-- master actor propagation into `FFLogsFightImportData`;
-- deterministic source identity using report actor ID plus source/target instance evidence for non-player actors;
-- player identity stability even when instance fields vary or are present inconsistently;
-- pet-owner mapping through the report master actor directory;
-- pull-local actor IDs with no FFLogs-specific identity fields added to Domain;
-- selected-pull actor directories containing only referenced actors plus required owners, not every actor from the full report;
-- explicit placeholder actors when master data is unavailable rather than invented names/jobs/ownership.
+- retrieving and parsing report `masterData.actors`;
+- propagating report actors into `FFLogsFightImportData`;
+- using report actor ID plus source/target instance evidence for non-player source identity;
+- deliberately keeping player identity stable when instance fields vary;
+- resolving pet-owner relationships through report master data;
+- allocating deterministic pull-local canonical actor IDs without adding FFLogs identity fields to Domain;
+- emitting only selected-fight referenced actors plus required owners rather than copying the full report actor directory;
+- retaining explicit unknown placeholders when source master data is missing instead of inventing names/jobs/ownership.
 
 ## Combined M6 acceptance checklist
 
@@ -59,8 +61,12 @@ The sign-off fix therefore requires and now implements:
 - [x] Integration errors stay separate from analyzer-module failures.
 - [x] Domain and Analysis contain no FFLogs DTO/client/auth dependencies.
 - [x] No M7 job-specific or M8 encounter/WTFDiG implementation was pulled into M6.
-- [ ] CI restore, format, tests, and plugin/package build green on the final sign-off head.
+- [x] CI `32225159132` passed restore, formatting, all tests, and plugin/package build on the reviewed implementation/sign-off state.
 
-## Exit gate
+## Lead-integrator decision
 
-Do not close #67 or authorize M7 until the final sign-off PR is green and independently reviewed against this checklist. Once green, update `docs/analyzer/PROGRESS.md`, mark this document **APPROVED**, close #73/#79/#67 as appropriate, and start M7 from the resulting `main` commit.
+**APPROVED FOR MERGE.**
+
+The changed-file review for PR #80 is limited to the FFLogs source/client boundary, FFLogs fixtures, and M6 documentation. Domain, Analysis, and `RecapWindow` are unchanged. The #79 fidelity defect is covered by deterministic same-report-ID/different-instance fixtures and production master-actor propagation.
+
+The final documentation-only PR head must remain green before merge. Once PR #80 is merged, #79/#73/#67 may close and M7 — First Job Analyzer — becomes authorized from the resulting `main` commit.
