@@ -232,6 +232,11 @@ internal sealed class DancerBurstAndUptimeAnalyzer : IAnalyzerModule
             {
                 var previous = uses[index - 1];
                 var current = uses[index];
+                if (!CanUseActionAbsenceAsEvidence(context, previous, current))
+                {
+                    continue;
+                }
+
                 var range = new TimeRange(previous.PullTime, current.PullTime);
                 if (ContainsDeath(context, dancer.Id, range))
                 {
@@ -326,7 +331,7 @@ internal sealed class DancerBurstAndUptimeAnalyzer : IAnalyzerModule
               "Because a prior use establishes the cooldown timer and the pull/action evidence is exact, this is a conservative additional-use opportunity rather than a pull-duration estimate."
             : $"Between two observed {definition.Name} uses, {coverage.TargetableDuration.TotalSeconds:F1}s of {primaryTarget.Name} targetable time was evidence-supported. " +
               $"That exceeds the configured {definition.Cooldown.TotalSeconds:F0}s cooldown by {activeDrift.TotalSeconds:F1}s after forced untargetable and unknown time are excluded. " +
-              "The result reports conservative active-time drift; it does not charge encounter downtime as ordinary execution loss.";
+              "Both boundary actions and the pull are exact, so no hidden use is assumed between them. The result reports conservative active-time drift rather than charging encounter downtime as ordinary execution loss.";
 
         results.Add(new AnalysisResult
         {
@@ -398,7 +403,8 @@ internal sealed class DancerBurstAndUptimeAnalyzer : IAnalyzerModule
         {
             var previous = gcds[index - 1];
             var next = gcds[index];
-            if (next.PullTime <= previous.PullTime)
+            if (next.PullTime <= previous.PullTime ||
+                !CanUseActionAbsenceAsEvidence(context, previous, next))
             {
                 continue;
             }
@@ -444,7 +450,7 @@ internal sealed class DancerBurstAndUptimeAnalyzer : IAnalyzerModule
                     Category = AnalysisCategory.Job,
                     Title = $"{dancer.Name}: {targetableGap.TotalSeconds:F1}s targetable GCD gap",
                     Summary =
-                        $"Two explicit Dancer GCD actions bound a {targetableGap.TotalSeconds:F1}s gap while {primaryTarget.Name} was evidence-supported as targetable. " +
+                        $"Two exact Dancer GCD actions bound a {targetableGap.TotalSeconds:F1}s gap while {primaryTarget.Name} was evidence-supported as targetable. " +
                         "Only the targetable intersection is reported; forced untargetable time, unknown targetability, terminal pull time, and death-containing gaps are not converted into Dancer inactivity. " +
                         "This is an execution-gap observation, not a simulated Skill Speed/GCD-count model.",
                     TimeRange = range,
@@ -457,7 +463,7 @@ internal sealed class DancerBurstAndUptimeAnalyzer : IAnalyzerModule
                             ActorIds = [dancer.Id, primaryTarget.Id],
                             TimeRange = range,
                             Explanation =
-                                "The surrounding explicit Dancer GCD actions bound the gap and canonical targetability transitions prove this portion occurred while the selected enemy was targetable.",
+                                "The surrounding exact Dancer GCD actions bound the gap and canonical targetability transitions prove this portion occurred while the selected enemy was targetable.",
                         },
                     ],
                     Confidence = EvidenceConfidence(evidenceEvents),
