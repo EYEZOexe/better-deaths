@@ -17,15 +17,101 @@ Encounter knowledge/reference repository: `EYEZOexe/wtfdig`
 
 ## Current milestone
 
-### M7 — First Job Analyzer
+### M7 — First Job Analyzer: Dancer
 
-**Status:** `AUTHORIZED`
+**Status:** `APPROVED FOR MERGE`
 
-**Gate opened by:** M6 FFLogs Integration approval and merge `1f600fc6f91800f2b64ce9e035d05014d4c0cd2b`.
+**Parent issue:** #82  
+**Integration/sign-off issue:** #87  
+**Sign-off PR:** #92  
+**Combined CI:** `32230435195`  
+**Detailed review:** `docs/analyzer/M7_DANCER_SIGNOFF.md`
 
-M7 is now permitted to begin. The first job implementation must remain a source-agnostic analyzer over canonical data, with explicit job definitions/rules and evidence-backed findings. FFLogs, Dalamud, ImGui, networking and persistence details must not enter the job analyzer contract.
+M7 proves the first xivanalysis-style Job analyzer vertical slice using Dancer. Job modules consume only canonical pull/event/index contracts plus explicit job definitions, emit structured evidence-backed results, and render through one generic Jobs panel. No DNC-specific UI architecture or source-specific analyzer dependency was introduced.
 
-Before implementation, create bounded M7 work packages and choose the first job using the Technical Design v0.2 milestone scope. Do not pull M8 encounter/WTFDiG work forward.
+### M7 work packages
+
+#### M7-A — Job-definition boundary and DNC data/provenance
+
+**Status:** `APPROVED`  
+**Issue / PR:** #83 / #88  
+**Merged commit:** `f0c60d322600fd5ce9c84371d44eaf33226b56a7`  
+**CI:** `32227679821`
+
+Evidence:
+- reusable source-agnostic `JobDefinition` / action / status definition contracts;
+- deterministic validation for duplicate/invalid action, status, cooldown, charge and cooldown-group data;
+- DNC action/status/cooldown data required by the vertical slice;
+- Standard Step / Finishing Move shared cooldown group represented explicitly;
+- xivanalysis Dawntrail provenance pinned to commit `f90bfac9ad9984354437b83e529f5dd709346413` and exact upstream paths;
+- MIT attribution recorded in `THIRD_PARTY_NOTICES.md`.
+
+#### M7-B — DNC dance/core/proc/partner analysis
+
+**Status:** `APPROVED`  
+**Issue / PR:** #84 / #89  
+**Merged commit:** `7f6988b7fc4cdbcdbda38dae1d2075f8524446b1`  
+**CI:** `32228178813`
+
+Evidence:
+- DNC actors are detected from canonical `ActorRecord.JobAbbreviation`;
+- explicit under-stepped Standard/Technical finish variants produce evidence-backed warnings;
+- missing finish evidence is not inferred as a mistake;
+- unused-proc warnings require known duration expiry plus exact source evidence;
+- sampled/unknown status evidence remains unknown;
+- Dance Partner assignment is recorded neutrally from canonical source->target status evidence;
+- contradictory assignment is reported only for known overlapping intervals and never as an optimal-partner DPS ranking judgment.
+
+#### M7-C — DNC burst/cooldown cadence and targetability-aware GCD execution
+
+**Status:** `APPROVED`  
+**Issue / PR:** #85 / #90  
+**Merged commit:** `e1ff044611574cb7d021fb20193b3817066caf90`  
+**Corrected CI:** `32229549949`
+
+Evidence:
+- Devilment/Technical Finish alignment uses explicit canonical action ordering and pinned xivanalysis behavioral provenance;
+- no preceding Technical Finish means unknown/silent rather than a fabricated alignment error;
+- late-window, cooldown-drift and GCD-gap absence judgments require exact action coverage;
+- cooldown readiness starts from an observed prior use rather than pull start/prepull assumptions;
+- forced untargetable and unknown targetability time are excluded from drift/opportunity calculations;
+- death-containing execution windows are deferred rather than charged as ordinary execution loss;
+- no Skill Speed simulation or synthetic expected-GCD count is used;
+- Esprit/feather overcap/underuse remains unreported because verified canonical gauge semantics are not yet available.
+
+Lead review caught an initial compile issue and used the correction to further tighten the missing-Technical evidence rule before merge.
+
+#### M7-D — Generic Jobs panel and workspace composition
+
+**Status:** `APPROVED`  
+**Issue / PR:** #86 / #91  
+**Merged commit:** `13072911fab1254e294f42904db75fdf1092c3c0`  
+**CI:** `32230088925`
+
+Evidence:
+- one generic `AnalyzerJobsPanel` renders structured Job-category results without DNC-specific rendering classes;
+- selecting a result uses shared `AnalyzerWorkspaceSelection.SelectResult`, synchronizing primary actor + evidence time;
+- both DNC analyzers register through the existing default `AnalyzerEngine` composition seam;
+- panel source-contract tests reject analyzer execution, persistence, FFLogs, Dancer and `RecapWindow` coupling;
+- `RecapWindow.cs` remains untouched.
+
+#### M7-E — Combined fixtures/review/sign-off
+
+**Status:** `APPROVED FOR MERGE`  
+**Issue / PR:** #87 / #92  
+**Combined CI:** `32230435195`
+
+Combined evidence:
+- both DNC analyzers execute together over the same canonical pull;
+- representative fixture covers under-stepped dance, exact proc expiry, partner evidence, Devilment timing, Flourish cadence and targetable GCD-gap analysis;
+- every Warning/Error has actors, time, event evidence and confidence;
+- clean DNC fixture produces no invented findings;
+- equivalent local/FFLogs canonical facts produce equivalent combined DNC semantics;
+- explicit gauge events do not create fabricated Esprit/feather resource verdicts;
+- M8 encounter/WTFDiG implementation has not leaked into M7;
+- CI `32230435195` passed restore, formatting, all tests, and plugin/package build before final sign-off documentation.
+
+**Decision:** M7 is approved for merge. After PR #92's final documentation head remains green and merges, close #87/#82 and authorize M8 — First Encounter Pack.
 
 ## Completed milestone: M6 — FFLogs Integration
 
@@ -123,7 +209,7 @@ Correction evidence:
 - PR #80 changed-file review touched only `BetterDeaths/Sources/FFLogs/**`, FFLogs tests and M6/progress documentation; Domain, Analysis and `RecapWindow` were unchanged;
 - CI `32225159132` passed the reviewed implementation/sign-off state and final PR-head CI `32225505916` passed before merge.
 
-**Decision:** M6 is approved and complete. M7 — First Job Analyzer — is authorized from current `main`.
+**Decision:** M6 is approved and complete.
 
 ## Earlier completed milestone summaries
 
@@ -194,8 +280,8 @@ Characterized lifecycle/archive/reset, death-gated legacy snapshots, persistence
 | M4 New workspace shell | APPROVED | Complete |
 | M5 Generic hardcore analysis | APPROVED | Complete |
 | M6 FFLogs integration | APPROVED | Complete |
-| M7 First job analyzer | AUTHORIZED | M6 approved |
-| M8 First encounter pack | NOT STARTED | M7 approved |
+| M7 First job analyzer | APPROVED FOR MERGE | Final PR #92 head green + merge |
+| M8 First encounter pack | AUTHORIZED AFTER M7 MERGE | M7 approved/merged |
 | M9 Session intelligence | NOT STARTED | M8 approved |
 | M10 Hardening/extraction review | NOT STARTED | M9 approved |
 
@@ -229,6 +315,11 @@ Do not port WTFDiG until M8. Record exact upstream path + commit and update `THI
 | 2026-08-19 | M6-D / PR #77 | APPROVED | Local/FFLogs analyzer parity. |
 | 2026-08-19 | M6-E / PR #78 | APPROVED | Async Analyzer Workspace import flow. |
 | 2026-08-19 | M6-F / PR #80 | APPROVED | #79 fidelity correction; CI `32225159132` and final-head CI `32225505916`; merge `1f600fc6f91800f2b64ce9e035d05014d4c0cd2b`. |
+| 2026-08-19 | M7-A / PR #88 | APPROVED | DNC job definitions/provenance; CI `32227679821`; merge `f0c60d322600fd5ce9c84371d44eaf33226b56a7`. |
+| 2026-08-19 | M7-B / PR #89 | APPROVED | Evidence-first DNC dance/proc/partner analyzer; CI `32228178813`; merge `7f6988b7fc4cdbcdbda38dae1d2075f8524446b1`. |
+| 2026-08-19 | M7-C / PR #90 | APPROVED | DNC burst/cooldown/targetable GCD analyzer; corrected CI `32229549949`; merge `e1ff044611574cb7d021fb20193b3817066caf90`. |
+| 2026-08-19 | M7-D / PR #91 | APPROVED | Generic Jobs panel/workspace composition; CI `32230088925`; merge `13072911fab1254e294f42904db75fdf1092c3c0`. |
+| 2026-08-19 | M7-E / PR #92 | APPROVED FOR MERGE | Combined DNC fixtures/review; CI `32230435195` green before final sign-off docs. |
 
 ## Agent return format
 
