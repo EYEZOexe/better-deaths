@@ -1,9 +1,11 @@
 # M7 Dancer job-analyzer sign-off
 
-Status: **PENDING COMBINED CI / REVIEW**
+Status: **APPROVED FOR MERGE**
 
 Parent: #82  
-Sign-off package: #87
+Sign-off package: #87  
+Sign-off PR: #92  
+Combined CI: `32230435195`
 
 ## Selected vertical slice
 
@@ -83,13 +85,21 @@ Evidence:
 - [x] Shared result selection synchronizes player/time through the existing workspace state.
 - [x] `RecapWindow.cs` remains outside M7 feature implementation.
 - [x] No M8 encounter/WTFDiG implementation was pulled into M7.
-- [ ] Combined M7-E fixture pack passes.
-- [ ] Final combined CI restore/format/tests/plugin build is green.
+- [x] Combined M7-E fixture pack passed.
+- [x] Combined CI `32230435195` passed restore, formatting, all tests, and plugin/package build.
+
+## Combined fixture evidence
+
+The M7-E integration fixture runs both DNC modules together and exercises under-stepped dance, exact proc expiry, Dance Partner assignment, Devilment timing, Flourish cadence and targetable GCD-gap analysis. The fixture asserts evidence/time/actor/confidence on every Warning/Error, includes gauge events without generating unsupported resource conclusions, includes a clean no-finding DNC case, and proves local-vs-FFLogs canonical semantic parity.
 
 ## Runtime/manual validation note
 
 Automated CI validates deterministic canonical analysis, workspace composition contracts, formatting and plugin/package build. CI cannot launch FFXIV/Dalamud, so visual Jobs-panel smoke validation in-game remains a manual runtime item rather than being misrepresented as automated evidence.
 
-## Exit gate
+## Lead-integrator decision
 
-Do not approve #82 or authorize M8 until this branch's combined fixtures and complete CI pass and the lead-integrator review confirms no architectural regression across M7-A through M7-D.
+**APPROVED FOR MERGE.**
+
+M7 satisfies the first-job vertical-slice acceptance criteria without introducing job-specific UI architecture or source-specific analyzer dependencies. The remaining resource limitation is explicit: Esprit/feather overcap/underuse cannot be judged until canonical source evidence defines those gauge semantics reliably.
+
+M8 — First Encounter Pack — may be authorized only after PR #92's final head remains green and the M7 sign-off merge lands on `main`.
