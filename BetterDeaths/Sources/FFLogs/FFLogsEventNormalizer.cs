@@ -428,7 +428,8 @@ internal static class FFLogsEventNormalizer
         foreach (var actorKey in referencedSnapshot)
         {
             if (!metadataBySourceId.TryGetValue(actorKey.ReportActorId, out var metadata) ||
-                metadata.PetOwnerId is not > 0 and var ownerSourceId)
+                metadata.PetOwnerId is not { } ownerSourceId ||
+                ownerSourceId <= 0)
             {
                 continue;
             }
@@ -448,7 +449,8 @@ internal static class FFLogsEventNormalizer
         {
             metadataBySourceId.TryGetValue(sourceKey.ReportActorId, out var metadata);
             ActorId? owner = null;
-            if (metadata?.PetOwnerId is > 0 and var ownerSourceId &&
+            if (metadata?.PetOwnerId is { } ownerSourceId &&
+                ownerSourceId > 0 &&
                 sourceToCanonical.TryGetValue(new SourceActorKey(ownerSourceId, null), out var ownerId))
             {
                 owner = ownerId;
@@ -477,7 +479,7 @@ internal static class FFLogsEventNormalizer
             return metadata.Name.Trim();
         }
 
-        var instanceSuffix = sourceKey.InstanceId is > 0 and var instanceId
+        var instanceSuffix = sourceKey.InstanceId is { } instanceId && instanceId > 0
             ? $" instance {instanceId.ToString(CultureInfo.InvariantCulture)}"
             : string.Empty;
         return $"FFLogs Actor {sourceKey.ReportActorId.ToString(CultureInfo.InvariantCulture)}{instanceSuffix}";
@@ -555,7 +557,7 @@ internal static class FFLogsEventNormalizer
         IReadOnlyDictionary<int, FFLogsReportActor> metadataBySourceId)
     {
         var sourceId = TryGetInt32(payload, $"{actorPrefix}ID");
-        if (sourceId is not > 0 and var actorId)
+        if (sourceId is not { } actorId || actorId <= 0)
         {
             return null;
         }
@@ -573,7 +575,7 @@ internal static class FFLogsEventNormalizer
     {
         foreach (var suffix in new[] { "InstanceID", "InstanceId", "Instance" })
         {
-            if (TryGetInt32(payload, $"{actorPrefix}{suffix}") is > 0 and var instanceId)
+            if (TryGetInt32(payload, $"{actorPrefix}{suffix}") is { } instanceId && instanceId > 0)
             {
                 return instanceId;
             }
