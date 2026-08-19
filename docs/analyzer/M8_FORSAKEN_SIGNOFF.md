@@ -1,12 +1,13 @@
 # M8 First Encounter Pack — Forsaken sign-off
 
-Status: **READY FOR COMBINED REVIEW**
+Status: **APPROVED FOR MERGE**
 
 Parent milestone: #94  
 M8-A: #95 / PR #99  
 M8-B: #96 / PR #100  
 M8-C: #97 / PR #101  
-M8-D: #98
+M8-D: #98 / PR #102  
+Combined PR-head CI: `32240800389`
 
 ## Selected vertical slice
 
@@ -73,7 +74,7 @@ Evidence:
 
 ## M8-D combined fixture and review gate
 
-Combined sign-off fixtures require all of the following:
+Combined sign-off evidence:
 
 - [x] compatible exact Forsaken opening -> four evidence-backed neutral pair/group assignments;
 - [x] incompatible complete exact opening -> one non-blaming Warning with eight actors/events and expected/observed/cause/consequence;
@@ -85,8 +86,8 @@ Combined sign-off fixtures require all of the following:
 - [x] generic Mechanics panel uses shared selection and no encounter-specific UI class;
 - [x] WTFDiG attribution/provenance is exact and retained;
 - [x] no M9 session-intelligence logic is included in M8;
-- [ ] final M8-D PR-head CI passes restore, format, tests and plugin/package build;
-- [ ] lead-integrator final diff review completed.
+- [x] final M8-D PR-head CI `32240800389` passed restore, format, tests and plugin/package build;
+- [x] lead-integrator final diff review completed.
 
 ## Uncertainty boundary
 
@@ -98,6 +99,8 @@ CI cannot launch FFXIV/Dalamud, so final in-game rendering/synchronization smoke
 
 ## Lead-integrator decision
 
-**PENDING FINAL M8-D CI AND REVIEW.**
+**APPROVED FOR MERGE.**
 
-M9 — Session Intelligence — must not begin until the final M8-D head is green, this review is marked `APPROVED`, the sign-off change is merged to `main`, #98/#94 are completed, and the progress ledger records M8 complete / M9 authorized.
+M8 satisfies the Technical Design v0.2 first-encounter-pack gate: reusable encounter definitions are isolated from core capture/engine code, one deterministic Forsaken mechanic slice has known compatible/incompatible fixtures, source uncertainty remains explicit, direct WTFDiG-derived strategy semantics retain exact provenance/MIT attribution, and the generic Mechanics panel renders structured encounter results through shared selection.
+
+M9 — Session Intelligence — may be authorized only after PR #102 merges to `main`, #98/#94 are completed, and the progress ledger records M8 complete / M9 authorized.
