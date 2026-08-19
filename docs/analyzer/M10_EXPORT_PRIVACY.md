@@ -4,7 +4,7 @@ Status: **M10-C implementation — READY FOR REVIEW**
 
 Parent: #118  
 Work package: #121  
-Validation CI: `32267164438`
+Implementation-head CI: `32268088161`
 
 ## Purpose
 
@@ -22,7 +22,7 @@ M10-C therefore adds one explicit export boundary rather than treating UI name r
 - `CanonicalPullExportResult` containing the export-policy version, mode, exported pull ID and canonical JSON payload;
 - `CurrentExportPolicyVersion = 1` so future privacy-policy changes are explicit rather than silently changing what "anonymized" means.
 
-Both modes serialize through the existing versioned `CanonicalPullSerializer`. No FFLogs client, token, configuration object, Dalamud service or ImGui type is accepted by the export core.
+Both modes start from the existing versioned `CanonicalPullSerializer`. The emitted JSON keeps that canonical envelope intact and adds top-level `ExportPolicyVersion` and `ExportMode` fields. Current canonical deserialization ignores those export metadata extensions and still round-trips the `RecordedPull`, while the shared file itself carries explicit export-policy semantics. No FFLogs client, token, configuration object, Dalamud service or ImGui type is accepted by the export core.
 
 ## Canonical export semantics
 
@@ -38,7 +38,7 @@ It preserves the existing versioned `RecordedPull`, including:
 - actor/job/action/status/mechanic evidence;
 - positions and world-marker data.
 
-The resulting payload round-trips through `CanonicalPullSerializer` and is deterministic for the same in-memory pull.
+The resulting payload carries export policy/version metadata, round-trips through `CanonicalPullSerializer`, and is deterministic for the same in-memory pull.
 
 ## Anonymized export policy v1
 
@@ -140,6 +140,7 @@ It is not a formal k-anonymity/differential-privacy system. A sufficiently disti
 
 - [x] Export transformation is a focused source/UI-agnostic boundary.
 - [x] Canonical export round-trips the versioned `RecordedPull` without semantic loss.
+- [x] Exported bytes carry explicit export policy version and mode metadata while remaining canonical-deserializable.
 - [x] Anonymized player/pet/unknown names are deterministic replacements.
 - [x] Pet-owner and event actor relationships remain intact.
 - [x] Original pull ID, external source references and absolute timestamps are removed/replaced.
@@ -149,6 +150,6 @@ It is not a formal k-anonymity/differential-privacy system. A sufficiently disti
 - [x] Export does not mutate the source `RecordedPull`.
 - [x] Export contracts contain no FFLogs/Dalamud/ImGui types.
 - [x] Analyzer workspace exposes explicit canonical/anonymized actions at the application boundary.
-- [x] Full branch CI/build/format validation green in `32267164438`.
+- [x] Full implementation CI/build/format validation green in `32268088161`.
 
-CI `32267164438` passed restore, formatting, the complete automated test suite including existing M9/M10 performance gates, and plugin/package build. Final M10-C approval remains contingent on independent review of the implementation diff.
+CI `32268088161` passed restore, formatting, the complete automated test suite including existing M9/M10 performance gates, and plugin/package build. An earlier validation run caught an accessibility error in a new theory test; that test-only defect was corrected before the recorded implementation-head run. Final M10-C approval remains contingent on independent review of the implementation diff.
