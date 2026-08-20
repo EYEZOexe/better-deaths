@@ -456,15 +456,15 @@ internal static class FFLogsEventNormalizer
                 owner = ownerId;
             }
 
+            var kind = MapActorKind(metadata?.Type, metadata?.SubType, metadata?.PetOwnerId);
             actors.Add(new ActorRecord
             {
                 Id = sourceToCanonical[sourceKey],
                 Name = BuildActorName(metadata, sourceKey),
-                Kind = MapActorKind(metadata?.Type, metadata?.SubType, metadata?.PetOwnerId),
-                JobAbbreviation = string.Equals(metadata?.Type, "Player", StringComparison.OrdinalIgnoreCase) &&
-                                  !string.IsNullOrWhiteSpace(metadata?.SubType)
-                    ? metadata.SubType.Trim()
-                    : null,
+                Kind = kind,
+                JobAbbreviation = FFLogsJobIdentityMapper.ToCanonicalAbbreviation(
+                    kind,
+                    metadata?.SubType),
                 OwnerActorId = owner,
             });
         }

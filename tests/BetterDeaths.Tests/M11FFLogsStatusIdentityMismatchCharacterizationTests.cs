@@ -1,75 +1,15 @@
 namespace BetterDeaths;
 
-using BetterDeaths.Analysis.Engine;
 using BetterDeaths.Analysis.Index;
 using BetterDeaths.Analysis.Jobs.Dancer;
 using BetterDeaths.Domain;
 using BetterDeaths.Sources.FFLogs;
 using BetterDeaths.Sources.FFLogs.Client;
-using BetterDeaths.Windows.Analyzer;
 using System.Text.Json;
 
-public sealed class M11FFLogsSemanticMismatchCharacterizationTests
+public sealed class M11FFLogsStatusIdentityMismatchCharacterizationTests
 {
-    [Fact]
-    public async Task SourceDancerSpellingLeavesBothDefaultDancerModulesUnsupported()
-    {
-        var normalized = FFLogsEventNormalizer.Normalize(
-            Import(
-                Event(
-                    2_000,
-                    "cast",
-                    """{"sourceID":10,"targetID":30,"abilityGameID":15997}"""),
-                Event(
-                    3_000,
-                    "cast",
-                    """{"sourceID":10,"targetID":30,"abilityGameID":16191}""")),
-            new PullSchemaVersion(1));
-
-        Assert.Empty(normalized.SkippedEvents);
-        var sourceActor = Assert.Single(normalized.Pull.Actors, actor => actor.Kind == ActorKind.Player);
-        Assert.Equal("Dancer", sourceActor.JobAbbreviation);
-        Assert.Equal("DNC", DancerJobDefinition.JobAbbreviation);
-
-        var engine = AnalyzerWorkspaceEngineComposition.CreateDefault();
-        var sourceRun = await engine.AnalyzeAsync(normalized.Pull);
-        var sourceDancerSkips = sourceRun.Skipped
-            .Where(skip => IsDancerAnalyzer(skip.AnalyzerId))
-            .OrderBy(skip => skip.AnalyzerId, StringComparer.Ordinal)
-            .ToArray();
-
-        Assert.Empty(sourceRun.Failures);
-        Assert.Equal(2, sourceDancerSkips.Length);
-        Assert.All(sourceDancerSkips, skip => Assert.Equal(AnalyzerSkipReason.Unsupported, skip.Reason));
-        Assert.Equal(
-            [DancerBurstAndUptimeAnalyzer.AnalyzerId, DancerCoreExecutionAnalyzer.AnalyzerId],
-            sourceDancerSkips.Select(skip => skip.AnalyzerId));
-        Assert.DoesNotContain(sourceRun.Results, result => IsDancerAnalyzer(result.AnalyzerId));
-
-        // M12's intended canonical truth is DNC. This control changes only that identity so the
-        // failure cannot be attributed to the synthetic action evidence or default-engine wiring.
-        var canonicalControl = normalized.Pull with
-        {
-            Actors = normalized.Pull.Actors
-                .Select(actor => actor.Id == sourceActor.Id
-                    ? actor with { JobAbbreviation = DancerJobDefinition.JobAbbreviation }
-                    : actor)
-                .ToArray(),
-        };
-        Assert.Equal(normalized.Pull.Events, canonicalControl.Events);
-        Assert.Equal(
-            DancerJobDefinition.JobAbbreviation,
-            Assert.Single(canonicalControl.Actors, actor => actor.Id == sourceActor.Id).JobAbbreviation);
-
-        var canonicalRun = await engine.AnalyzeAsync(canonicalControl);
-
-        Assert.Empty(canonicalRun.Failures);
-        Assert.DoesNotContain(canonicalRun.Skipped, skip => IsDancerAnalyzer(skip.AnalyzerId));
-        Assert.Contains(
-            canonicalRun.Results,
-            result => result.AnalyzerId == DancerCoreExecutionAnalyzer.AnalyzerId);
-    }
-
+    // M12-B sentinel: M12-A must not transform source status identities.
     [Fact]
     public void SourceEncodedDevilmentStatusCannotSatisfyCanonicalExactIdLookup()
     {
@@ -109,12 +49,6 @@ public sealed class M11FFLogsSemanticMismatchCharacterizationTests
             canonicalControl.Metadata.Duration);
         Assert.Empty(canonicalIndex.ForActorStatus(actor.Id, sourceEncodedStatusId));
         Assert.Single(canonicalIndex.ForActorStatus(actor.Id, canonicalStatusId));
-    }
-
-    private static bool IsDancerAnalyzer(string analyzerId)
-    {
-        return analyzerId is DancerCoreExecutionAnalyzer.AnalyzerId or
-            DancerBurstAndUptimeAnalyzer.AnalyzerId;
     }
 
     private static FFLogsFightImportData Import(params FFLogsEventEnvelope[] events)

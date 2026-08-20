@@ -142,7 +142,7 @@ public sealed class FFLogsAnalyzerParityTests
             SchemaVersion = new PullSchemaVersion(1),
             Actors =
             [
-                new ActorRecord { Id = Player, Name = "Player One", Kind = ActorKind.Player, JobAbbreviation = "Dancer" },
+                new ActorRecord { Id = Player, Name = "Player One", Kind = ActorKind.Player, JobAbbreviation = "DNC" },
                 new ActorRecord { Id = Boss, Name = "Boss", Kind = ActorKind.Enemy },
             ],
             Events =
@@ -223,8 +223,14 @@ public sealed class FFLogsAnalyzerParityTests
     {
         return new DamageEvent
         {
-            Id = new EventId(sequence), Sequence = sequence, PullTime = TimeSpan.FromSeconds(seconds),
-            SourceActorId = source, TargetActorId = target, Provenance = provenance, Amount = amount, ActionId = actionId,
+            Id = new EventId(sequence),
+            Sequence = sequence,
+            PullTime = TimeSpan.FromSeconds(seconds),
+            SourceActorId = source,
+            TargetActorId = target,
+            Provenance = provenance,
+            Amount = amount,
+            ActionId = actionId,
         };
     }
 
@@ -232,8 +238,14 @@ public sealed class FFLogsAnalyzerParityTests
     {
         return new HealEvent
         {
-            Id = new EventId(sequence), Sequence = sequence, PullTime = TimeSpan.FromSeconds(seconds),
-            SourceActorId = source, TargetActorId = target, Provenance = provenance, Amount = amount, ActionId = actionId,
+            Id = new EventId(sequence),
+            Sequence = sequence,
+            PullTime = TimeSpan.FromSeconds(seconds),
+            SourceActorId = source,
+            TargetActorId = target,
+            Provenance = provenance,
+            Amount = amount,
+            ActionId = actionId,
         };
     }
 
@@ -241,8 +253,12 @@ public sealed class FFLogsAnalyzerParityTests
     {
         return new DeathEvent
         {
-            Id = new EventId(sequence), Sequence = sequence, PullTime = TimeSpan.FromSeconds(seconds),
-            SourceActorId = source, TargetActorId = target, Provenance = provenance,
+            Id = new EventId(sequence),
+            Sequence = sequence,
+            PullTime = TimeSpan.FromSeconds(seconds),
+            SourceActorId = source,
+            TargetActorId = target,
+            Provenance = provenance,
         };
     }
 
@@ -250,8 +266,13 @@ public sealed class FFLogsAnalyzerParityTests
     {
         return new RaiseEvent
         {
-            Id = new EventId(sequence), Sequence = sequence, PullTime = TimeSpan.FromSeconds(seconds),
-            SourceActorId = source, TargetActorId = target, Provenance = provenance, ActionId = actionId,
+            Id = new EventId(sequence),
+            Sequence = sequence,
+            PullTime = TimeSpan.FromSeconds(seconds),
+            SourceActorId = source,
+            TargetActorId = target,
+            Provenance = provenance,
+            ActionId = actionId,
         };
     }
 

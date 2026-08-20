@@ -45,7 +45,7 @@ public sealed class FFLogsEventNormalizerTests
         var pet = Assert.Single(pull.Actors, actor => actor.Name == "Pet One");
         var boss = Assert.Single(pull.Actors, actor => actor.Name == "Boss");
         Assert.Equal(ActorKind.Player, player.Kind);
-        Assert.Equal("Dancer", player.JobAbbreviation);
+        Assert.Equal("DNC", player.JobAbbreviation);
         Assert.Equal(ActorKind.Pet, pet.Kind);
         Assert.Equal(player.Id, pet.OwnerActorId);
         Assert.Equal(ActorKind.Enemy, boss.Kind);
@@ -78,6 +78,46 @@ public sealed class FFLogsEventNormalizerTests
         Assert.IsType<RaiseEvent>(pull.Events[6]);
         Assert.False(Assert.IsType<TargetabilityEvent>(pull.Events[7]).IsTargetable);
         Assert.All(pull.Events, evt => Assert.Equal(PullDataSourceKind.FFLogs, evt.Provenance.SourceKind));
+    }
+
+    [Fact]
+    public void PlayerTypedPetOwnerActorCannotAcquireAPlayerJob()
+    {
+        var result = FFLogsEventNormalizer.Normalize(
+            Fight(
+                Actors:
+                [
+                    new FFLogsReportActor
+                    {
+                        Id = 10,
+                        Name = "Owner",
+                        Type = "Player",
+                        SubType = "WhiteMage",
+                    },
+                    new FFLogsReportActor
+                    {
+                        Id = 20,
+                        Name = "Player-Typed Pet",
+                        Type = "Player",
+                        SubType = "Dancer",
+                        PetOwnerId = 10,
+                    },
+                    new FFLogsReportActor { Id = 30, Name = "Boss", Type = "NPC" },
+                ],
+                Events:
+                [
+                    Event(
+                        1200,
+                        "damage",
+                        """{"sourceID":20,"targetID":30,"abilityGameID":1,"amount":100}"""),
+                ]),
+            new PullSchemaVersion(1));
+
+        Assert.Empty(result.SkippedEvents);
+        var pet = Assert.Single(result.Pull.Actors, actor => actor.Name == "Player-Typed Pet");
+        Assert.Equal(ActorKind.Pet, pet.Kind);
+        Assert.Null(pet.JobAbbreviation);
+        Assert.NotNull(pet.OwnerActorId);
     }
 
     [Fact]
