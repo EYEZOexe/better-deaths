@@ -31,9 +31,13 @@ boundaries and do not teach analyzers to accept source-specific identities.
 
 #### M12-A — Canonical FFLogs actor/job identity mapping
 
-**Status:** `READY FOR REVIEW`
+**Status:** `APPROVED / COMPLETED / MERGED`
 
 **Issue:** #151
+
+**Implementation PR / merged commit:** #154 / `db6d654256cec4c00e3b2bf5e5ce2c05ca29605e`
+
+**Reviewed implementation head / CI:** `cc9b818905ba72cb9fac80024b800bb1247ad726` / `32415273467`
 
 FFLogs player job names, normalized name/slug variants and known canonical abbreviations now pass
 through one source-owned allowlist mapper before `ActorRecord.JobAbbreviation` is constructed.
@@ -50,11 +54,12 @@ sentinel. The M11 anonymized fixture, truth manifest and persisted bytes are unc
 Local validation passed the 113-test focused source-boundary slice and 602 tests after excluding the existing
 Windows newline-sensitive selection-contract check, production formatting verification, Release
 plugin build and package-invariant validation. The unexcluded local run passed 602 of 603 tests;
-the sole failure was the existing CRLF-sensitive source-text marker check. Exact-head CI and
-independent review remain required before approval.
+the sole failure was the existing CRLF-sensitive source-text marker check. Exact-head Linux CI
+passed restore, formatting, the full automated test suite, Release plugin build/package validation
+and package artifact verification. Independent review approved the exact implementation head.
 
-**Authorization boundary:** M12-A is the only active implementation slice. M12-B (#152) and
-M12-C (#153) are authorized but not started while their recorded prerequisites are pending.
+**Authorization boundary:** M12-A is approved and complete. M12-B (#152) is now the next eligible
+authorized implementation slice. M12-C (#153) remains authorized but prerequisite-gated on M12-B.
 M13 and later work remain unauthorized until explicitly approved.
 
 ## Completed milestone: M11 — Reality Baseline & Golden Pull
@@ -99,7 +104,7 @@ evidence remain explicitly unavailable from the supplied canonical artifact.
 **Historical authorization boundary at M11 completion:** M12 and later milestones were
 unauthorized until the required M11 evidence, review and explicit authorization were recorded.
 That prerequisite is now satisfied for the explicitly authorized M12 work packages recorded above;
-only M12-A is currently active because M12-B and M12-C remain prerequisite-gated.
+current work-package eligibility is recorded in the M12 authorization boundary above.
 
 ## Completed milestone: M10 — Hardening and Extraction Review
 
