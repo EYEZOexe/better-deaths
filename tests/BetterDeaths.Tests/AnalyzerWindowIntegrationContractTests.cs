@@ -56,6 +56,30 @@ public sealed class AnalyzerWindowIntegrationContractTests
     }
 
     [Fact]
+    public void FFLogsImportFieldsHavePermanentLabelsBeforeTheirInputs()
+    {
+        var source = ReadRepositoryFile("BetterDeaths/Windows/Analyzer/AnalyzerWindow.cs");
+
+        var clientIdLabel = source.IndexOf("ImGui.Text(\"Client ID\")", StringComparison.Ordinal);
+        var clientIdInput = source.IndexOf("ImGui.InputText(\"##FFLogsClientId\"", StringComparison.Ordinal);
+        var clientSecretLabel = source.IndexOf("ImGui.Text(\"Client Secret (not saved)\")", StringComparison.Ordinal);
+        var clientSecretInput = source.IndexOf("ImGui.InputText(\"##FFLogsClientSecret\"", StringComparison.Ordinal);
+        var reportCodeLabel = source.IndexOf("ImGui.Text(\"Report Code\")", StringComparison.Ordinal);
+        var reportCodeInput = source.IndexOf("ImGui.InputText(\"##FFLogsReportCode\"", StringComparison.Ordinal);
+
+        Assert.True(clientIdLabel >= 0 && clientIdLabel < clientIdInput);
+        Assert.True(clientSecretLabel >= 0 && clientSecretLabel < clientSecretInput);
+        Assert.True(reportCodeLabel >= 0 && reportCodeLabel < reportCodeInput);
+        Assert.True(clientIdInput < clientSecretLabel);
+        Assert.True(clientSecretInput < reportCodeLabel);
+        Assert.Contains("ImGuiInputTextFlags.Password", source, StringComparison.Ordinal);
+
+        Assert.DoesNotContain("if (string.IsNullOrEmpty(fflogsClientId))", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("if (string.IsNullOrEmpty(fflogsClientSecret))", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("if (string.IsNullOrEmpty(fflogsReportCode))", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void WorkspaceDataControllerIsPureAndUsesStoreAndEngineContracts()
     {
         var source = ReadRepositoryFile("BetterDeaths/Windows/Analyzer/AnalyzerWorkspaceDataController.cs");
