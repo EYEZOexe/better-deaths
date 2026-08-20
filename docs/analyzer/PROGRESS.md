@@ -60,9 +60,13 @@ and package artifact verification. Independent review approved the exact impleme
 
 #### M12-B — FFLogs masterData ability catalog and source-ID classification
 
-**Status:** `READY FOR REVIEW`
+**Status:** `APPROVED / COMPLETED / MERGED`
 
 **Issue:** #152
+
+**Implementation PR / merged commit:** #156 / `a36fd7b9f2bd4a2f7cb79bd9d2dc0814d7d8bd28`
+
+**Reviewed implementation head / CI:** `18b89d56a30a6329967fb4816b2c2f506a5aff8e` / `32418901802`
 
 The FFLogs report metadata query and source-local contracts now retain `masterData.abilities`
 `gameID`, name, icon and type fields alongside actors. A source-owned semantic decoder classifies
@@ -87,11 +91,13 @@ after excluding the existing Windows newline-sensitive selection-contract check;
 run passed 622 of 623 tests with only that existing CRLF-sensitive failure. Production formatting,
 Release plugin build/package invariants and package artifact verification passed locally. The M11
 fixture SHA-256 remains `D370AE57ECA46CFE97863D7F1E44D6E254A349DA74F228AC6838C7D7B80BB5FA`.
+Exact-head Linux CI `32418901802` passed restore, formatting, the full automated suite, Release
+plugin build/package validation and package artifact verification. Independent technical and
+exact-head repository-state reviews approved the reviewed implementation head before merge.
 
-**Authorization boundary:** M12-A is approved and complete. M12-B (#152) is the only active
-implementation slice and is ready for independent review. M12-C (#153) remains authorized but
-prerequisite-gated on M12-B approval and merge. M13 and later work remain unauthorized until
-explicitly approved.
+**Authorization boundary:** M12-A and M12-B are approved and complete. M12-C (#153) is now the
+next eligible authorized implementation slice. M13 and later work remain unauthorized until
+explicitly approved. Overall M12 remains in progress.
 
 ## Completed milestone: M11 — Reality Baseline & Golden Pull
 
