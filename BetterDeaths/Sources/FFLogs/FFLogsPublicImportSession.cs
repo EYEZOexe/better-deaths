@@ -32,7 +32,9 @@ internal sealed class FFLogsPublicImportSession : IFFLogsImportSource, IDisposab
         string clientSecret,
         PullSchemaVersion schemaVersion)
     {
-        var credentials = new FFLogsClientCredentials(clientId, clientSecret);
+        var normalizedClientId = FFLogsCredentialInput.NormalizeClientId(clientId);
+        var normalizedClientSecret = FFLogsCredentialInput.NormalizeClientSecret(clientSecret);
+        var credentials = new FFLogsClientCredentials(normalizedClientId, normalizedClientSecret);
         var httpClient = new HttpClient();
         var tokenProvider = new FFLogsClientCredentialsTokenProvider(
             httpClient,
