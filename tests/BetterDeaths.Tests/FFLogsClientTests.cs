@@ -55,7 +55,7 @@ public sealed class FFLogsClientTests
     }
 
     [Fact]
-    public async Task ReportMetadataParsesMasterActorsAndUsesShortLivedCredentialFreeCache()
+    public async Task ReportMetadataParsesMasterActorsAndAbilitiesAndUsesShortLivedCredentialFreeCache()
     {
         var handler = new QueueHttpMessageHandler(ReportResponse());
         using var httpClient = new HttpClient(handler);
@@ -85,12 +85,21 @@ public sealed class FFLogsClientTests
         Assert.Equal("NPC", boss.Type);
         Assert.Equal("Boss", boss.SubType);
 
+        Assert.Equal(5, first.Value.Abilities.Count);
+        var devilment = Assert.Single(first.Value.Abilities, ability => ability.GameId == 1_001_825);
+        Assert.Equal("Devilment", devilment.Name);
+        Assert.Equal("ability_dancer_devilment.png", devilment.Icon);
+        Assert.Equal("Dancer", devilment.Type);
+
         Assert.Single(handler.Requests);
         Assert.Equal("https://www.fflogs.com/api/v2/client", handler.Requests[0].Uri.ToString());
         Assert.Equal("Bearer", handler.Requests[0].AuthorizationScheme);
         Assert.Contains("AnalyzerReportMetadata", handler.Requests[0].Body, StringComparison.Ordinal);
         Assert.Contains("masterData(translate: false)", handler.Requests[0].Body, StringComparison.Ordinal);
         Assert.Contains("petOwner", handler.Requests[0].Body, StringComparison.Ordinal);
+        Assert.Contains("abilities", handler.Requests[0].Body, StringComparison.Ordinal);
+        Assert.Contains("gameID", handler.Requests[0].Body, StringComparison.Ordinal);
+        Assert.Contains("icon", handler.Requests[0].Body, StringComparison.Ordinal);
 
         var cacheKey = FFLogsReportCacheKey.Create("REPORT123", FFLogsApiAccessKind.PublicClient);
         Assert.DoesNotContain("REPORT123", cacheKey.ReportHash, StringComparison.Ordinal);
@@ -118,6 +127,7 @@ public sealed class FFLogsClientTests
         Assert.True(second.IsSuccess);
         Assert.Equal(2, first.Value?.Events.Count);
         Assert.Equal(3, first.Value?.Actors.Count);
+        Assert.Equal(5, first.Value?.ReportDocument.Abilities.Count);
         Assert.Equal(new[] { "damage", "heal" }, first.Value!.Events.Select(evt => evt.Type));
         Assert.Equal(new[] { 1100d, 1600d }, first.Value.Events.Select(evt => evt.TimestampMilliseconds));
         Assert.Equal(3, handler.Requests.Count);
@@ -128,6 +138,68 @@ public sealed class FFLogsClientTests
         Assert.Equal(1500d, pageTwoRequest.RootElement.GetProperty("variables").GetProperty("startTime").GetDouble());
         Assert.Equal(10000, pageTwoRequest.RootElement.GetProperty("variables").GetProperty("limit").GetInt32());
         Assert.Contains("useActorIDs: true", pageTwoRequest.RootElement.GetProperty("query").GetString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task MetadataExpiryRefreshesAbilityCatalogAndRevisionSeparatesEventPageCache()
+    {
+        var clock = new ManualTimeProvider(DateTimeOffset.Parse("2026-08-20T00:00:00Z"));
+        var handler = new QueueHttpMessageHandler(
+            ReportResponse(
+                revision: 7,
+                abilitiesJson: """[{"gameID":1001825,"name":"Devilment","icon":"devilment.png","type":"Dancer"}]"""),
+            EventResponse(
+                """[{"timestamp":1100,"type":"applybuff","sourceID":10,"targetID":10,"abilityGameID":1001825,"duration":20000}]""",
+                nextPageTimestamp: null),
+            ReportResponse(
+                revision: 8,
+                abilitiesJson: """[{"gameID":1005084,"name":"Forsaken Stack","icon":"forsaken.png","type":"Encounter"}]"""),
+            EventResponse(
+                """[{"timestamp":1200,"type":"applydebuff","sourceID":30,"targetID":10,"abilityGameID":1005084,"duration":9999000}]""",
+                nextPageTimestamp: null));
+        using var httpClient = new HttpClient(handler);
+        var client = new FFLogsGraphQlClient(
+            httpClient,
+            new FixedTokenProvider(),
+            cache: new MemoryFFLogsImportCache(),
+            timeProvider: clock);
+
+        var revisionSeven = await client.LoadFightAsync("REPORT123", 42, FFLogsApiAccessKind.PublicClient);
+        var cachedRevisionSeven = await client.LoadFightAsync("REPORT123", 42, FFLogsApiAccessKind.PublicClient);
+        clock.Advance(TimeSpan.FromMinutes(3));
+        var revisionEight = await client.LoadFightAsync("REPORT123", 42, FFLogsApiAccessKind.PublicClient);
+
+        Assert.True(revisionSeven.IsSuccess);
+        Assert.True(cachedRevisionSeven.IsSuccess);
+        Assert.True(revisionEight.IsSuccess);
+        Assert.Equal(7, revisionSeven.Value?.ReportDocument.Report.Revision);
+        Assert.Equal((uint)1_001_825, Assert.Single(revisionSeven.Value!.ReportDocument.Abilities).GameId);
+        Assert.Equal(8, revisionEight.Value?.ReportDocument.Report.Revision);
+        Assert.Equal((uint)1_005_084, Assert.Single(revisionEight.Value!.ReportDocument.Abilities).GameId);
+        Assert.Equal("applybuff", Assert.Single(revisionSeven.Value.Events).Type);
+        Assert.Equal("applydebuff", Assert.Single(revisionEight.Value.Events).Type);
+        Assert.Equal(4, handler.Requests.Count);
+    }
+
+    [Fact]
+    public async Task MalformedAbilityIdsAreIgnoredWithoutDiscardingValidCatalogEntries()
+    {
+        var handler = new QueueHttpMessageHandler(ReportResponse(
+            abilitiesJson: """
+                [
+                  {"gameID":1001825,"name":"Devilment","icon":"devilment.png","type":"Dancer"},
+                  {"gameID":1.5,"name":"Fractional","icon":"bad.png","type":"Bad"},
+                  {"gameID":-1,"name":"Negative","icon":"bad.png","type":"Bad"},
+                  {"gameID":4294967296,"name":"Too Large","icon":"bad.png","type":"Bad"},
+                  {"gameID":null,"name":"Missing","icon":"bad.png","type":"Bad"}
+                ]
+                """));
+        using var httpClient = new HttpClient(handler);
+
+        var result = await Client(httpClient).LoadReportAsync("REPORT123", FFLogsApiAccessKind.PublicClient);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal((uint)1_001_825, Assert.Single(result.Value!.Abilities).GameId);
     }
 
     [Fact]
@@ -232,9 +304,20 @@ public sealed class FFLogsClientTests
             cache: new MemoryFFLogsImportCache());
     }
 
-    private static HttpResponseMessage ReportResponse()
+    private static HttpResponseMessage ReportResponse(
+        int revision = 7,
+        string? abilitiesJson = null)
     {
-        return Json(HttpStatusCode.OK, """
+        abilitiesJson ??= """
+            [
+              { "gameID": 1001825, "name": "Devilment", "icon": "ability_dancer_devilment.png", "type": "Dancer" },
+              { "gameID": 1005084, "name": "Forsaken Stack", "icon": "forsaken_stack.png", "type": "Encounter" },
+              { "gameID": 1005085, "name": "Forsaken Spread", "icon": "forsaken_spread.png", "type": "Encounter" },
+              { "gameID": 1005086, "name": "Forsaken Cone", "icon": "forsaken_cone.png", "type": "Encounter" },
+              { "gameID": 15997, "name": "Standard Step", "icon": "ability_dancer_standardstep.png", "type": "Dancer" }
+            ]
+            """;
+        return Json(HttpStatusCode.OK, $$"""
             {
               "data": {
                 "reportData": {
@@ -242,13 +325,14 @@ public sealed class FFLogsClientTests
                     "code": "REPORT123",
                     "startTime": 100000,
                     "endTime": 200000,
-                    "revision": 7,
+                    "revision": {{revision}},
                     "masterData": {
                       "actors": [
                         { "id": 10, "name": "Player One", "type": "Player", "subType": "Dancer", "petOwner": null },
                         { "id": 20, "name": "Pet One", "type": "Pet", "subType": "Pet", "petOwner": 10 },
                         { "id": 30, "name": "Test Boss", "type": "NPC", "subType": "Boss", "petOwner": null }
-                      ]
+                      ],
+                      "abilities": {{abilitiesJson}}
                     },
                     "fights": [
                       {
@@ -359,6 +443,18 @@ public sealed class FFLogsClientTests
         {
             cancellationToken.ThrowIfCancellationRequested();
             return Task.FromException<HttpResponseMessage>(exception);
+        }
+    }
+
+    private sealed class ManualTimeProvider(DateTimeOffset utcNow) : TimeProvider
+    {
+        private DateTimeOffset utcNow = utcNow;
+
+        public override DateTimeOffset GetUtcNow() => utcNow;
+
+        public void Advance(TimeSpan duration)
+        {
+            utcNow += duration;
         }
     }
 }

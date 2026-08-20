@@ -51,6 +51,17 @@ internal sealed record FFLogsReportActor
     public int? PetOwnerId { get; init; }
 }
 
+internal sealed record FFLogsReportAbility
+{
+    public required uint GameId { get; init; }
+
+    public required string Name { get; init; }
+
+    public required string Icon { get; init; }
+
+    public required string Type { get; init; }
+}
+
 internal sealed record FFLogsFightMetadata
 {
     public required int Id { get; init; }

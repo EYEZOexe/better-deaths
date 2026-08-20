@@ -21,6 +21,10 @@ internal sealed record FFLogsNormalizationResult
     public required RecordedPull Pull { get; init; }
 
     public required IReadOnlyList<FFLogsSkippedEvent> SkippedEvents { get; init; }
+
+    public required IReadOnlyList<FFLogsAbilityIdentityDiagnostic> AbilityIdentityDiagnostics { get; init; }
+
+    public required IReadOnlyList<FFLogsStatusDurationDiagnostic> StatusDurationDiagnostics { get; init; }
 }
 
 internal static class FFLogsEventNormalizer
@@ -35,6 +39,7 @@ internal static class FFLogsEventNormalizer
         ArgumentNullException.ThrowIfNull(importData.Fight);
         ArgumentNullException.ThrowIfNull(importData.Events);
         ArgumentNullException.ThrowIfNull(importData.Actors);
+        ArgumentNullException.ThrowIfNull(importData.ReportDocument.Abilities);
 
         var report = importData.ReportDocument.Report;
         var fight = importData.Fight;
@@ -49,7 +54,10 @@ internal static class FFLogsEventNormalizer
 
         var sourceReference = FFLogsSourceReference.Create(report.Code, fight.Id);
         var actorDirectory = BuildActorDirectory(importData.Actors, importData.Events);
+        var abilityDecoder = new FFLogsAbilityIdentityDecoder(importData.ReportDocument.Abilities);
         var skipped = new List<FFLogsSkippedEvent>();
+        var abilityIdentityDiagnostics = new List<FFLogsAbilityIdentityDiagnostic>();
+        var statusDurationDiagnostics = new List<FFLogsStatusDurationDiagnostic>();
         var translated = new List<TranslatedEvent>();
         var explicitSourceIdentities = new HashSet<string>(StringComparer.Ordinal);
 
@@ -88,6 +96,9 @@ internal static class FFLogsEventNormalizer
                     report.StartTimeUnixMilliseconds,
                     sourceReference,
                     actorDirectory,
+                    abilityDecoder,
+                    abilityIdentityDiagnostics,
+                    statusDurationDiagnostics,
                     out var candidate,
                     out var reason))
             {
@@ -145,6 +156,8 @@ internal static class FFLogsEventNormalizer
                 },
             },
             SkippedEvents = skipped,
+            AbilityIdentityDiagnostics = abilityIdentityDiagnostics,
+            StatusDurationDiagnostics = statusDurationDiagnostics,
         };
     }
 
@@ -155,6 +168,9 @@ internal static class FFLogsEventNormalizer
         double reportStartUnixMilliseconds,
         string sourceReference,
         ActorDirectory actorDirectory,
+        FFLogsAbilityIdentityDecoder abilityDecoder,
+        ICollection<FFLogsAbilityIdentityDiagnostic> abilityIdentityDiagnostics,
+        ICollection<FFLogsStatusDurationDiagnostic> statusDurationDiagnostics,
         out TranslatedEvent? translated,
         out string reason)
     {
@@ -182,6 +198,46 @@ internal static class FFLogsEventNormalizer
             Confidence = 1.0f,
         };
 
+        uint? ResolveAbility(FFLogsAbilityEventCategory category)
+        {
+            if (actionId is null)
+            {
+                return null;
+            }
+
+            var resolution = abilityDecoder.Resolve(actionId.Value, category);
+            if (resolution.DiagnosticReason is { } diagnosticReason)
+            {
+                abilityIdentityDiagnostics.Add(new FFLogsAbilityIdentityDiagnostic(
+                    inputIndex,
+                    envelope.TimestampMilliseconds,
+                    envelope.Type ?? string.Empty,
+                    resolution.SourceId,
+                    resolution.Classification,
+                    diagnosticReason));
+            }
+
+            return resolution.CanonicalId;
+        }
+
+        TimeSpan? ResolveStatusDuration(double? sourceDurationMilliseconds)
+        {
+            var resolution = abilityDecoder.ResolveStatusDuration(sourceDurationMilliseconds);
+            if (sourceDurationMilliseconds is { } sourceDuration &&
+                resolution.DiagnosticReason is { } diagnosticReason)
+            {
+                statusDurationDiagnostics.Add(new FFLogsStatusDurationDiagnostic(
+                    inputIndex,
+                    envelope.TimestampMilliseconds,
+                    envelope.Type ?? string.Empty,
+                    sourceDuration,
+                    resolution.Classification,
+                    diagnosticReason));
+            }
+
+            return resolution.Duration;
+        }
+
         NormalizedEvent CreateBase(NormalizedEvent evt)
         {
             return evt with
@@ -204,6 +260,7 @@ internal static class FFLogsEventNormalizer
                     return false;
                 }
 
+                var damageActionId = ResolveAbility(FFLogsAbilityEventCategory.Action);
                 translated = new TranslatedEvent(
                     inputIndex,
                     pullTime,
@@ -214,7 +271,7 @@ internal static class FFLogsEventNormalizer
                         PullTime = pullTime,
                         Provenance = provenance,
                         Amount = damageAmount,
-                        ActionId = actionId,
+                        ActionId = damageActionId,
                         IsCritical = TryGetBoolean(payload, "critical") ?? false,
                         IsDirectHit = TryGetBoolean(payload, "directHit") ?? false,
                     }));
@@ -228,6 +285,7 @@ internal static class FFLogsEventNormalizer
                     return false;
                 }
 
+                var healActionId = ResolveAbility(FFLogsAbilityEventCategory.Action);
                 translated = new TranslatedEvent(
                     inputIndex,
                     pullTime,
@@ -238,7 +296,7 @@ internal static class FFLogsEventNormalizer
                         PullTime = pullTime,
                         Provenance = provenance,
                         Amount = healAmount,
-                        ActionId = actionId,
+                        ActionId = healActionId,
                     }));
                 return true;
 
@@ -249,6 +307,7 @@ internal static class FFLogsEventNormalizer
                     return false;
                 }
 
+                var castStartActionId = ResolveAbility(FFLogsAbilityEventCategory.Action)!.Value;
                 translated = new TranslatedEvent(
                     inputIndex,
                     pullTime,
@@ -258,7 +317,7 @@ internal static class FFLogsEventNormalizer
                         Sequence = sequence,
                         PullTime = pullTime,
                         Provenance = provenance,
-                        ActionId = actionId.Value,
+                        ActionId = castStartActionId,
                         CastDuration = TimeSpan.FromMilliseconds(Math.Max(0.0, castDurationMilliseconds)),
                     }));
                 return true;
@@ -270,6 +329,7 @@ internal static class FFLogsEventNormalizer
                     return false;
                 }
 
+                var actionUseId = ResolveAbility(FFLogsAbilityEventCategory.Action)!.Value;
                 translated = new TranslatedEvent(
                     inputIndex,
                     pullTime,
@@ -279,7 +339,7 @@ internal static class FFLogsEventNormalizer
                         Sequence = sequence,
                         PullTime = pullTime,
                         Provenance = provenance,
-                        ActionId = actionId.Value,
+                        ActionId = actionUseId,
                     }));
                 return true;
 
@@ -295,6 +355,7 @@ internal static class FFLogsEventNormalizer
 
                 var durationMilliseconds = TryGetDouble(payload, "duration");
                 var stacks = TryGetUInt32(payload, "stack") ?? TryGetUInt32(payload, "stacks") ?? 0;
+                var appliedStatusId = ResolveAbility(FFLogsAbilityEventCategory.Status)!.Value;
                 translated = new TranslatedEvent(
                     inputIndex,
                     pullTime,
@@ -304,11 +365,9 @@ internal static class FFLogsEventNormalizer
                         Sequence = sequence,
                         PullTime = pullTime,
                         Provenance = provenance,
-                        StatusId = actionId.Value,
+                        StatusId = appliedStatusId,
                         Stacks = stacks > ushort.MaxValue ? ushort.MaxValue : (ushort)stacks,
-                        Duration = durationMilliseconds is { } duration
-                            ? TimeSpan.FromMilliseconds(Math.Max(0.0, duration))
-                            : null,
+                        Duration = ResolveStatusDuration(durationMilliseconds),
                     }));
                 return true;
 
@@ -320,6 +379,7 @@ internal static class FFLogsEventNormalizer
                     return false;
                 }
 
+                var removedStatusId = ResolveAbility(FFLogsAbilityEventCategory.Status)!.Value;
                 translated = new TranslatedEvent(
                     inputIndex,
                     pullTime,
@@ -329,7 +389,7 @@ internal static class FFLogsEventNormalizer
                         Sequence = sequence,
                         PullTime = pullTime,
                         Provenance = provenance,
-                        StatusId = actionId.Value,
+                        StatusId = removedStatusId,
                     }));
                 return true;
 
@@ -359,6 +419,7 @@ internal static class FFLogsEventNormalizer
                     return false;
                 }
 
+                var raiseActionId = ResolveAbility(FFLogsAbilityEventCategory.Action);
                 translated = new TranslatedEvent(
                     inputIndex,
                     pullTime,
@@ -368,7 +429,7 @@ internal static class FFLogsEventNormalizer
                         Sequence = sequence,
                         PullTime = pullTime,
                         Provenance = provenance,
-                        ActionId = actionId,
+                        ActionId = raiseActionId,
                     }));
                 return true;
 

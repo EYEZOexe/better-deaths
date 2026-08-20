@@ -1,6 +1,6 @@
 # FFXIV Static Analyzer — Progress & Review Ledger
 
-Status date: 2026-08-20
+Status date: 2026-08-21
 Governing design: Technical Design v0.2  
 Primary implementation repository: `EYEZOexe/better-deaths`  
 Encounter knowledge/reference repository: `EYEZOexe/wtfdig`
@@ -58,9 +58,40 @@ the sole failure was the existing CRLF-sensitive source-text marker check. Exact
 passed restore, formatting, the full automated test suite, Release plugin build/package validation
 and package artifact verification. Independent review approved the exact implementation head.
 
-**Authorization boundary:** M12-A is approved and complete. M12-B (#152) is now the next eligible
-authorized implementation slice. M12-C (#153) remains authorized but prerequisite-gated on M12-B.
-M13 and later work remain unauthorized until explicitly approved.
+#### M12-B — FFLogs masterData ability catalog and source-ID classification
+
+**Status:** `READY FOR REVIEW`
+
+**Issue:** #152
+
+The FFLogs report metadata query and source-local contracts now retain `masterData.abilities`
+`gameID`, name, icon and type fields alongside actors. A source-owned semantic decoder classifies
+catalogued pass-through identities, exact verified status mappings and uncatalogued preserved
+identities before canonical event creation. Only the explicitly evidenced status IDs `1001825`,
+`1005084`, `1005085` and `1005086` map to canonical `1825`, `5084`, `5085` and `5086`, and only
+when the exact source ID is present in that report's ability catalog. No name matching or arithmetic
+family transform is used. Action identities remain unchanged.
+
+Uncatalogued unknown or synthetic IDs remain in the canonical event with a source-local diagnostic
+instead of being coerced or skipped. Unmapped catalogued identities likewise retain their source ID
+and emit a truthful diagnostic that no verified canonical mapping exists; they are not labeled
+synthetic. FFLogs status durations treat only negative finite values and the exact `9,999,000ms`
+indefinite sentinel as unavailable, with separate typed duration diagnostics for both cases. Missing,
+zero, ordinary, nearby and other long finite durations remain unchanged without a duration
+diagnostic. Domain, Analysis, UI, persistence/schema, resource enrichment and the M11 anonymized
+fixture/manifest remain unchanged.
+
+Focused decoder/client/normalizer/integration coverage passed 43 tests; the broader FFLogs,
+Dancer, Forsaken and immutable M11 slice passed 219 tests. The Release suite passed all 622 tests
+after excluding the existing Windows newline-sensitive selection-contract check; the unexcluded
+run passed 622 of 623 tests with only that existing CRLF-sensitive failure. Production formatting,
+Release plugin build/package invariants and package artifact verification passed locally. The M11
+fixture SHA-256 remains `D370AE57ECA46CFE97863D7F1E44D6E254A349DA74F228AC6838C7D7B80BB5FA`.
+
+**Authorization boundary:** M12-A is approved and complete. M12-B (#152) is the only active
+implementation slice and is ready for independent review. M12-C (#153) remains authorized but
+prerequisite-gated on M12-B approval and merge. M13 and later work remain unauthorized until
+explicitly approved.
 
 ## Completed milestone: M11 — Reality Baseline & Golden Pull
 
