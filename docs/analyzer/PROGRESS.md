@@ -19,9 +19,13 @@ Encounter knowledge/reference repository: `EYEZOexe/wtfdig`
 
 ### M11 — Reality Baseline & Golden Pull
 
-**Status:** `READY FOR REVIEW`
+**Status:** `APPROVED / COMPLETED`
 
 **Parent issue:** #145
+
+**Implementation PR / merged commit:** #148 / `82a08e738be5fdfcef934672f87b46a96152b5a8`
+
+**Reviewed implementation head / CI:** `c293145f06e47970bd05f8fb6856be7cb091cdfb` / `32412966379`
 
 **Post-v1 design basis:** supplied Technical Design v0.3 DOCX
 
@@ -31,7 +35,7 @@ Technical Design v0.3 governs the approved post-v1 productization refinements wh
 
 #### M11-A — Sanitized real-pull golden fixture and truth manifest
 
-**Status:** `READY FOR REVIEW`
+**Status:** `APPROVED / MERGED`
 
 **Issue:** #146
 
@@ -39,11 +43,15 @@ The supplied real fight-3 canonical export was transformed through anonymized ex
 
 #### M11-B — FFLogs semantic-fidelity characterization
 
-**Status:** `READY FOR REVIEW`
+**Status:** `APPROVED / MERGED`
 
 **Issue:** #147
 
 This slice is characterization-only: reproduce and lock the observed Dancer job-identity and source status-ID mismatches without implementing the later normalization fixes or broadening into M12 scope.
+
+Combined M11 evidence passed exact-head restore, formatting, the full automated test suite, plugin build/package validation and package existence checks. Independent technical and privacy/design reviews approved the exact six-file diff. The anonymized fixture contains no detected direct actor identity, report/source linkage, wall-clock linkage, original pull identity, credential material, URL/email, raw-source path or raw-source hash; the documented residual combat-sequence correlation risk remains governed by anonymized export policy v1.
+
+**Decision:** M11 is approved and complete. The real-pull baseline now reproduces the current Dancer and Forsaken semantic failures without implementing their fixes. Pre-normalization skipped-event diagnostics, effective-healing/resource fidelity and spatial evidence remain explicitly unavailable from the supplied canonical artifact.
 
 **Authorization boundary:** M12 and later milestones remain unauthorized. Their implementation work packages may begin only after the required M11 evidence, review and explicit authorization are recorded.
 
