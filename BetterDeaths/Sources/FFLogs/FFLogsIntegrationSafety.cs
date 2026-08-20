@@ -51,7 +51,7 @@ internal static class FFLogsIntegrationErrors
         return Error(
             PullImportErrorCategory.Authentication,
             "fflogs.authentication_failed",
-            "FFLogs authentication failed. Check the configured authorization method and credentials.");
+            "FFLogs rejected authentication. Re-enter and verify the API Client ID and Client Secret, then retry the import.");
     }
 
     public static PullImportError PrivateReportUnavailable()
