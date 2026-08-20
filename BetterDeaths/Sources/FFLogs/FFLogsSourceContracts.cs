@@ -12,6 +12,29 @@ internal enum FFLogsApiAccessKind
     UserAuthorized,
 }
 
+internal enum FFLogsImportProfile
+{
+    Core,
+    DeepAnalysis,
+}
+
+internal static class FFLogsImportProfilePolicy
+{
+    public static void Validate(FFLogsImportProfile profile)
+    {
+        if (!Enum.IsDefined(profile))
+        {
+            throw new ArgumentOutOfRangeException(nameof(profile));
+        }
+    }
+
+    public static bool IncludeResources(FFLogsImportProfile profile)
+    {
+        Validate(profile);
+        return profile == FFLogsImportProfile.DeepAnalysis;
+    }
+}
+
 internal sealed record FFLogsPullSourceRequest : PullSourceRequest
 {
     public required string ReportCode { get; init; }
@@ -20,9 +43,12 @@ internal sealed record FFLogsPullSourceRequest : PullSourceRequest
 
     public FFLogsApiAccessKind AccessKind { get; init; } = FFLogsApiAccessKind.PublicClient;
 
+    public FFLogsImportProfile Profile { get; init; } = FFLogsImportProfile.Core;
+
     public void Validate()
     {
         FFLogsSourceReference.Validate(ReportCode, FightId);
+        FFLogsImportProfilePolicy.Validate(Profile);
     }
 }
 

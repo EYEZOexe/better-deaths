@@ -1,5 +1,6 @@
 namespace BetterDeaths;
 
+using BetterDeaths.Domain;
 using BetterDeaths.Sources;
 using BetterDeaths.Sources.FFLogs;
 using BetterDeaths.Sources.FFLogs.Client;
@@ -120,8 +121,16 @@ public sealed class FFLogsClientTests
         using var httpClient = new HttpClient(handler);
         var client = Client(httpClient);
 
-        var first = await client.LoadFightAsync("REPORT123", 42, FFLogsApiAccessKind.PublicClient);
-        var second = await client.LoadFightAsync("REPORT123", 42, FFLogsApiAccessKind.PublicClient);
+        var first = await client.LoadFightAsync(
+            "REPORT123",
+            42,
+            FFLogsApiAccessKind.PublicClient,
+            FFLogsImportProfile.Core);
+        var second = await client.LoadFightAsync(
+            "REPORT123",
+            42,
+            FFLogsApiAccessKind.PublicClient,
+            FFLogsImportProfile.Core);
 
         Assert.True(first.IsSuccess);
         Assert.True(second.IsSuccess);
@@ -137,7 +146,146 @@ public sealed class FFLogsClientTests
         Assert.Equal(1000d, pageOneRequest.RootElement.GetProperty("variables").GetProperty("startTime").GetDouble());
         Assert.Equal(1500d, pageTwoRequest.RootElement.GetProperty("variables").GetProperty("startTime").GetDouble());
         Assert.Equal(10000, pageTwoRequest.RootElement.GetProperty("variables").GetProperty("limit").GetInt32());
+        Assert.False(pageOneRequest.RootElement.GetProperty("variables").GetProperty("includeResources").GetBoolean());
+        Assert.False(pageTwoRequest.RootElement.GetProperty("variables").GetProperty("includeResources").GetBoolean());
+        Assert.Contains(
+            "includeResources: $includeResources",
+            pageTwoRequest.RootElement.GetProperty("query").GetString(),
+            StringComparison.Ordinal);
         Assert.Contains("useActorIDs: true", pageTwoRequest.RootElement.GetProperty("query").GetString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task DeepAnalysisRequestsResourcesAndDoesNotReuseCoreEventPages()
+    {
+        var handler = new QueueHttpMessageHandler(
+            ReportResponse(),
+            EventResponse(
+                """[{"timestamp":1100,"type":"damage","sourceID":30,"targetID":10,"amount":100}]""",
+                nextPageTimestamp: null),
+            EventResponse(
+                """[{"timestamp":1100,"type":"damage","sourceID":30,"targetID":10,"amount":100,"targetResources":{"hitPoints":900,"maxHitPoints":1000}}]""",
+                nextPageTimestamp: null));
+        using var httpClient = new HttpClient(handler);
+        var client = Client(httpClient);
+
+        var core = await client.LoadFightAsync(
+            "REPORT123",
+            42,
+            FFLogsApiAccessKind.PublicClient,
+            FFLogsImportProfile.Core);
+        var cachedCore = await client.LoadFightAsync(
+            "REPORT123",
+            42,
+            FFLogsApiAccessKind.PublicClient,
+            FFLogsImportProfile.Core);
+        var deep = await client.LoadFightAsync(
+            "REPORT123",
+            42,
+            FFLogsApiAccessKind.PublicClient,
+            FFLogsImportProfile.DeepAnalysis);
+        var cachedDeep = await client.LoadFightAsync(
+            "REPORT123",
+            42,
+            FFLogsApiAccessKind.PublicClient,
+            FFLogsImportProfile.DeepAnalysis);
+
+        Assert.True(core.IsSuccess);
+        Assert.True(cachedCore.IsSuccess);
+        Assert.True(deep.IsSuccess);
+        Assert.True(cachedDeep.IsSuccess);
+        Assert.Equal(FFLogsImportProfile.Core, core.Value!.Profile);
+        Assert.Equal(FFLogsImportProfile.Core, cachedCore.Value!.Profile);
+        Assert.Equal(FFLogsImportProfile.DeepAnalysis, deep.Value!.Profile);
+        Assert.Equal(FFLogsImportProfile.DeepAnalysis, cachedDeep.Value!.Profile);
+        Assert.False(Assert.Single(core.Value!.Events).Payload.TryGetProperty("targetResources", out _));
+        Assert.True(Assert.Single(deep.Value!.Events).Payload.TryGetProperty("targetResources", out _));
+        Assert.Equal(3, handler.Requests.Count);
+
+        using var coreRequest = JsonDocument.Parse(handler.Requests[1].Body);
+        using var deepRequest = JsonDocument.Parse(handler.Requests[2].Body);
+        Assert.False(coreRequest.RootElement.GetProperty("variables").GetProperty("includeResources").GetBoolean());
+        Assert.True(deepRequest.RootElement.GetProperty("variables").GetProperty("includeResources").GetBoolean());
+    }
+
+    [Fact]
+    public async Task PullSourceUsesItsExplicitDeepAnalysisProfile()
+    {
+        var handler = new QueueHttpMessageHandler(
+            ReportResponse(),
+            EventResponse(
+                """[{"timestamp":1100,"type":"damage","sourceID":30,"targetID":10,"amount":100,"targetResources":{"hitPoints":900,"maxHitPoints":1000}}]""",
+                nextPageTimestamp: null));
+        using var httpClient = new HttpClient(handler);
+        var source = new FFLogsPullSource(
+            Client(httpClient),
+            new PullSchemaVersion(1),
+            FFLogsApiAccessKind.PublicClient,
+            FFLogsImportProfile.DeepAnalysis);
+
+        var result = await source.LoadPullAsync("REPORT123", 42);
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(result.Pull!.Events);
+        using var request = JsonDocument.Parse(handler.Requests[1].Body);
+        Assert.True(request.RootElement.GetProperty("variables").GetProperty("includeResources").GetBoolean());
+    }
+
+    [Fact]
+    public void EventPageCacheIdentityIncludesProfileAccessRevisionAndPageCoordinatesWithoutSecrets()
+    {
+        var baseline = FFLogsEventPageCacheKey.Create(
+            "REPORT123",
+            FFLogsApiAccessKind.PublicClient,
+            FFLogsImportProfile.Core,
+            revision: 7,
+            fightId: 42,
+            startTimeMilliseconds: 1000,
+            endTimeMilliseconds: 3000,
+            limit: 10000);
+
+        Assert.NotEqual(baseline, baseline with { Profile = FFLogsImportProfile.DeepAnalysis });
+        Assert.NotEqual(baseline, baseline with { AccessKind = FFLogsApiAccessKind.UserAuthorized });
+        Assert.NotEqual(baseline, baseline with { Revision = 8 });
+        Assert.NotEqual(baseline, baseline with { FightId = 43 });
+        Assert.NotEqual(baseline, baseline with { StartTimeMilliseconds = 1500 });
+        Assert.NotEqual(baseline, baseline with { EndTimeMilliseconds = 3500 });
+        Assert.NotEqual(baseline, baseline with { Limit = 5000 });
+        Assert.Contains(nameof(FFLogsImportProfile.Core), baseline.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("REPORT123", baseline.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("TEST_ACCESS_TOKEN", baseline.ToString(), StringComparison.Ordinal);
+        Assert.Throws<ArgumentOutOfRangeException>(() => FFLogsEventPageCacheKey.Create(
+            "REPORT123",
+            FFLogsApiAccessKind.PublicClient,
+            (FFLogsImportProfile)999,
+            revision: 7,
+            fightId: 42,
+            startTimeMilliseconds: 1000,
+            endTimeMilliseconds: 3000,
+            limit: 10000));
+    }
+
+    [Fact]
+    public async Task InvalidImportProfileFailsBeforeAnyRequest()
+    {
+        var handler = new QueueHttpMessageHandler();
+        using var httpClient = new HttpClient(handler);
+
+        var result = await Client(httpClient).LoadFightAsync(
+            "REPORT123",
+            42,
+            FFLogsApiAccessKind.PublicClient,
+            (FFLogsImportProfile)999);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(PullImportErrorCategory.InvalidRequest, result.Error?.Category);
+        Assert.Empty(handler.Requests);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => new FFLogsPullSource(
+            Client(httpClient),
+            new PullSchemaVersion(1),
+            FFLogsApiAccessKind.PublicClient,
+            (FFLogsImportProfile)999));
     }
 
     [Fact]
@@ -164,14 +312,29 @@ public sealed class FFLogsClientTests
             cache: new MemoryFFLogsImportCache(),
             timeProvider: clock);
 
-        var revisionSeven = await client.LoadFightAsync("REPORT123", 42, FFLogsApiAccessKind.PublicClient);
-        var cachedRevisionSeven = await client.LoadFightAsync("REPORT123", 42, FFLogsApiAccessKind.PublicClient);
+        var revisionSeven = await client.LoadFightAsync(
+            "REPORT123",
+            42,
+            FFLogsApiAccessKind.PublicClient,
+            FFLogsImportProfile.Core);
+        var cachedRevisionSeven = await client.LoadFightAsync(
+            "REPORT123",
+            42,
+            FFLogsApiAccessKind.PublicClient,
+            FFLogsImportProfile.Core);
         clock.Advance(TimeSpan.FromMinutes(3));
-        var revisionEight = await client.LoadFightAsync("REPORT123", 42, FFLogsApiAccessKind.PublicClient);
+        var revisionEight = await client.LoadFightAsync(
+            "REPORT123",
+            42,
+            FFLogsApiAccessKind.PublicClient,
+            FFLogsImportProfile.Core);
 
         Assert.True(revisionSeven.IsSuccess);
         Assert.True(cachedRevisionSeven.IsSuccess);
         Assert.True(revisionEight.IsSuccess);
+        Assert.Equal(FFLogsImportProfile.Core, revisionSeven.Value!.Profile);
+        Assert.Equal(FFLogsImportProfile.Core, cachedRevisionSeven.Value!.Profile);
+        Assert.Equal(FFLogsImportProfile.Core, revisionEight.Value!.Profile);
         Assert.Equal(7, revisionSeven.Value?.ReportDocument.Report.Revision);
         Assert.Equal((uint)1_001_825, Assert.Single(revisionSeven.Value!.ReportDocument.Abilities).GameId);
         Assert.Equal(8, revisionEight.Value?.ReportDocument.Report.Revision);
@@ -211,7 +374,11 @@ public sealed class FFLogsClientTests
         using var httpClient = new HttpClient(handler);
         var client = Client(httpClient);
 
-        var result = await client.LoadFightAsync("REPORT123", 42, FFLogsApiAccessKind.PublicClient);
+        var result = await client.LoadFightAsync(
+            "REPORT123",
+            42,
+            FFLogsApiAccessKind.PublicClient,
+            FFLogsImportProfile.Core);
 
         Assert.False(result.IsSuccess);
         Assert.Equal(PullImportErrorCategory.Protocol, result.Error?.Category);

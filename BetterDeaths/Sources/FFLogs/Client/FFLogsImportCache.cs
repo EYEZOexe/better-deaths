@@ -18,6 +18,7 @@ internal readonly record struct FFLogsReportCacheKey(
 internal readonly record struct FFLogsEventPageCacheKey(
     string ReportHash,
     FFLogsApiAccessKind AccessKind,
+    FFLogsImportProfile Profile,
     int Revision,
     int FightId,
     double StartTimeMilliseconds,
@@ -27,15 +28,18 @@ internal readonly record struct FFLogsEventPageCacheKey(
     public static FFLogsEventPageCacheKey Create(
         string reportCode,
         FFLogsApiAccessKind accessKind,
+        FFLogsImportProfile profile,
         int revision,
         int fightId,
         double startTimeMilliseconds,
         double endTimeMilliseconds,
         int limit)
     {
+        FFLogsImportProfilePolicy.Validate(profile);
         return new FFLogsEventPageCacheKey(
             FFLogsCacheIdentity.HashReportCode(reportCode),
             accessKind,
+            profile,
             revision,
             fightId,
             startTimeMilliseconds,

@@ -53,7 +53,7 @@ internal sealed class FFLogsGraphQlClient
         """;
 
     private const string FightEventsQuery = """
-        query AnalyzerFightEvents($code: String!, $fightIDs: [Int], $startTime: Float, $endTime: Float, $limit: Int) {
+        query AnalyzerFightEvents($code: String!, $fightIDs: [Int], $startTime: Float, $endTime: Float, $limit: Int, $includeResources: Boolean!) {
           reportData {
             report(code: $code) {
               events(
@@ -63,7 +63,8 @@ internal sealed class FFLogsGraphQlClient
                 limit: $limit,
                 translate: false,
                 useActorIDs: true,
-                useAbilityIDs: true
+                useAbilityIDs: true,
+                includeResources: $includeResources
               ) {
                 data
                 nextPageTimestamp
@@ -159,11 +160,13 @@ internal sealed class FFLogsGraphQlClient
         string reportCode,
         int fightId,
         FFLogsApiAccessKind accessKind,
+        FFLogsImportProfile profile,
         CancellationToken cancellationToken = default)
     {
         try
         {
             FFLogsSourceReference.Validate(reportCode, fightId);
+            FFLogsImportProfilePolicy.Validate(profile);
         }
         catch (ArgumentException)
         {
@@ -196,6 +199,7 @@ internal sealed class FFLogsGraphQlClient
                 cursor,
                 end,
                 accessKind,
+                profile,
                 cancellationToken).ConfigureAwait(false);
             if (!pageResult.IsSuccess)
             {
@@ -220,6 +224,7 @@ internal sealed class FFLogsGraphQlClient
 
         return FFLogsApiResult<FFLogsFightImportData>.Success(new FFLogsFightImportData
         {
+            Profile = profile,
             ReportDocument = reportDocument,
             Fight = fight,
             Events = events,
@@ -234,11 +239,13 @@ internal sealed class FFLogsGraphQlClient
         double startTimeMilliseconds,
         double endTimeMilliseconds,
         FFLogsApiAccessKind accessKind,
+        FFLogsImportProfile profile,
         CancellationToken cancellationToken)
     {
         var cacheKey = FFLogsEventPageCacheKey.Create(
             reportCode,
             accessKind,
+            profile,
             reportRevision,
             fight.Id,
             startTimeMilliseconds,
@@ -256,6 +263,7 @@ internal sealed class FFLogsGraphQlClient
             ["startTime"] = startTimeMilliseconds,
             ["endTime"] = endTimeMilliseconds,
             ["limit"] = options.EventPageLimit,
+            ["includeResources"] = FFLogsImportProfilePolicy.IncludeResources(profile),
         };
         var response = await SendGraphQlAsync(
             accessKind,

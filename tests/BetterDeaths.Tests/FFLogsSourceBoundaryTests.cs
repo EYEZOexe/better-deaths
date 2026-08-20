@@ -25,6 +25,7 @@ public sealed class FFLogsSourceBoundaryTests
         {
             ReportCode = "ABC123",
             FightId = 7,
+            Profile = FFLogsImportProfile.Core,
         }.Validate();
 
         Assert.Throws<ArgumentException>(() => new FFLogsPullSourceRequest
@@ -36,6 +37,12 @@ public sealed class FFLogsSourceBoundaryTests
         {
             ReportCode = "ABC123",
             FightId = 0,
+        }.Validate());
+        Assert.Throws<ArgumentOutOfRangeException>(() => new FFLogsPullSourceRequest
+        {
+            ReportCode = "ABC123",
+            FightId = 7,
+            Profile = (FFLogsImportProfile)999,
         }.Validate());
     }
 
@@ -116,6 +123,7 @@ public sealed class FFLogsSourceBoundaryTests
         var sourceTypes = new[]
         {
             typeof(FFLogsPullSourceRequest),
+            typeof(FFLogsImportProfile),
             typeof(FFLogsReportMetadata),
             typeof(FFLogsFightMetadata),
             typeof(FFLogsEventEnvelope),

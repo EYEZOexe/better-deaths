@@ -73,6 +73,8 @@ internal sealed record FFLogsEventPage
 
 internal sealed record FFLogsFightImportData
 {
+    public required FFLogsImportProfile Profile { get; init; }
+
     public required FFLogsReportDocument ReportDocument { get; init; }
 
     public required FFLogsFightMetadata Fight { get; init; }

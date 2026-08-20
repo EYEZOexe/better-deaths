@@ -162,6 +162,7 @@ public sealed class M12BFFLogsAbilityIdentityIntegrationTests
 
         return new FFLogsFightImportData
         {
+            Profile = FFLogsImportProfile.Core,
             ReportDocument = report,
             Fight = fight,
             Events = events,
