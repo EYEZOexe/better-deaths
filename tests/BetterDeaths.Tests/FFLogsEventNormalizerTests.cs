@@ -271,6 +271,118 @@ public sealed class FFLogsEventNormalizerTests
         Assert.NotEqual(baseline, newRevision);
     }
 
+    [Fact]
+    public void CataloguedEncodedStatusesMapExactlyWhileUnknownAndActionIdentitiesRemainUnchanged()
+    {
+        var result = FFLogsEventNormalizer.Normalize(
+            Fight(
+                Abilities:
+                [
+                    Ability(1_001_825),
+                    Ability(1_005_084),
+                    Ability(15_997),
+                ],
+                Events:
+                [
+                    Event(1100, "applybuff", """{"sourceID":10,"targetID":10,"abilityGameID":1001825,"duration":20000}"""),
+                    Event(1200, "removebuff", """{"sourceID":10,"targetID":10,"abilityGameID":1001825}"""),
+                    Event(1300, "applydebuff", """{"sourceID":30,"targetID":10,"abilityGameID":1005084,"duration":9999000}"""),
+                    Event(1400, "applybuff", """{"sourceID":10,"targetID":10,"abilityGameID":1009999,"duration":15000}"""),
+                    Event(1500, "cast", """{"sourceID":10,"targetID":30,"abilityGameID":15997}"""),
+                    Event(1600, "cast", """{"sourceID":10,"targetID":30,"abilityGameID":1001825}"""),
+                ]),
+            new PullSchemaVersion(1));
+
+        Assert.Empty(result.SkippedEvents);
+        var statuses = result.Pull.Events.OfType<StatusApplyEvent>().ToArray();
+        Assert.Equal((uint)1_825, statuses[0].StatusId);
+        Assert.Equal(TimeSpan.FromSeconds(20), statuses[0].Duration);
+        Assert.Equal((uint)5_084, statuses[1].StatusId);
+        Assert.Null(statuses[1].Duration);
+        Assert.Equal((uint)1_009_999, statuses[2].StatusId);
+        Assert.Equal(TimeSpan.FromSeconds(15), statuses[2].Duration);
+        Assert.Equal((uint)1_825, Assert.Single(result.Pull.Events.OfType<StatusRemoveEvent>()).StatusId);
+        Assert.Equal(
+            new uint[] { 15_997, 1_001_825 },
+            result.Pull.Events.OfType<ActionUseEvent>().Select(action => action.ActionId));
+
+        Assert.Equal(3, result.AbilityIdentityDiagnostics.Count);
+        var uncataloguedDiagnostic = Assert.Single(
+            result.AbilityIdentityDiagnostics,
+            diagnostic => diagnostic.Classification == FFLogsAbilityIdentityClassification.UncataloguedPreserved);
+        Assert.Equal(3, uncataloguedDiagnostic.InputIndex);
+        Assert.Equal((uint)1_009_999, uncataloguedDiagnostic.SourceId);
+        Assert.Equal(
+            FFLogsAbilityIdentityClassification.UncataloguedPreserved,
+            uncataloguedDiagnostic.Classification);
+        Assert.Equal(
+            new uint[] { 15_997, 1_001_825 },
+            result.AbilityIdentityDiagnostics
+                .Where(diagnostic => diagnostic.Classification == FFLogsAbilityIdentityClassification.CataloguedSourceIdentity)
+                .Select(diagnostic => diagnostic.SourceId));
+        var sentinelDiagnostic = Assert.Single(result.StatusDurationDiagnostics);
+        Assert.Equal(2, sentinelDiagnostic.InputIndex);
+        Assert.Equal(9_999_000, sentinelDiagnostic.SourceDurationMilliseconds);
+        Assert.Equal(
+            FFLogsStatusDurationClassification.IndefiniteSentinelUnavailable,
+            sentinelDiagnostic.Classification);
+    }
+
+    [Fact]
+    public void StatusDurationNormalizationRejectsNegativeAndExactSentinelButPreservesOtherFiniteValues()
+    {
+        var result = FFLogsEventNormalizer.Normalize(
+            Fight(
+                Abilities: [Ability(400)],
+                Events:
+                [
+                    Event(1100, "applybuff", """{"sourceID":10,"targetID":10,"abilityGameID":400,"duration":-1}"""),
+                    Event(1200, "applybuff", """{"sourceID":10,"targetID":10,"abilityGameID":400,"duration":9999000}"""),
+                    Event(1300, "applybuff", """{"sourceID":10,"targetID":10,"abilityGameID":400,"duration":0}"""),
+                    Event(1400, "applybuff", """{"sourceID":10,"targetID":10,"abilityGameID":400,"duration":20000}"""),
+                    Event(1500, "applybuff", """{"sourceID":10,"targetID":10,"abilityGameID":400,"duration":10000000}"""),
+                    Event(1600, "begincast", """{"sourceID":10,"targetID":30,"abilityGameID":400,"duration":9999000}"""),
+                    Event(1700, "applybuff", """{"sourceID":10,"targetID":10,"abilityGameID":400}"""),
+                ]),
+            new PullSchemaVersion(1));
+
+        Assert.Empty(result.SkippedEvents);
+        Assert.Equal(7, result.AbilityIdentityDiagnostics.Count);
+        Assert.All(
+            result.AbilityIdentityDiagnostics,
+            diagnostic => Assert.Equal(
+                FFLogsAbilityIdentityClassification.CataloguedSourceIdentity,
+                diagnostic.Classification));
+        Assert.Equal(
+            new TimeSpan?[]
+            {
+                null,
+                null,
+                TimeSpan.Zero,
+                TimeSpan.FromSeconds(20),
+                TimeSpan.FromSeconds(10_000),
+                null,
+            },
+            result.Pull.Events.OfType<StatusApplyEvent>().Select(status => status.Duration));
+        Assert.Equal(
+            TimeSpan.FromSeconds(9_999),
+            Assert.Single(result.Pull.Events.OfType<CastStartEvent>()).CastDuration);
+        Assert.Equal(2, result.StatusDurationDiagnostics.Count);
+        Assert.Contains(
+            result.StatusDurationDiagnostics,
+            diagnostic => diagnostic.InputIndex == 0 &&
+                diagnostic.SourceDurationMilliseconds == -1 &&
+                diagnostic.Classification == FFLogsStatusDurationClassification.NegativeUnavailable);
+        Assert.Contains(
+            result.StatusDurationDiagnostics,
+            diagnostic => diagnostic.InputIndex == 1 &&
+                diagnostic.SourceDurationMilliseconds == 9_999_000 &&
+                diagnostic.Classification == FFLogsStatusDurationClassification.IndefiniteSentinelUnavailable);
+        Assert.DoesNotContain(
+            result.StatusDurationDiagnostics,
+            diagnostic => diagnostic.InputIndex is >= 2 and <= 6);
+    }
+
     private static uint? ActionId(NormalizedEvent evt)
     {
         return evt switch
@@ -285,6 +397,7 @@ public sealed class FFLogsEventNormalizerTests
     private static FFLogsFightImportData Fight(
         FFLogsReportMetadata? Report = null,
         IReadOnlyList<FFLogsReportActor>? Actors = null,
+        IReadOnlyList<FFLogsReportAbility>? Abilities = null,
         IReadOnlyList<FFLogsEventEnvelope>? Events = null)
     {
         var report = Report ?? new FFLogsReportMetadata
@@ -310,6 +423,7 @@ public sealed class FFLogsEventNormalizerTests
             {
                 Report = report,
                 Fights = [fight],
+                Abilities = Abilities ?? Array.Empty<FFLogsReportAbility>(),
             },
             Fight = fight,
             Actors = Actors ??
@@ -318,6 +432,17 @@ public sealed class FFLogsEventNormalizerTests
                 new FFLogsReportActor { Id = 30, Name = "Boss", Type = "NPC", SubType = "Boss" },
             ],
             Events = Events ?? Array.Empty<FFLogsEventEnvelope>(),
+        };
+    }
+
+    private static FFLogsReportAbility Ability(uint gameId)
+    {
+        return new FFLogsReportAbility
+        {
+            GameId = gameId,
+            Name = $"Ability {gameId}",
+            Icon = "synthetic-icon.png",
+            Type = "Synthetic Type",
         };
     }
 

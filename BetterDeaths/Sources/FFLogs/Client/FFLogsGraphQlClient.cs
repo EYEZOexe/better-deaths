@@ -30,6 +30,12 @@ internal sealed class FFLogsGraphQlClient
                   subType
                   petOwner
                 }
+                abilities {
+                  gameID
+                  name
+                  icon
+                  type
+                }
               }
               fights {
                 id
@@ -403,6 +409,30 @@ internal sealed class FFLogsGraphQlClient
             }
         }
 
+        var abilities = new List<FFLogsReportAbility>();
+        if (report.TryGetProperty("masterData", out masterData) &&
+            masterData.ValueKind == JsonValueKind.Object &&
+            masterData.TryGetProperty("abilities", out var abilitiesElement) &&
+            abilitiesElement.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var ability in abilitiesElement.EnumerateArray())
+            {
+                var gameId = OptionalUInt32GameId(ability, "gameID");
+                if (gameId is null)
+                {
+                    continue;
+                }
+
+                abilities.Add(new FFLogsReportAbility
+                {
+                    GameId = gameId.Value,
+                    Name = OptionalString(ability, "name") ?? string.Empty,
+                    Icon = OptionalString(ability, "icon") ?? string.Empty,
+                    Type = OptionalString(ability, "type") ?? string.Empty,
+                });
+            }
+        }
+
         var fights = new List<FFLogsFightMetadata>();
         if (report.TryGetProperty("fights", out var fightsElement) && fightsElement.ValueKind == JsonValueKind.Array)
         {
@@ -436,6 +466,7 @@ internal sealed class FFLogsGraphQlClient
             Report = metadata,
             Fights = fights,
             Actors = actors,
+            Abilities = abilities,
         };
     }
 
@@ -604,6 +635,14 @@ internal sealed class FFLogsGraphQlClient
             property.ValueKind == JsonValueKind.Number &&
             property.TryGetInt32(out var value)
             ? value
+            : null;
+    }
+
+    private static uint? OptionalUInt32GameId(JsonElement element, string propertyName)
+    {
+        var value = OptionalDouble(element, propertyName);
+        return value is > 0 and <= uint.MaxValue && Math.Truncate(value.Value) == value.Value
+            ? checked((uint)value.Value)
             : null;
     }
 

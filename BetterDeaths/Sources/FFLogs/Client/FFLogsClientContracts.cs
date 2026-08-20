@@ -60,6 +60,8 @@ internal sealed record FFLogsReportDocument
     public required IReadOnlyList<FFLogsFightMetadata> Fights { get; init; }
 
     public IReadOnlyList<FFLogsReportActor> Actors { get; init; } = Array.Empty<FFLogsReportActor>();
+
+    public IReadOnlyList<FFLogsReportAbility> Abilities { get; init; } = Array.Empty<FFLogsReportAbility>();
 }
 
 internal sealed record FFLogsEventPage
