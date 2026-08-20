@@ -1,6 +1,6 @@
 # FFXIV Static Analyzer — Progress & Review Ledger
 
-Status date: 2026-08-19  
+Status date: 2026-08-20
 Governing design: Technical Design v0.2  
 Primary implementation repository: `EYEZOexe/better-deaths`  
 Encounter knowledge/reference repository: `EYEZOexe/wtfdig`
@@ -17,7 +17,37 @@ Encounter knowledge/reference repository: `EYEZOexe/wtfdig`
 
 ## Current milestone
 
-### M10 — Hardening and Extraction Review
+### M11 — Reality Baseline & Golden Pull
+
+**Status:** `READY FOR REVIEW`
+
+**Parent issue:** #145
+
+**Post-v1 design basis:** supplied Technical Design v0.3 DOCX
+
+Technical Design v0.3 governs the approved post-v1 productization refinements while the dependency, privacy, licensing, evidence, persistence and compatibility invariants from Technical Design v0.2 remain in force.
+
+### M11 work packages
+
+#### M11-A — Sanitized real-pull golden fixture and truth manifest
+
+**Status:** `READY FOR REVIEW`
+
+**Issue:** #146
+
+The supplied real fight-3 canonical export was transformed through anonymized export policy v1 into a deterministic 14,912-event golden fixture. The raw source remains outside the repository. Privacy, event-order, evidence-identity, semantic-mismatch, capability and default-engine truths are locked by `M11GoldenPullFixtureTests`; detailed evidence is recorded in `docs/analyzer/M11_FFLOGS_GOLDEN_PULL.md`.
+
+#### M11-B — FFLogs semantic-fidelity characterization
+
+**Status:** `READY FOR REVIEW`
+
+**Issue:** #147
+
+This slice is characterization-only: reproduce and lock the observed Dancer job-identity and source status-ID mismatches without implementing the later normalization fixes or broadening into M12 scope.
+
+**Authorization boundary:** M12 and later milestones remain unauthorized. Their implementation work packages may begin only after the required M11 evidence, review and explicit authorization are recorded.
+
+## Completed milestone: M10 — Hardening and Extraction Review
 
 **Status:** `APPROVED — V1 ARCHITECTURE COMPLETE`
 
