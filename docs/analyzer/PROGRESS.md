@@ -17,7 +17,47 @@ Encounter knowledge/reference repository: `EYEZOexe/wtfdig`
 
 ## Current milestone
 
-### M11 — Reality Baseline & Golden Pull
+### M12 — FFLogs Semantic Fidelity
+
+**Status:** `AUTHORIZED / IN PROGRESS`
+
+**Parent issue:** #150
+
+M12 is authorized as explicitly approved work packages. The v1 dependency, privacy, evidence,
+persistence and compatibility contracts remain unchanged; fixes stay at source-owned normalization
+boundaries and do not teach analyzers to accept source-specific identities.
+
+### M12 work packages
+
+#### M12-A — Canonical FFLogs actor/job identity mapping
+
+**Status:** `READY FOR REVIEW`
+
+**Issue:** #151
+
+FFLogs player job names, normalized name/slug variants and known canonical abbreviations now pass
+through one source-owned allowlist mapper before `ActorRecord.JobAbbreviation` is constructed.
+Missing, blank, non-player and unrecognized subtype values remain unmapped instead of becoming
+invented canonical identities. The mapper covers the current combat-job set, including the eight
+designated acceptance jobs: DNC, WHM, PCT, VPR, GNB, PLD, MNK and SGE.
+
+Focused source-boundary, normalizer, default-engine and parity coverage proves that source
+`Dancer` becomes canonical `DNC`, both Dancer modules activate without analyzer-side aliases or
+post-normalization actor mutation, and equivalent local/FFLogs facts retain Dancer result
+semantics. The independent 1001825/1825 exact-status mismatch remains locked as an M12-B
+sentinel. The M11 anonymized fixture, truth manifest and persisted bytes are unchanged.
+
+Local validation passed the 113-test focused source-boundary slice and 602 tests after excluding the existing
+Windows newline-sensitive selection-contract check, production formatting verification, Release
+plugin build and package-invariant validation. The unexcluded local run passed 602 of 603 tests;
+the sole failure was the existing CRLF-sensitive source-text marker check. Exact-head CI and
+independent review remain required before approval.
+
+**Authorization boundary:** M12-A is the only active implementation slice. M12-B (#152) and
+M12-C (#153) are authorized but not started while their recorded prerequisites are pending.
+M13 and later work remain unauthorized until explicitly approved.
+
+## Completed milestone: M11 — Reality Baseline & Golden Pull
 
 **Status:** `APPROVED / COMPLETED`
 
@@ -51,9 +91,15 @@ This slice is characterization-only: reproduce and lock the observed Dancer job-
 
 Combined M11 evidence passed exact-head restore, formatting, the full automated test suite, plugin build/package validation and package existence checks. Independent technical and privacy/design reviews approved the exact six-file diff. The anonymized fixture contains no detected direct actor identity, report/source linkage, wall-clock linkage, original pull identity, credential material, URL/email, raw-source path or raw-source hash; the documented residual combat-sequence correlation risk remains governed by anonymized export policy v1.
 
-**Decision:** M11 is approved and complete. The real-pull baseline now reproduces the current Dancer and Forsaken semantic failures without implementing their fixes. Pre-normalization skipped-event diagnostics, effective-healing/resource fidelity and spatial evidence remain explicitly unavailable from the supplied canonical artifact.
+**Decision:** M11 is approved and complete. At M11 sign-off, the real-pull baseline reproduced
+the then-current Dancer and Forsaken semantic failures without implementing their fixes.
+Pre-normalization skipped-event diagnostics, effective-healing/resource fidelity and spatial
+evidence remain explicitly unavailable from the supplied canonical artifact.
 
-**Authorization boundary:** M12 and later milestones remain unauthorized. Their implementation work packages may begin only after the required M11 evidence, review and explicit authorization are recorded.
+**Historical authorization boundary at M11 completion:** M12 and later milestones were
+unauthorized until the required M11 evidence, review and explicit authorization were recorded.
+That prerequisite is now satisfied for the explicitly authorized M12 work packages recorded above;
+only M12-A is currently active because M12-B and M12-C remain prerequisite-gated.
 
 ## Completed milestone: M10 — Hardening and Extraction Review
 
