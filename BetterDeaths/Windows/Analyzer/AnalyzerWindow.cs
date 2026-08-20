@@ -200,26 +200,18 @@ internal sealed class AnalyzerWindow : Window, IAnalyzerWorkspaceNavigation, IAn
     {
         ImGui.Text("FFLogs import");
         ImGui.TextDisabled("Public reports use your FFLogs API client credentials.");
+
+        ImGui.Text("Client ID");
         ImGui.SetNextItemWidth(-1.0f);
         ImGui.InputText("##FFLogsClientId", ref fflogsClientId, 256);
-        if (string.IsNullOrEmpty(fflogsClientId))
-        {
-            ImGui.TextDisabled("Client ID");
-        }
 
+        ImGui.Text("Client Secret (not saved)");
         ImGui.SetNextItemWidth(-1.0f);
         ImGui.InputText("##FFLogsClientSecret", ref fflogsClientSecret, 512, ImGuiInputTextFlags.Password);
-        if (string.IsNullOrEmpty(fflogsClientSecret))
-        {
-            ImGui.TextDisabled("Client secret (not saved)");
-        }
 
+        ImGui.Text("Report Code");
         ImGui.SetNextItemWidth(-1.0f);
         ImGui.InputText("##FFLogsReportCode", ref fflogsReportCode, 128);
-        if (string.IsNullOrEmpty(fflogsReportCode))
-        {
-            ImGui.TextDisabled("Report code");
-        }
 
         var importSnapshot = fflogsImportController?.Snapshot;
         var canLoad = !string.IsNullOrWhiteSpace(fflogsClientId) &&
