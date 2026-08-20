@@ -1,0 +1,50 @@
+name: Package Handoff
+
+"on":
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    env:
+      DALAMUD_HOME: /tmp/dalamud
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Download Dalamud
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "${DALAMUD_HOME}"
+          curl --fail --location --show-error --silent \
+            https://goatcorp.github.io/dalamud-distrib/latest.zip \
+            --output "${RUNNER_TEMP}/dalamud.zip"
+          unzip -q "${RUNNER_TEMP}/dalamud.zip" -d "${DALAMUD_HOME}"
+
+      - name: Restore
+        run: dotnet restore BetterDeaths/BetterDeaths.csproj -p:EnableWindowsTargeting=true
+
+      - name: Build and validate Release package
+        run: dotnet build BetterDeaths/BetterDeaths.csproj --configuration Release --no-restore -p:EnableWindowsTargeting=true
+
+      - name: Verify package
+        shell: bash
+        run: test -f BetterDeaths/bin/Release/BetterDeaths/latest.zip
+
+      - name: Upload package
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: BetterDeaths-a1ec836d84f555eb4b4ac6d344e503dfa90b3e99
+          path: BetterDeaths/bin/Release/BetterDeaths/latest.zip
+          if-no-files-found: error
+          retention-days: 1
