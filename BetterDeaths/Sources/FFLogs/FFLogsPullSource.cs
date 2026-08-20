@@ -77,16 +77,20 @@ internal sealed class FFLogsPullSource : IFFLogsImportSource
     private readonly FFLogsGraphQlClient client;
     private readonly PullSchemaVersion schemaVersion;
     private readonly FFLogsApiAccessKind accessKind;
+    private readonly FFLogsImportProfile profile;
 
     public FFLogsPullSource(
         FFLogsGraphQlClient client,
         PullSchemaVersion schemaVersion,
-        FFLogsApiAccessKind accessKind = FFLogsApiAccessKind.PublicClient)
+        FFLogsApiAccessKind accessKind,
+        FFLogsImportProfile profile)
     {
         ArgumentNullException.ThrowIfNull(client);
         this.client = client;
         this.schemaVersion = schemaVersion;
         this.accessKind = accessKind;
+        FFLogsImportProfilePolicy.Validate(profile);
+        this.profile = profile;
     }
 
     public async ValueTask<FFLogsReportSelectionResult> LoadReportSelectionAsync(
@@ -127,7 +131,7 @@ internal sealed class FFLogsPullSource : IFFLogsImportSource
         CancellationToken cancellationToken = default)
     {
         var result = await client
-            .LoadFightAsync(reportCode, fightId, accessKind, cancellationToken)
+            .LoadFightAsync(reportCode, fightId, accessKind, profile, cancellationToken)
             .ConfigureAwait(false);
         if (!result.IsSuccess)
         {

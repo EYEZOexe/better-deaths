@@ -95,9 +95,28 @@ Exact-head Linux CI `32418901802` passed restore, formatting, the full automated
 plugin build/package validation and package artifact verification. Independent technical and
 exact-head repository-state reviews approved the reviewed implementation head before merge.
 
-**Authorization boundary:** M12-A and M12-B are approved and complete. M12-C (#153) is now the
-next eligible authorized implementation slice. M13 and later work remain unauthorized until
-explicitly approved. Overall M12 remains in progress.
+#### M12-C — FFLogs resource-profile evaluation
+
+**Status:** `IN PROGRESS / BLOCKED ON PAIRED REAL EVIDENCE`
+
+**Issue:** #153
+
+The safe source/client plumbing is implemented locally for review: explicit `Core` and
+`DeepAnalysis` FFLogs import profiles select `includeResources: false` and `true` respectively,
+and the profile is part of event-page cache identity. Current user imports remain explicitly
+`Core`. Invalid profile values fail before network access, and additive raw resource fields do not
+change current canonical v1 normalization.
+
+No capability grade, representative resource fixture, payload/bandwidth comparison or M13 schema
+proposal is claimed. Those acceptance items remain blocked until sanitized paired Core and Deep
+FFLogs responses from the same report revision, fight and page boundaries are supplied and reviewed.
+The existing M11 canonical fixture is post-normalization and cannot establish raw resource-field
+availability or transport cost. M13 and later work remain unauthorized until explicitly approved.
+Overall M12 remains in progress.
+
+**Authorization boundary:** M12-A and M12-B are approved and complete. M12-C (#153) is the active
+authorized implementation slice but cannot complete without the paired real-response evidence above.
+M13 and later work remain unauthorized until explicitly approved.
 
 ## Completed milestone: M11 — Reality Baseline & Golden Pull
 

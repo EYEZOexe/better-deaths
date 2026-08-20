@@ -44,7 +44,11 @@ internal sealed class FFLogsPublicImportSession : IFFLogsImportSource, IDisposab
         return new FFLogsPublicImportSession(
             httpClient,
             tokenProvider,
-            new FFLogsPullSource(client, schemaVersion));
+            new FFLogsPullSource(
+                client,
+                schemaVersion,
+                FFLogsApiAccessKind.PublicClient,
+                FFLogsImportProfile.Core));
     }
 
     public ValueTask<FFLogsReportSelectionResult> LoadReportSelectionAsync(

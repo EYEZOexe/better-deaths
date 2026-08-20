@@ -81,6 +81,40 @@ public sealed class FFLogsEventNormalizerTests
     }
 
     [Fact]
+    public void AdditiveRawResourceFieldsDoNotChangeCurrentCanonicalNormalization()
+    {
+        var core = FFLogsEventNormalizer.Normalize(
+            Fight(
+                Events:
+                [
+                    Event(1100, "damage", """{"sourceID":30,"targetID":10,"abilityGameID":100,"amount":12000,"critical":true}"""),
+                    Event(1200, "heal", """{"sourceID":10,"targetID":10,"abilityGameID":200,"amount":5000}"""),
+                ]),
+            new PullSchemaVersion(1));
+        var deep = FFLogsEventNormalizer.Normalize(
+            Fight(
+                Events:
+                [
+                    Event(
+                        1100,
+                        "damage",
+                        """{"sourceID":30,"targetID":10,"abilityGameID":100,"amount":12000,"critical":true,"sourceResources":{"hitPoints":1,"maxHitPoints":1},"targetResources":{"hitPoints":0,"maxHitPoints":100000},"absorbed":500,"overkill":100}"""),
+                    Event(
+                        1200,
+                        "heal",
+                        """{"sourceID":10,"targetID":10,"abilityGameID":200,"amount":5000,"sourceResources":{"hitPoints":50000,"maxHitPoints":100000},"targetResources":{"hitPoints":55000,"maxHitPoints":100000},"overheal":2500,"absorbed":1000}"""),
+                ]),
+            new PullSchemaVersion(1));
+
+        Assert.Empty(core.SkippedEvents);
+        Assert.Empty(deep.SkippedEvents);
+        Assert.Equal(core.Pull.Actors, deep.Pull.Actors);
+        Assert.Equal(core.Pull.Events, deep.Pull.Events);
+        Assert.Equal(core.AbilityIdentityDiagnostics, deep.AbilityIdentityDiagnostics);
+        Assert.Equal(core.StatusDurationDiagnostics, deep.StatusDurationDiagnostics);
+    }
+
+    [Fact]
     public void PlayerTypedPetOwnerActorCannotAcquireAPlayerJob()
     {
         var result = FFLogsEventNormalizer.Normalize(
@@ -419,6 +453,7 @@ public sealed class FFLogsEventNormalizerTests
         };
         return new FFLogsFightImportData
         {
+            Profile = FFLogsImportProfile.Core,
             ReportDocument = new FFLogsReportDocument
             {
                 Report = report,

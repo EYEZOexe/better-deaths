@@ -29,6 +29,8 @@ public sealed class FFLogsCredentialInputTests
 
         Assert.Contains("FFLogsCredentialInput.NormalizeClientId(clientId)", source, StringComparison.Ordinal);
         Assert.Contains("FFLogsCredentialInput.NormalizeClientSecret(clientSecret)", source, StringComparison.Ordinal);
+        Assert.Contains("FFLogsImportProfile.Core", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("FFLogsImportProfile.DeepAnalysis", source, StringComparison.Ordinal);
         Assert.DoesNotContain("new FFLogsClientCredentials(clientId, clientSecret)", source, StringComparison.Ordinal);
     }
 

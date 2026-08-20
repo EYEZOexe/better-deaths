@@ -183,6 +183,7 @@ public sealed class M12AFFLogsJobIdentityIntegrationTests
 
         return new FFLogsFightImportData
         {
+            Profile = FFLogsImportProfile.Core,
             ReportDocument = report,
             Fight = fight,
             Events = events,

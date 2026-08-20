@@ -167,6 +167,7 @@ public sealed class FFLogsAnalyzerParityTests
         var fight = CreateFight();
         return new FFLogsFightImportData
         {
+            Profile = FFLogsImportProfile.Core,
             ReportDocument = new FFLogsReportDocument
             {
                 Report = new FFLogsReportMetadata
